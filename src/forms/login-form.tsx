@@ -25,6 +25,10 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
+  getMultiFactorResolver,
+  TotpMultiFactorGenerator,
+  MultiFactorResolver,
+  MultiFactorError,
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { auth } from "@/lib/firebase";
@@ -46,6 +50,10 @@ export function LoginForm({
   const [emailValue, setEmailValue] = useState<string>("");
   const [resetEmailValue, setResetEmailValue] = useState<string>("");
   const [showForgotDialog, setShowForgotDialog] = useState<boolean>(false);
+  const [showTotpDialog, setShowTotpDialog] = useState<boolean>(false);
+  const [multiFactorResolver, setMultiFactorResolver] =
+    useState<MultiFactorResolver | null>(null);
+  const [totpCode, setTotpCode] = useState<string>("");
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -84,6 +92,13 @@ export function LoginForm({
       router.push("/dashboard");
     } catch (error: unknown) {
       const firebaseError = error as FirebaseError;
+      if (firebaseError.code === "auth/multi-factor-auth-required") {
+        const multiFactorError = error as MultiFactorError;
+        setMultiFactorResolver(getMultiFactorResolver(auth, multiFactorError));
+        setShowTotpDialog(true);
+        return;
+      }
+
       let description = "An unexpected error occurred.";
       switch (firebaseError.code) {
         case "auth/user-not-found":
@@ -107,6 +122,35 @@ export function LoginForm({
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTotpSubmit = async () => {
+    if (!multiFactorResolver || !totpCode.trim()) return;
+
+    try {
+      const hint = multiFactorResolver.hints[0]; // Assume first hint is TOTP
+      if (hint.factorId === TotpMultiFactorGenerator.FACTOR_ID) {
+        const multiFactorAssertion =
+          TotpMultiFactorGenerator.assertionForSignIn(
+            hint.uid,
+            totpCode.trim()
+          );
+        await multiFactorResolver.resolveSignIn(multiFactorAssertion);
+        toast.success("Success", {
+          description: "Logged in successfully with MFA!",
+        });
+        router.push("/dashboard");
+      }
+    } catch (error: unknown) {
+      const firebaseError = error as FirebaseError;
+      toast.error("TOTP Verification Failed", {
+        description: firebaseError.message ?? "Invalid code. Please try again.",
+      });
+    } finally {
+      setShowTotpDialog(false);
+      setTotpCode("");
+      setMultiFactorResolver(null);
     }
   };
 
@@ -270,7 +314,7 @@ export function LoginForm({
                   Login with Google
                 </Button>
                 <FieldDescription className="text-center">
-                  Don&#39;t have an account?{" "}
+                  Do not have an account?{" "}
                   <Link href="/register" className="underline">
                     Sign up
                   </Link>
@@ -280,6 +324,50 @@ export function LoginForm({
           </form>
         </CardContent>
       </Card>
+
+      {/* TOTP MFA Dialog */}
+      <Dialog open={showTotpDialog} onOpenChange={setShowTotpDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter TOTP Code</DialogTitle>
+            <DialogDescription>
+              Enter the 6-digit code from your authenticator app to complete
+              login.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Field>
+              <FieldLabel>TOTP Code</FieldLabel>
+              <Input
+                type="text"
+                maxLength={6}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="123456"
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowTotpDialog(false);
+                setMultiFactorResolver(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleTotpSubmit}
+              disabled={totpCode.length !== 6 || loading}
+            >
+              Verify Code
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
