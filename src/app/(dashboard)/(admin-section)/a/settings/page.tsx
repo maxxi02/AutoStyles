@@ -8,11 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -38,11 +34,13 @@ import {
 } from "firebase/auth";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
+import { doc, getDoc } from "firebase/firestore";
 
 const Settings = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<string>("user");
   const [mfaEnrolledFactors, setMfaEnrolledFactors] = useState<
     MultiFactorInfo[]
   >([]);
@@ -61,6 +59,19 @@ const Settings = () => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        // Fetch user role from Firestore
+        try {
+          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            setUserRole(data?.role || "user");
+          } else {
+            setUserRole("user");
+          }
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+          setUserRole("user");
+        }
         const mfa = multiFactor(currentUser);
         setMfaEnrolledFactors(mfa.enrolledFactors);
         const totpFactor = mfa.enrolledFactors.find(
@@ -73,6 +84,7 @@ const Settings = () => {
       } else {
         setUser(null);
         setMfaEnrolledFactors([]);
+        setUserRole("user");
       }
     });
     return unsubscribe;
@@ -217,6 +229,10 @@ const Settings = () => {
             <Field>
               <FieldLabel>Email</FieldLabel>
               <Input value={user.email || ""} disabled />
+            </Field>
+            <Field>
+              <FieldLabel>Role</FieldLabel>
+              <Input value={userRole} disabled />
             </Field>
           </FieldGroup>
           <div className="pt-4">

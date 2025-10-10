@@ -30,42 +30,49 @@ import {
   MapPin,
 } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 const cars = [
   {
     name: "Mazda Protégé X4",
     price: "$550.00",
-    image: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
     type: "SUV",
   },
   {
     name: "Mustang Sport Car",
     price: "$825.00",
-    image: "https://images.unsplash.com/photo-1549317661-bd8e8e7b1d1f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1549317661-bd8e8e7b1d1f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
     type: "Sports",
   },
   {
     name: "Ampera Halo GT",
     price: "$650.00",
-    image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
     type: "Sedan",
   },
   {
     name: "Audi e-tron B8",
     price: "$700.00",
-    image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
     type: "Sedan",
   },
   {
     name: "Harbour Aurora",
     price: "$925.00",
-    image: "https://images.unsplash.com/photo-1547753495-2e4d3b3f3b7a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1547753495-2e4d3b3f3b7a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
     type: "SUV",
   },
   {
     name: "Veloce Stellaris",
     price: "$875.00",
-    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
     type: "SUV",
   },
 ];
@@ -135,6 +142,8 @@ const faqs = [
 ];
 
 export default function Home() {
+  const { push } = useRouter();
+
   return (
     <div className="flex min-h-screen flex-col items-center">
       {/* Header */}
@@ -180,7 +189,11 @@ export default function Home() {
             </Link>
           </nav>
 
-          <Button size="lg" className="font-semibold hidden sm:block">
+          <Button
+            onClick={() => push("/login")}
+            size="lg"
+            className="font-semibold hidden sm:block"
+          >
             Start Customizing
           </Button>
         </div>
@@ -428,7 +441,8 @@ export default function Home() {
                 Get In Touch
               </h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                Ready to start your customization journey? Contact us today for a free consultation.
+                Ready to start your customization journey? Contact us today for
+                a free consultation.
               </p>
             </div>
 
@@ -440,7 +454,9 @@ export default function Home() {
                   </div>
                   <div>
                     <h3 className="font-bold">Our Location</h3>
-                    <p className="text-sm text-muted-foreground">123 Auto Street, Car City, CC 12345</p>
+                    <p className="text-sm text-muted-foreground">
+                      123 Auto Street, Car City, CC 12345
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -449,7 +465,9 @@ export default function Home() {
                   </div>
                   <div>
                     <h3 className="font-bold">Phone</h3>
-                    <p className="text-sm text-muted-foreground">+1 (555) 123-4567</p>
+                    <p className="text-sm text-muted-foreground">
+                      +1 (555) 123-4567
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -458,7 +476,9 @@ export default function Home() {
                   </div>
                   <div>
                     <h3 className="font-bold">Email</h3>
-                    <p className="text-sm text-muted-foreground">hello@autostyles.com</p>
+                    <p className="text-sm text-muted-foreground">
+                      hello@autostyles.com
+                    </p>
                   </div>
                 </div>
               </div>
@@ -580,7 +600,10 @@ export default function Home() {
         <div className="container mx-auto py-12 lg:py-16 px-4">
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4 justify-items-center lg:justify-items-start">
             <div className="space-y-4 text-center lg:text-left">
-              <Link href="/" className="flex items-center gap-2 justify-center lg:justify-start">
+              <Link
+                href="/"
+                className="flex items-center gap-2 justify-center lg:justify-start"
+              >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
                   <Car className="h-6 w-6 text-primary-foreground" />
                 </div>

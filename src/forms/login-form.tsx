@@ -29,9 +29,11 @@ import {
   TotpMultiFactorGenerator,
   MultiFactorResolver,
   MultiFactorError,
+  User,
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
-import { auth } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import {
   Dialog,
   DialogContent,
@@ -55,6 +57,29 @@ export function LoginForm({
     useState<MultiFactorResolver | null>(null);
   const [totpCode, setTotpCode] = useState<string>("");
   const router = useRouter();
+
+  const fetchUserRole = async (uid: string) => {
+    try {
+      const userDoc = await getDoc(doc(db, "users", uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        return data?.role || "user"; // Default to user if no role
+      }
+      return "user";
+    } catch (error) {
+      console.error("Error fetching user role:", error);
+      return "user"; // Fallback
+    }
+  };
+
+  const handleSuccessLogin = async (user: User) => {
+    const role = await fetchUserRole(user.uid);
+    const dashboardPath = role === "admin" ? "/a/dashboard" : "/c/dashboard";
+    toast.success("Success", {
+      description: "Logged in successfully!",
+    });
+    router.push(dashboardPath);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -85,11 +110,7 @@ export function LoginForm({
         return;
       }
 
-      toast.success("Success", {
-        description: "Logged in successfully!",
-      });
-
-      router.push("/dashboard");
+      await handleSuccessLogin(user);
     } catch (error: unknown) {
       const firebaseError = error as FirebaseError;
       if (firebaseError.code === "auth/multi-factor-auth-required") {
@@ -136,11 +157,9 @@ export function LoginForm({
             hint.uid,
             totpCode.trim()
           );
-        await multiFactorResolver.resolveSignIn(multiFactorAssertion);
-        toast.success("Success", {
-          description: "Logged in successfully with MFA!",
-        });
-        router.push("/dashboard");
+        const userCredential =
+          await multiFactorResolver.resolveSignIn(multiFactorAssertion);
+        await handleSuccessLogin(userCredential.user);
       }
     } catch (error: unknown) {
       const firebaseError = error as FirebaseError;
@@ -206,10 +225,7 @@ export function LoginForm({
         return;
       }
 
-      toast.success("Success", {
-        description: "Logged in with Google successfully!",
-      });
-      router.push("/dashboard");
+      await handleSuccessLogin(user);
     } catch (error: unknown) {
       const firebaseError = error as FirebaseError;
       toast.error("Google Login Failed", {
