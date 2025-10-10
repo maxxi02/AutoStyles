@@ -192,7 +192,7 @@ export default function Home() {
           <Button
             onClick={() => push("/login")}
             size="lg"
-            className="font-semibold hidden sm:block"
+            className="font-semibold "
           >
             Start Customizing
           </Button>
