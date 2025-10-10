@@ -1,0 +1,69 @@
+AutoStyles System Flows
+User Flow (Customer UI)
+
+1. Access and Authentication
+- User opens AutoStyles website.
+- If the user has an account: proceeds to Login (with email/password or via Google).
+- If not: goes to Sign-Up page (enters name, email, phone number, and password).
+- Password recovery via "Forgot Password" email reset.
+- System authenticates user and redirects to User Dashboard.
+
+2. Dashboard Navigation
+- User accesses Home, About, or Contact tab.
+- User selects “Start Customization”.
+
+3. Vehicle Customization
+- Select Car Type: Sedan, SUV, Pickup, or Hatchback.
+- Choose Exterior Color and Paint Finish.
+- View 2D Preview of car (front, back, left, right views).
+- Save or Undo color selections.
+- Price automatically updates in real-time.
+- Save or Share design.
+
+4. Transaction Management
+- Create, edit, cancel, or send transaction to the shop.
+- Review and confirm selections before submission.
+- System sends order details to shop for review.
+
+5. Account Management
+- Edit profile details (photo, name, address, username).
+- Change password.
+- Access settings (Dark Mode, Notifications, Privacy Policy, Terms, Contact, Logout).
+
+6. Confirmation & Feedback
+- User receives confirmation email/SMS.
+- Can review previous transactions and provide feedback.
+
+Admin Flow (Shop Employee / Cashier UI)
+
+
+2. Admin Dashboard
+- Displays notifications for new transactions.
+- Overview of pending, ongoing, and completed jobs. 
+
+3. Transaction Handling
+A. Online Transactions:
+    - Admin receives notification for new customer order.
+    - Reviews transaction details (color, finish, price, car type).
+    - Confirms or declines order.
+B. Walk-In (Face-to-Face) Transactions:
+    - Creates transaction manually with customer.
+    - Uses 2D preview to show car design.
+    - Finalizes and records transaction.
+
+4. Cashier Operations
+- Displays total amount due.
+- Inputs amount paid and auto-computes change.
+- Applies discounts (Loyalty, Senior, Student).
+- Generates and prints digital receipt.
+
+5. Analytics & Reporting
+- Displays sales trends, popular color choices, and performance reports.
+- Allows exporting and printing of analytics reports.
+
+6. Inventory & Maintenance
+- Updates car models, paint colors, and pricing rules.
+- Monitors paint and parts inventory levels.
+
+8. Account & Security
+- Admin can edit profile, change password, and logout securely.
