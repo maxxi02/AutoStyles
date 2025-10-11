@@ -25,7 +25,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -312,15 +311,13 @@ const TransactionsPage = () => {
                           {transaction.date}
                         </TableCell>
                         <TableCell className="text-right flex justify-end gap-2">
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleView(transaction)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleView(transaction)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -404,15 +401,13 @@ const TransactionsPage = () => {
                           {transaction.date}
                         </TableCell>
                         <TableCell className="text-right flex justify-end gap-2">
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleView(transaction)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleView(transaction)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" disabled>
                             <Edit className="h-4 w-4" />
                           </Button>
