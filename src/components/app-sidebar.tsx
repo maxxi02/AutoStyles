@@ -42,6 +42,7 @@ interface UserData {
   name: string;
   email: string;
   avatar: string;
+  photoURL?: string;
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -52,6 +53,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        // Initial fallback
         setUser({
           name: currentUser.displayName || "AutoStyles User",
           email: currentUser.email || "user@example.com",
@@ -60,9 +62,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         try {
           const userDoc = await getDoc(doc(db, "users", currentUser.uid));
           if (userDoc.exists()) {
-            const data = userDoc.data();
+            const data = userDoc.data() as UserData & {
+              role?: string;
+              photoURL?: string;
+            };
             const role = data?.role || "user";
             setUserRole(role as "user" | "admin");
+            // Update user with Firestore data, including photoURL for avatar
+            setUser({
+              name: data.name || currentUser.displayName || "AutoStyles User",
+              email: currentUser.email || "user@example.com",
+              avatar: data.photoURL || "/avatars/default.jpg", // Use photoURL if available
+            });
           } else {
             setUserRole("user");
           }
@@ -122,6 +133,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             {
               title: "Review & Confirm",
               url: "/c/transactions/review",
+            },
+          ],
+        },
+        {
+          title: "Account",
+          url: "/c/account",
+          icon: Settings2,
+          items: [
+            {
+              title: "Profile",
+              url: "/c/account/profile",
+            },
+            {
+              title: "Security",
+              url: "/c/account/security",
+            },
+            {
+              title: "Settings",
+              url: "/c/account/settings",
+            },
+            {
+              title: "Logout",
+              url: "#",
+              onClick: () => {}, // Handle logout here if needed
             },
           ],
         },
@@ -279,7 +314,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
       <SidebarContent className="p-1">
-        <NavMain items={navMain}/>
+        <NavMain items={navMain} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />
