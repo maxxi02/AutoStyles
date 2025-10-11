@@ -72,8 +72,17 @@ export function LoginForm({
     }
   };
 
+  const setRoleCookie = (role: string) => {
+    // Set cookie with 7 days expiration (adjust as needed)
+    const expires = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000
+    ).toUTCString();
+    document.cookie = `user-role=${role}; path=/; expires=${expires}; SameSite=Strict; Secure`;
+  };
+
   const handleSuccessLogin = async (user: User) => {
     const role = await fetchUserRole(user.uid);
+    setRoleCookie(role);
     const dashboardPath = role === "admin" ? "/a/dashboard" : "/c/dashboard";
     toast.success("Success", {
       description: "Logged in successfully!",
