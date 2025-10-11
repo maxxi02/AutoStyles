@@ -1,12 +1,34 @@
-"use client"
+"use client";
 
-import  { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Package,  DollarSign, AlertTriangle, Edit, Trash2 } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 import {
   Dialog,
   DialogContent,
@@ -15,282 +37,744 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useEffect, useState } from "react";
+
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import type React from "react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+interface CarModel {
+  id: string;
+  name: string;
+  type: string;
+  basePrice: number;
+  status: string;
+}
+
+interface PaintColor {
+  id: string;
+  name: string;
+  hex: string;
+  availableFor: string[];
+}
+
+interface PricingRule {
+  id: string;
+  rule: string;
+  discount: number;
+  appliesTo: string;
+}
 
 interface InventoryItem {
-  id: string
-  name: string
-  type: "Paint" | "Part" | "Car Model"
-  stock: number
-  minStock: number
-  price: number
-  status: "In Stock" | "Low Stock" | "Out of Stock"
+  id: string;
+  name: string;
+  stock: number;
+  threshold: number;
 }
 
-const inventoryData: InventoryItem[] = [
-  { id: "PNT-001", name: "Midnight Black", type: "Paint", stock: 45, minStock: 10, price: 75, status: "In Stock" },
-  { id: "PNT-002", name: "Pearl White", type: "Paint", stock: 8, minStock: 10, price: 80, status: "Low Stock" },
-  { id: "PNT-003", name: "Racing Red", type: "Paint", stock: 25, minStock: 10, price: 70, status: "In Stock" },
-  { id: "PRT-001", name: "Brake Pads Set", type: "Part", stock: 12, minStock: 5, price: 150, status: "In Stock" },
-  { id: "PRT-002", name: "Oil Filter", type: "Part", stock: 3, minStock: 5, price: 25, status: "Low Stock" },
-  { id: "CAR-001", name: "Sedan Base Model", type: "Car Model", stock: 5, minStock: 2, price: 25000, status: "In Stock" },
-  { id: "CAR-002", name: "SUV Premium", type: "Car Model", stock: 0, minStock: 2, price: 35000, status: "Out of Stock" },
-]
+const getHexFromName = (name: string): string => {
+  const elem = document.createElement("div");
+  elem.style.color = name.toLowerCase();
+  document.body.appendChild(elem);
+  const computed = window.getComputedStyle(elem).color;
+  document.body.removeChild(elem);
+  const match = computed.match(/\d+/g);
+  if (match && computed !== "rgb(0, 0, 0)") {
+    // Avoid default black for invalid
+    const [r, g, b] = match.map(Number);
+    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`.toUpperCase();
+  }
+  return "";
+};
 
-interface StatCardProps {
-  title: string
-  value: string
-  change: string
-  trend: "up" | "down"
-  icon: React.ReactNode
-}
+const AdminInventory = () => {
+  const [carModels, setCarModels] = useState<CarModel[]>([]);
+  const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
+  const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
 
-function StatCard({ title, value, change, trend, icon }: StatCardProps) {
-  return (
-    <Card className="bg-card border-border">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold text-foreground">{value}</p>
-            <div className="flex items-center gap-1 text-sm">
-              {trend === "up" ? (
-                <Package className="h-4 w-4 text-accent" />
-              ) : (
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-              )}
-              <span className={trend === "up" ? "text-accent" : "text-destructive"}>{change}</span>
-              <span className="text-muted-foreground">vs last month</span>
-            </div>
-          </div>
-          <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">{icon}</div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+  // For models dialog
+  const [modelsOpen, setModelsOpen] = useState(false);
+  const [currentModel, setCurrentModel] = useState<CarModel | null>(null);
+  const [modelName, setModelName] = useState("");
+  const [modelType, setModelType] = useState("");
+  const [basePrice, setBasePrice] = useState("");
+  const [modelStatus, setModelStatus] = useState("Active");
 
-function StatsCards() {
-  const lowStock = inventoryData.filter(item => item.status === "Low Stock").length
-  const outOfStock = inventoryData.filter(item => item.status === "Out of Stock").length
-  const totalValue = inventoryData.reduce((sum, item) => sum + (item.stock * item.price), 0)
+  // For colors dialog
+  const [colorsOpen, setColorsOpen] = useState(false);
+  const [currentColor, setCurrentColor] = useState<PaintColor | null>(null);
+  const [colorName, setColorName] = useState("");
+  const [hex, setHex] = useState("");
+  const [availableFor, setAvailableFor] = useState<string[]>([]);
 
-  return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-      <StatCard title="Total Items" value={inventoryData.length.toString()} change="+2" trend="up" icon={<Package className="h-6 w-6" />} />
-      <StatCard title="Low Stock" value={lowStock.toString()} change="+1" trend="up" icon={<AlertTriangle className="h-6 w-6" />} />
-      <StatCard title="Out of Stock" value={outOfStock.toString()} change="0" trend="up" icon={<Package className="h-6 w-6 text-destructive" />} />
-      <StatCard title="Inventory Value" value={`$${totalValue.toLocaleString()}`} change="+12%" trend="up" icon={<DollarSign className="h-6 w-6" />} />
-    </div>
-  )
-}
+  // For pricing dialog
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [currentRule, setCurrentRule] = useState<PricingRule | null>(null);
+  const [ruleName, setRuleName] = useState("");
+  const [discount, setDiscount] = useState("");
+  const [appliesTo, setAppliesTo] = useState("");
 
-interface AddItemForm {
-  name: string
-  type: "Paint" | "Part" | "Car Model"
-  stock: number
-  minStock: number
-  price: number
-}
+  useEffect(() => {
+    const modelsCollection = collection(db, "carModels");
+    const unsubscribeModels = onSnapshot(modelsCollection, (snapshot) => {
+      setCarModels(
+        snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as CarModel[]
+      );
+    });
 
-function AddItemDialog({ onAdd }: { onAdd: (item: InventoryItem) => void }) {
-  const [open, setOpen] = useState(false)
-  const [form, setForm] = useState<AddItemForm>({
-    name: "",
-    type: "Paint",
-    stock: 0,
-    minStock: 0,
-    price: 0,
-  })
+    const colorsCollection = collection(db, "paintColors");
+    const unsubscribeColors = onSnapshot(colorsCollection, (snapshot) => {
+      setPaintColors(
+        snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as PaintColor[]
+      );
+    });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const newItem: InventoryItem = {
-      id: `INV-${Date.now()}`,
-      ...form,
-      status: form.stock > form.minStock ? "In Stock" : form.stock === 0 ? "Out of Stock" : "Low Stock",
+    const pricingCollection = collection(db, "pricingRules");
+    const unsubscribePricing = onSnapshot(pricingCollection, (snapshot) => {
+      setPricingRules(
+        snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as PricingRule[]
+      );
+    });
+
+    const inventoryCollection = collection(db, "inventory");
+    const unsubscribeInventory = onSnapshot(inventoryCollection, (snapshot) => {
+      setInventoryData(
+        snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as InventoryItem[]
+      );
+    });
+
+    return () => {
+      unsubscribeModels();
+      unsubscribeColors();
+      unsubscribePricing();
+      unsubscribeInventory();
+    };
+  }, []);
+
+  // Reset model form
+  useEffect(() => {
+    if (currentModel) {
+      setModelName(currentModel.name);
+      setModelType(currentModel.type);
+      setBasePrice(currentModel.basePrice.toString());
+      setModelStatus(currentModel.status);
+    } else {
+      setModelName("");
+      setModelType("");
+      setBasePrice("");
+      setModelStatus("Active");
     }
-    onAdd(newItem)
-    setForm({ name: "", type: "Paint", stock: 0, minStock: 0, price: 0 })
-    setOpen(false)
-  }
+  }, [currentModel]);
+
+  // Reset color form
+  useEffect(() => {
+    if (currentColor) {
+      setColorName(currentColor.name);
+      setHex(currentColor.hex);
+      setAvailableFor(currentColor.availableFor);
+    } else {
+      setColorName("");
+      setHex("");
+      setAvailableFor([]);
+    }
+  }, [currentColor]);
+
+  // Reset pricing form
+  useEffect(() => {
+    if (currentRule) {
+      setRuleName(currentRule.rule);
+      setDiscount(currentRule.discount.toString());
+      setAppliesTo(currentRule.appliesTo);
+    } else {
+      setRuleName("");
+      setDiscount("");
+      setAppliesTo("");
+    }
+  }, [currentRule]);
+
+  const handleModelNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setModelName(e.target.value);
+  };
+
+  const handleModelSubmit = async () => {
+    const modelsCollection = collection(db, "carModels");
+    const priceNum = parseFloat(basePrice);
+    if (currentModel) {
+      await updateDoc(doc(db, "carModels", currentModel.id), {
+        name: modelName,
+        type: modelType,
+        basePrice: priceNum,
+        status: modelStatus,
+      });
+    } else {
+      await addDoc(modelsCollection, {
+        name: modelName,
+        type: modelType,
+        basePrice: priceNum,
+        status: modelStatus,
+      });
+    }
+    setModelsOpen(false);
+    setCurrentModel(null);
+  };
+
+  const handleModelDelete = async (id: string) => {
+    await deleteDoc(doc(db, "carModels", id));
+  };
+
+  const handleColorNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    setColorName(newName);
+    if (!hex) {
+      const newHex = getHexFromName(newName);
+      if (newHex) setHex(newHex);
+    }
+  };
+
+  const handleColorSubmit = async () => {
+    const colorsCollection = collection(db, "paintColors");
+    if (currentColor) {
+      await updateDoc(doc(db, "paintColors", currentColor.id), {
+        name: colorName,
+        hex,
+        availableFor,
+      });
+    } else {
+      await addDoc(colorsCollection, { name: colorName, hex, availableFor });
+    }
+    setColorsOpen(false);
+    setCurrentColor(null);
+  };
+
+  const handleColorDelete = async (id: string) => {
+    await deleteDoc(doc(db, "paintColors", id));
+  };
+
+  const toggleAvailableFor = (modelName: string) => {
+    setAvailableFor((prev) =>
+      prev.includes(modelName)
+        ? prev.filter((m) => m !== modelName)
+        : [...prev, modelName]
+    );
+  };
+
+  const handlePricingSubmit = async () => {
+    const pricingCollection = collection(db, "pricingRules");
+    const discountNum = parseFloat(discount);
+    if (currentRule) {
+      await updateDoc(doc(db, "pricingRules", currentRule.id), {
+        rule: ruleName,
+        discount: discountNum,
+        appliesTo,
+      });
+    } else {
+      await addDoc(pricingCollection, {
+        rule: ruleName,
+        discount: discountNum,
+        appliesTo,
+      });
+    }
+    setPricingOpen(false);
+    setCurrentRule(null);
+  };
+
+  const handlePricingDelete = async (id: string) => {
+    await deleteDoc(doc(db, "pricingRules", id));
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Item
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add New Inventory Item</DialogTitle>
-          <DialogDescription>Enter details for the new item.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="type">Type</Label>
-            <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value as AddItemForm["type"] })}>
-              <SelectTrigger id="type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Paint">Paint</SelectItem>
-                <SelectItem value="Part">Part</SelectItem>
-                <SelectItem value="Car Model">Car Model</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="stock">Stock</Label>
-              <Input id="stock" type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) || 0 })} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="minStock">Min Stock</Label>
-              <Input id="minStock" type="number" value={form.minStock} onChange={(e) => setForm({ ...form, minStock: parseInt(e.target.value) || 0 })} required />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="price">Price ($)</Label>
-            <Input id="price" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })} required />
-          </div>
-          <DialogFooter>
-            <Button type="submit">Add Item</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
+    <div className="container mx-auto p-6 space-y-8">
+      <h1 className="text-3xl font-bold">Admin Inventory Management</h1>
+      <p className="text-muted-foreground">
+        Manage car models, paint colors, pricing rules, and monitor inventory
+        levels.
+      </p>
 
-function InventoryTable({ data, onUpdate, onDelete }: { data: InventoryItem[], onUpdate: (item: InventoryItem) => void, onDelete: (id: string) => void }) {
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-foreground">Inventory Items</CardTitle>
-            <CardDescription className="text-muted-foreground">Monitor and manage stock levels</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-muted-foreground">ID</TableHead>
-              <TableHead className="text-muted-foreground">Name</TableHead>
-              <TableHead className="text-muted-foreground">Type</TableHead>
-              <TableHead className="text-muted-foreground">Stock</TableHead>
-              <TableHead className="text-muted-foreground">Min Stock</TableHead>
-              <TableHead className="text-muted-foreground">Price</TableHead>
-              <TableHead className="text-muted-foreground">Status</TableHead>
-              <TableHead className="text-right text-muted-foreground">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((item) => (
-              <TableRow key={item.id} className="border-border">
-                <TableCell className="font-mono text-sm text-foreground">{item.id}</TableCell>
-                <TableCell className="font-medium text-foreground">{item.name}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  <Badge variant="secondary" className="capitalize">{item.type}</Badge>
-                </TableCell>
-                <TableCell className="text-foreground">{item.stock}</TableCell>
-                <TableCell className="text-foreground">{item.minStock}</TableCell>
-                <TableCell className="font-medium text-foreground">${item.price}</TableCell>
-                <TableCell>
-                  <Badge variant={item.status === "In Stock" ? "default" : item.status === "Low Stock" ? "secondary" : "destructive"}>
-                    {item.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => {/* Edit logic */}}>Edit</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => onDelete(item.id)} className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  )
-}
+      <Tabs defaultValue="models" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="models">Car Models</TabsTrigger>
+          <TabsTrigger value="colors">Paint Colors</TabsTrigger>
+          <TabsTrigger value="pricing">Pricing Rules</TabsTrigger>
+          <TabsTrigger value="inventory">Inventory Levels</TabsTrigger>
+        </TabsList>
 
-const InventoryPage = () => {
-  const [inventory, setInventory] = useState<InventoryItem[]>(inventoryData)
+        <TabsContent value="models" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Car Models</CardTitle>
+              <CardDescription>
+                Update and manage Volvo car models.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Base Price</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {carModels.map((model) => (
+                    <TableRow key={model.id}>
+                      <TableCell>{model.name}</TableCell>
+                      <TableCell>{model.type}</TableCell>
+                      <TableCell>${model.basePrice.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            model.status === "Active"
+                              ? "default"
+                              : "destructive"
+                          }
+                        >
+                          {model.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentModel(model);
+                            setModelsOpen(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleModelDelete(model.id)}
+                        >
+                          Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+            <CardFooter>
+              <Dialog open={modelsOpen} onOpenChange={setModelsOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setCurrentModel(null);
+                    }}
+                  >
+                    Add New Model
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {currentModel ? "Edit Model" : "Add New Model"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      Enter the details for the car model.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="modelName" className="text-right">
+                        Name
+                      </Label>
+                      <Input
+                        id="modelName"
+                        value={modelName}
+                        onChange={handleModelNameChange}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="modelType" className="text-right">
+                        Type
+                      </Label>
+                      <Input
+                        id="modelType"
+                        value={modelType}
+                        onChange={(e) => setModelType(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="basePrice" className="text-right">
+                        Base Price
+                      </Label>
+                      <Input
+                        id="basePrice"
+                        type="number"
+                        value={basePrice}
+                        onChange={(e) => setBasePrice(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="modelStatus" className="text-right">
+                        Status
+                      </Label>
+                      <Select
+                        value={modelStatus}
+                        onValueChange={setModelStatus}
+                      >
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Active">Active</SelectItem>
+                          <SelectItem value="Inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleModelSubmit}>Save</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardFooter>
+          </Card>
+        </TabsContent>
 
-  const handleAddItem = (newItem: InventoryItem) => {
-    setInventory([...inventory, newItem])
-  }
+        <TabsContent value="colors" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Paint Colors</CardTitle>
+              <CardDescription>
+                Manage available paint colors for models.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Hex Code</TableHead>
+                    <TableHead>Available For</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paintColors.map((color) => (
+                    <TableRow key={color.id}>
+                      <TableCell>{color.name}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
+                          <div
+                            className="w-4 h-4 mr-2 rounded-full"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                          {color.hex}
+                        </div>
+                      </TableCell>
+                      <TableCell>{color.availableFor.join(", ")}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentColor(color);
+                            setColorsOpen(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleColorDelete(color.id)}
+                        >
+                          Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+            <CardFooter>
+              <Dialog open={colorsOpen} onOpenChange={setColorsOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setCurrentColor(null);
+                    }}
+                  >
+                    Add New Color
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {currentColor ? "Edit Color" : "Add New Color"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      Enter the details for the paint color.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="colorName" className="text-right">
+                        Name
+                      </Label>
+                      <Input
+                        id="colorName"
+                        value={colorName}
+                        onChange={handleColorNameChange}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="hex" className="text-right">
+                        Hex Code
+                      </Label>
+                      <Input
+                        id="hex"
+                        value={hex}
+                        onChange={(e) => setHex(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right pt-2">Available For</Label>
+                      <div className="col-span-3 space-y-2">
+                        {carModels.map((model) => (
+                          <div
+                            key={model.id}
+                            className="flex items-center space-x-2"
+                          >
+                            <Checkbox
+                              id={model.name}
+                              checked={availableFor.includes(model.name)}
+                              onCheckedChange={() =>
+                                toggleAvailableFor(model.name)
+                              }
+                            />
+                            <label
+                              htmlFor={model.name}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              {model.name}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleColorSubmit}>Save</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardFooter>
+          </Card>
+        </TabsContent>
 
-  const handleDeleteItem = (id: string) => {
-    setInventory(inventory.filter(item => item.id !== id))
-  }
+        <TabsContent value="pricing" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pricing Rules</CardTitle>
+              <CardDescription>
+                Set and update pricing rules and discounts.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Rule Name</TableHead>
+                    <TableHead>Discount Amount</TableHead>
+                    <TableHead>Applies To</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pricingRules.map((rule) => (
+                    <TableRow key={rule.id}>
+                      <TableCell>{rule.rule}</TableCell>
+                      <TableCell>${rule.discount.toLocaleString()}</TableCell>
+                      <TableCell>{rule.appliesTo}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentRule(rule);
+                            setPricingOpen(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handlePricingDelete(rule.id)}
+                        >
+                          Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+            <CardFooter>
+              <Dialog open={pricingOpen} onOpenChange={setPricingOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setCurrentRule(null);
+                    }}
+                  >
+                    Add New Rule
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {currentRule ? "Edit Rule" : "Add New Rule"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      Enter the details for the pricing rule.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="ruleName" className="text-right">
+                        Rule Name
+                      </Label>
+                      <Input
+                        id="ruleName"
+                        value={ruleName}
+                        onChange={(e) => setRuleName(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="discount" className="text-right">
+                        Discount Amount
+                      </Label>
+                      <Input
+                        id="discount"
+                        type="number"
+                        value={discount}
+                        onChange={(e) => setDiscount(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="appliesTo" className="text-right">
+                        Applies To
+                      </Label>
+                      <Input
+                        id="appliesTo"
+                        value={appliesTo}
+                        onChange={(e) => setAppliesTo(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handlePricingSubmit}>Save</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardFooter>
+          </Card>
+        </TabsContent>
 
-  const handleUpdateItem = (updatedItem: InventoryItem) => {
-    setInventory(inventory.map(item => item.id === updatedItem.id ? updatedItem : item))
-  }
-
-  return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Inventory
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Manage paint colors, parts, and car models stock levels
-            </p>
-          </div>
-          <AddItemDialog onAdd={handleAddItem} />
-        </div>
-
-        <StatsCards />
-
-        <InventoryTable data={inventory} onUpdate={handleUpdateItem} onDelete={handleDeleteItem} />
-      </main>
+        <TabsContent value="inventory" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Inventory Levels</CardTitle>
+              <CardDescription>
+                Monitor paint, parts, and car inventory.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={inventoryData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar
+                    dataKey="stock"
+                    fill="hsl(var(--primary))"
+                    name="Current Stock"
+                  />
+                  <Bar
+                    dataKey="threshold"
+                    fill="hsl(var(--secondary))"
+                    name="Threshold"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+              <Table className="mt-4">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Current Stock</TableHead>
+                    <TableHead>Threshold</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {inventoryData.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell>{item.stock}</TableCell>
+                      <TableCell>{item.threshold}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            item.stock > item.threshold
+                              ? "default"
+                              : "destructive"
+                          }
+                        >
+                          {item.stock > item.threshold ? "Healthy" : "Low"}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
-  )
-}
+  );
+};
 
-export default InventoryPage
+export default AdminInventory;
