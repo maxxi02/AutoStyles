@@ -395,6 +395,20 @@ const InventoryPage: React.FC = () => {
     color.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Analytics computations
+  const totalColors = paintColors.length;
+  const totalValue = paintColors.reduce(
+    (sum, color) => sum + color.price * color.inventory,
+    0
+  );
+  const totalSold = 0; // Assuming no sold data available; can be extended with a sold field
+  const recentlyAdded = [...paintColors]
+    .sort((a, b) => b.id.localeCompare(a.id))
+    .slice(0, 5);
+  const bestSellers = [...paintColors]
+    .sort((a, b) => a.inventory - b.inventory)
+    .slice(0, 5); // Lowest inventory as best sellers
+
   return (
     <div className="container mx-auto p-4">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -944,40 +958,138 @@ const InventoryPage: React.FC = () => {
               <CardTitle>Inventory Monitor</CardTitle>
             </CardHeader>
             <CardContent>
-              <h3 className="text-lg font-semibold mb-2">
-                Low Inventory Paint Colors
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {lowInventoryColors.map((color) => (
-                  <Card key={color.id}>
-                    <CardHeader>
-                      <CardTitle>{color.name}</CardTitle>
-                      <CardDescription>
-                        {getCarModelName(color.carModelId)}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {color.imageUrl ? (
-                        <Image
-                          src={color.imageUrl}
-                          alt={color.name}
-                          className="w-full h-32 object-cover rounded mb-2"
-                          width={500}
-                          height={500}
-                        />
-                      ) : (
-                        <div
-                          className="w-16 h-16 border border-gray-300 mb-2 mx-auto"
-                          style={{ backgroundColor: color.hex }}
-                        ></div>
-                      )}
-                      <p>Stock: {color.inventory} (Low)</p>
-                    </CardContent>
-                  </Card>
-                ))}
-                {lowInventoryColors.length === 0 && (
-                  <p>No low inventory items.</p>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Total Colors</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{totalColors}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Total Value</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">
+                      ₱{totalValue.toLocaleString()}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Total Sold</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">
+                      ₱{totalSold.toLocaleString()}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Low Inventory</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">
+                      {lowInventoryColors.length}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recently Added</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {recentlyAdded.length > 0 ? (
+                      <ul className="space-y-2">
+                        {recentlyAdded.map((color) => (
+                          <li
+                            key={color.id}
+                            className="flex items-center space-x-2"
+                          >
+                            <div
+                              className="w-4 h-4 rounded"
+                              style={{ backgroundColor: color.hex }}
+                            />
+                            <span>
+                              {color.name} ({getCarModelName(color.carModelId)})
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No recently added colors.</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Best Sellers</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {bestSellers.length > 0 ? (
+                      <ul className="space-y-2">
+                        {bestSellers.map((color) => (
+                          <li
+                            key={color.id}
+                            className="flex items-center justify-between"
+                          >
+                            <span>{color.name}</span>
+                            <span className="text-sm text-muted-foreground">
+                              Stock: {color.inventory}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No best sellers identified.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-2">
+                  Low Inventory Paint Colors
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {lowInventoryColors.map((color) => (
+                    <Card key={color.id}>
+                      <CardHeader>
+                        <CardTitle>{color.name}</CardTitle>
+                        <CardDescription>
+                          {getCarModelName(color.carModelId)}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {color.imageUrl ? (
+                          <Image
+                            src={color.imageUrl}
+                            alt={color.name}
+                            className="w-full h-32 object-cover rounded mb-2"
+                            width={500}
+                            height={500}
+                          />
+                        ) : (
+                          <div
+                            className="w-16 h-16 border border-gray-300 mb-2 mx-auto"
+                            style={{ backgroundColor: color.hex }}
+                          ></div>
+                        )}
+                        <p>Stock: {color.inventory} (Low)</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {lowInventoryColors.length === 0 && (
+                    <p>No low inventory items.</p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
