@@ -1,774 +1,984 @@
 "use client";
-
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useState } from "react";
-
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
+import { Sketch } from "@uiw/react-color";
+import colorNameToHex from "@uiw/react-color-name";
 import {
   collection,
+  doc,
   addDoc,
   updateDoc,
   deleteDoc,
-  doc,
   onSnapshot,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase"; // Adjust the import path to your config file
+import { Loader2 } from "lucide-react"; // Assuming lucide-react is available for spinner
+import { toast } from "sonner";
+import Image from "next/image";
 
 interface CarModel {
   id: string;
   name: string;
-  type: string;
-  basePrice: number;
-  status: string;
+  type: "Sedan" | "SUV" | "Pickup" | "Hatchback";
+  imageUrl?: string;
 }
+
+type CarModelData = Omit<CarModel, "id">;
 
 interface PaintColor {
   id: string;
+  carModelId: string;
   name: string;
   hex: string;
-  availableFor: string[];
+  finish: "Matte" | "Glossy" | "Metallic";
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
 }
+
+type PaintColorData = Omit<PaintColor, "id">;
 
 interface PricingRule {
   id: string;
-  rule: string;
-  discount: number;
-  appliesTo: string;
+  description: string;
+  multiplier: number;
 }
 
-interface InventoryItem {
-  id: string;
-  name: string;
-  stock: number;
-  threshold: number;
-}
+type PricingRuleData = Omit<PricingRule, "id">;
 
-const getHexFromName = (name: string): string => {
-  const elem = document.createElement("div");
-  elem.style.color = name.toLowerCase();
-  document.body.appendChild(elem);
-  const computed = window.getComputedStyle(elem).color;
-  document.body.removeChild(elem);
-  const match = computed.match(/\d+/g);
-  if (match && computed !== "rgb(0, 0, 0)") {
-    // Avoid default black for invalid
-    const [r, g, b] = match.map(Number);
-    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`.toUpperCase();
-  }
-  return "";
-};
-
-const AdminInventory = () => {
+const InventoryPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState("car-models");
   const [carModels, setCarModels] = useState<CarModel[]>([]);
   const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
   const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
-  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
 
-  // For models dialog
-  const [modelsOpen, setModelsOpen] = useState(false);
-  const [currentModel, setCurrentModel] = useState<CarModel | null>(null);
-  const [modelName, setModelName] = useState("");
-  const [modelType, setModelType] = useState("");
-  const [basePrice, setBasePrice] = useState("");
-  const [modelStatus, setModelStatus] = useState("Active");
+  // State for modals
+  const [isCarModelDialogOpen, setIsCarModelDialogOpen] = useState(false);
+  const [isPaintColorDialogOpen, setIsPaintColorDialogOpen] = useState(false);
+  const [isPricingRuleDialogOpen, setIsPricingRuleDialogOpen] = useState(false);
 
-  // For colors dialog
-  const [colorsOpen, setColorsOpen] = useState(false);
-  const [currentColor, setCurrentColor] = useState<PaintColor | null>(null);
-  const [colorName, setColorName] = useState("");
-  const [hex, setHex] = useState("");
-  const [availableFor, setAvailableFor] = useState<string[]>([]);
+  const [editingCarModel, setEditingCarModel] = useState<CarModel | null>(null);
+  const [editingPaintColor, setEditingPaintColor] = useState<PaintColor | null>(
+    null
+  );
+  const [editingPricingRule, setEditingPricingRule] =
+    useState<PricingRule | null>(null);
 
-  // For pricing dialog
-  const [pricingOpen, setPricingOpen] = useState(false);
-  const [currentRule, setCurrentRule] = useState<PricingRule | null>(null);
-  const [ruleName, setRuleName] = useState("");
-  const [discount, setDiscount] = useState("");
-  const [appliesTo, setAppliesTo] = useState("");
+  // Loading states for operations
+  const [carModelPending, setCarModelPending] = useState(false);
+  const [paintColorPending, setPaintColorPending] = useState(false);
+  const [pricingRulePending, setPricingRulePending] = useState(false);
 
+  // Form states
+  const [newCarModel, setNewCarModel] = useState<Partial<CarModelData>>({});
+  const [newPaintColor, setNewPaintColor] = useState<Partial<PaintColorData>>(
+    {}
+  );
+  const [newPricingRule, setNewPricingRule] = useState<
+    Partial<PricingRuleData>
+  >({});
+
+  // Search state for colors
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Initial data loading state
+  const [isDataLoading, setIsDataLoading] = useState(true);
+  const [snapshotCount, setSnapshotCount] = useState(0);
+
+  // Load data from Firestore
   useEffect(() => {
-    const modelsCollection = collection(db, "carModels");
-    const unsubscribeModels = onSnapshot(modelsCollection, (snapshot) => {
-      setCarModels(
-        snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as CarModel[]
-      );
-    });
+    const unsubscribeCarModels = onSnapshot(
+      collection(db, "carModels"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as CarModel
+        );
+        setCarModels(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 3) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
 
-    const colorsCollection = collection(db, "paintColors");
-    const unsubscribeColors = onSnapshot(colorsCollection, (snapshot) => {
-      setPaintColors(
-        snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as PaintColor[]
-      );
-    });
+    const unsubscribePaintColors = onSnapshot(
+      collection(db, "paintColors"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as PaintColor
+        );
+        setPaintColors(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 3) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
 
-    const pricingCollection = collection(db, "pricingRules");
-    const unsubscribePricing = onSnapshot(pricingCollection, (snapshot) => {
-      setPricingRules(
-        snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as PricingRule[]
-      );
-    });
-
-    const inventoryCollection = collection(db, "inventory");
-    const unsubscribeInventory = onSnapshot(inventoryCollection, (snapshot) => {
-      setInventoryData(
-        snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as InventoryItem[]
-      );
-    });
+    const unsubscribePricingRules = onSnapshot(
+      collection(db, "pricingRules"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as PricingRule
+        );
+        setPricingRules(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 3) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
 
     return () => {
-      unsubscribeModels();
-      unsubscribeColors();
-      unsubscribePricing();
-      unsubscribeInventory();
+      unsubscribeCarModels();
+      unsubscribePaintColors();
+      unsubscribePricingRules();
     };
   }, []);
 
-  // Reset model form
-  useEffect(() => {
-    if (currentModel) {
-      setModelName(currentModel.name);
-      setModelType(currentModel.type);
-      setBasePrice(currentModel.basePrice.toString());
-      setModelStatus(currentModel.status);
-    } else {
-      setModelName("");
-      setModelType("");
-      setBasePrice("");
-      setModelStatus("Active");
-    }
-  }, [currentModel]);
-
-  // Reset color form
-  useEffect(() => {
-    if (currentColor) {
-      setColorName(currentColor.name);
-      setHex(currentColor.hex);
-      setAvailableFor(currentColor.availableFor);
-    } else {
-      setColorName("");
-      setHex("");
-      setAvailableFor([]);
-    }
-  }, [currentColor]);
-
-  // Reset pricing form
-  useEffect(() => {
-    if (currentRule) {
-      setRuleName(currentRule.rule);
-      setDiscount(currentRule.discount.toString());
-      setAppliesTo(currentRule.appliesTo);
-    } else {
-      setRuleName("");
-      setDiscount("");
-      setAppliesTo("");
-    }
-  }, [currentRule]);
-
-  const handleModelNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setModelName(e.target.value);
-  };
-
-  const handleModelSubmit = async () => {
-    const modelsCollection = collection(db, "carModels");
-    const priceNum = parseFloat(basePrice);
-    if (currentModel) {
-      await updateDoc(doc(db, "carModels", currentModel.id), {
-        name: modelName,
-        type: modelType,
-        basePrice: priceNum,
-        status: modelStatus,
-      });
-    } else {
-      await addDoc(modelsCollection, {
-        name: modelName,
-        type: modelType,
-        basePrice: priceNum,
-        status: modelStatus,
-      });
-    }
-    setModelsOpen(false);
-    setCurrentModel(null);
-  };
-
-  const handleModelDelete = async (id: string) => {
-    await deleteDoc(doc(db, "carModels", id));
-  };
-
-  const handleColorNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value;
-    setColorName(newName);
-    if (!hex) {
-      const newHex = getHexFromName(newName);
-      if (newHex) setHex(newHex);
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewCarModel({ ...newCarModel, imageUrl: reader.result as string });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const handleColorSubmit = async () => {
-    const colorsCollection = collection(db, "paintColors");
-    if (currentColor) {
-      await updateDoc(doc(db, "paintColors", currentColor.id), {
-        name: colorName,
+  const handlePaintImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewPaintColor({
+          ...newPaintColor,
+          imageUrl: reader.result as string,
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    setNewPaintColor((prev) => ({
+      ...prev,
+      name,
+    }));
+
+    // Auto-set hex if name matches a predefined color
+    const lowerName = name.toLowerCase().trim();
+    const hex = colorNameToHex(lowerName as keyof typeof colorNameToHex);
+    if (hex) {
+      setNewPaintColor((prev) => ({
+        ...prev,
         hex,
-        availableFor,
-      });
-    } else {
-      await addDoc(colorsCollection, { name: colorName, hex, availableFor });
+      }));
     }
-    setColorsOpen(false);
-    setCurrentColor(null);
   };
 
-  const handleColorDelete = async (id: string) => {
-    await deleteDoc(doc(db, "paintColors", id));
+  const handleAddOrUpdateCarModel = async () => {
+    setCarModelPending(true);
+    try {
+      const carModelData: CarModelData = {
+        name: newCarModel.name || "",
+        type: newCarModel.type || "Sedan",
+        ...(newCarModel.imageUrl && { imageUrl: newCarModel.imageUrl }),
+      };
+      if (editingCarModel) {
+        const carModelRef = doc(db, "carModels", editingCarModel.id);
+        await updateDoc(carModelRef, carModelData);
+        toast.success("Car model updated successfully");
+      } else {
+        await addDoc(collection(db, "carModels"), carModelData);
+        toast.success("Car model added successfully");
+      }
+      setIsCarModelDialogOpen(false);
+      setNewCarModel({});
+      setEditingCarModel(null);
+    } catch (error) {
+      console.error("Error adding/updating car model:", error);
+      toast.error("Failed to add/update car model");
+    } finally {
+      setCarModelPending(false);
+    }
   };
 
-  const toggleAvailableFor = (modelName: string) => {
-    setAvailableFor((prev) =>
-      prev.includes(modelName)
-        ? prev.filter((m) => m !== modelName)
-        : [...prev, modelName]
+  const handleAddOrUpdatePaintColor = async () => {
+    setPaintColorPending(true);
+    try {
+      const paintColorData: PaintColorData = {
+        carModelId: newPaintColor.carModelId || "",
+        name: newPaintColor.name || "",
+        hex: newPaintColor.hex || "#000000",
+        finish: newPaintColor.finish || "Matte",
+        description: newPaintColor.description || "",
+        price: newPaintColor.price ?? 0,
+        inventory: newPaintColor.inventory ?? 0,
+        ...(newPaintColor.imageUrl && { imageUrl: newPaintColor.imageUrl }),
+      };
+      if (editingPaintColor) {
+        const paintColorRef = doc(db, "paintColors", editingPaintColor.id);
+        await updateDoc(paintColorRef, paintColorData);
+        toast.success("Paint color updated successfully");
+      } else {
+        await addDoc(collection(db, "paintColors"), paintColorData);
+        toast.success("Paint color added successfully");
+      }
+      setIsPaintColorDialogOpen(false);
+      setNewPaintColor({});
+      setEditingPaintColor(null);
+    } catch (error) {
+      console.error("Error adding/updating paint color:", error);
+      toast.error("Failed to add/update paint color");
+    } finally {
+      setPaintColorPending(false);
+    }
+  };
+
+  const handleAddOrUpdatePricingRule = async () => {
+    setPricingRulePending(true);
+    try {
+      const pricingRuleData: PricingRuleData = {
+        description: newPricingRule.description || "",
+        multiplier: newPricingRule.multiplier ?? 1,
+      };
+      if (editingPricingRule) {
+        const pricingRuleRef = doc(db, "pricingRules", editingPricingRule.id);
+        await updateDoc(pricingRuleRef, pricingRuleData);
+        toast.success("Pricing rule updated successfully");
+      } else {
+        await addDoc(collection(db, "pricingRules"), pricingRuleData);
+        toast.success("Pricing rule added successfully");
+      }
+      setIsPricingRuleDialogOpen(false);
+      setNewPricingRule({});
+      setEditingPricingRule(null);
+    } catch (error) {
+      console.error("Error adding/updating pricing rule:", error);
+      toast.error("Failed to add/update pricing rule");
+    } finally {
+      setPricingRulePending(false);
+    }
+  };
+
+  const handleDeleteCarModel = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this car model?")) return;
+    try {
+      await deleteDoc(doc(db, "carModels", id));
+      toast.success("Car model deleted successfully");
+    } catch (error) {
+      console.error("Error deleting car model:", error);
+      toast.error("Failed to delete car model");
+    }
+  };
+
+  const handleDeletePaintColor = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this paint color?")) return;
+    try {
+      await deleteDoc(doc(db, "paintColors", id));
+      toast.success("Paint color deleted successfully");
+    } catch (error) {
+      console.error("Error deleting paint color:", error);
+      toast.error("Failed to delete paint color");
+    }
+  };
+
+  const handleDeletePricingRule = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this pricing rule?")) return;
+    try {
+      await deleteDoc(doc(db, "pricingRules", id));
+      toast.success("Pricing rule deleted successfully");
+    } catch (error) {
+      console.error("Error deleting pricing rule:", error);
+      toast.error("Failed to delete pricing rule");
+    }
+  };
+
+  const openCarModelEdit = (model: CarModel) => {
+    setEditingCarModel(model);
+    setNewCarModel({
+      name: model.name,
+      type: model.type,
+      ...(model.imageUrl && { imageUrl: model.imageUrl }),
+    });
+    setIsCarModelDialogOpen(true);
+  };
+
+  const openPaintColorEdit = (color: PaintColor) => {
+    setEditingPaintColor(color);
+    setNewPaintColor({
+      carModelId: color.carModelId,
+      name: color.name,
+      hex: color.hex,
+      finish: color.finish,
+      description: color.description,
+      price: color.price,
+      inventory: color.inventory,
+      ...(color.imageUrl && { imageUrl: color.imageUrl }),
+    });
+    setIsPaintColorDialogOpen(true);
+  };
+
+  const openPricingRuleEdit = (rule: PricingRule) => {
+    setEditingPricingRule(rule);
+    setNewPricingRule({
+      description: rule.description,
+      multiplier: rule.multiplier,
+    });
+    setIsPricingRuleDialogOpen(true);
+  };
+
+  const lowInventoryColors = paintColors.filter(
+    (color) => color.inventory < 50
+  );
+
+  const getCarModelName = (carModelId: string) => {
+    return (
+      carModels.find((model) => model.id === carModelId)?.name || "Unknown"
     );
   };
 
-  const handlePricingSubmit = async () => {
-    const pricingCollection = collection(db, "pricingRules");
-    const discountNum = parseFloat(discount);
-    if (currentRule) {
-      await updateDoc(doc(db, "pricingRules", currentRule.id), {
-        rule: ruleName,
-        discount: discountNum,
-        appliesTo,
-      });
-    } else {
-      await addDoc(pricingCollection, {
-        rule: ruleName,
-        discount: discountNum,
-        appliesTo,
-      });
-    }
-    setPricingOpen(false);
-    setCurrentRule(null);
-  };
+  const isEditingPaintColor = !!editingPaintColor;
 
-  const handlePricingDelete = async (id: string) => {
-    await deleteDoc(doc(db, "pricingRules", id));
-  };
+  if (isDataLoading) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin mb-2" />
+          <p>Loading data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const filteredPaintColors = paintColors.filter((color) =>
+    color.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
-      <h1 className="text-3xl font-bold">Admin Inventory Management</h1>
-      <p className="text-muted-foreground">
-        Manage car models, paint colors, pricing rules, and monitor inventory
-        levels.
-      </p>
-
-      <Tabs defaultValue="models" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="models">Car Models</TabsTrigger>
-          <TabsTrigger value="colors">Paint Colors</TabsTrigger>
-          <TabsTrigger value="pricing">Pricing Rules</TabsTrigger>
-          <TabsTrigger value="inventory">Inventory Levels</TabsTrigger>
+    <div className="container mx-auto p-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="car-models">Car Models</TabsTrigger>
+          <TabsTrigger value="colors">Colors</TabsTrigger>
+          <TabsTrigger value="pricing-rules">Pricing Rules</TabsTrigger>
+          <TabsTrigger value="inventory-monitor">Inventory Monitor</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="models" className="space-y-4">
+        <TabsContent value="car-models">
           <Card>
             <CardHeader>
               <CardTitle>Car Models</CardTitle>
-              <CardDescription>
-                Update and manage Volvo car models.
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Base Price</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {carModels.map((model) => (
-                    <TableRow key={model.id}>
-                      <TableCell>{model.name}</TableCell>
-                      <TableCell>{model.type}</TableCell>
-                      <TableCell>${model.basePrice.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            model.status === "Active"
-                              ? "default"
-                              : "destructive"
-                          }
-                        >
-                          {model.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setCurrentModel(model);
-                            setModelsOpen(true);
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleModelDelete(model.id)}
-                        >
-                          Delete
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-            <CardFooter>
-              <Dialog open={modelsOpen} onOpenChange={setModelsOpen}>
+              <Dialog
+                open={isCarModelDialogOpen}
+                onOpenChange={setIsCarModelDialogOpen}
+              >
                 <DialogTrigger asChild>
                   <Button
                     onClick={() => {
-                      setCurrentModel(null);
+                      setEditingCarModel(null);
+                      setNewCarModel({});
                     }}
+                    disabled={isDataLoading}
                   >
-                    Add New Model
+                    Add Car Model
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>
-                      {currentModel ? "Edit Model" : "Add New Model"}
+                      {editingCarModel ? "Edit Car Model" : "Add Car Model"}
                     </DialogTitle>
-                    <DialogDescription>
-                      Enter the details for the car model.
-                    </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="modelName" className="text-right">
-                        Name
-                      </Label>
+                  <div className="grid gap-4">
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                      id="name"
+                      value={newCarModel.name ?? ""}
+                      onChange={(e) =>
+                        setNewCarModel({ ...newCarModel, name: e.target.value })
+                      }
+                      disabled={carModelPending}
+                    />
+                    <Label htmlFor="type">Type</Label>
+                    <Select
+                      value={newCarModel.type}
+                      onValueChange={(value) =>
+                        setNewCarModel({
+                          ...newCarModel,
+                          type: value as CarModel["type"],
+                        })
+                      }
+                      disabled={carModelPending}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Sedan">Sedan</SelectItem>
+                        <SelectItem value="SUV">SUV</SelectItem>
+                        <SelectItem value="Pickup">Pickup</SelectItem>
+                        <SelectItem value="Hatchback">Hatchback</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Label htmlFor="image">Default Car Image</Label>
+                    <Input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={carModelPending}
+                    />
+                    {newCarModel.imageUrl && (
+                      <Image
+                        src={newCarModel.imageUrl}
+                        alt="Preview"
+                        className="w-32 h-auto mt-2"
+                        width={500}
+                        height={500}
+                      />
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      onClick={handleAddOrUpdateCarModel}
+                      disabled={carModelPending || !newCarModel.name}
+                    >
+                      {carModelPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Save
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                {carModels.map((model) => {
+                  const modelColors = paintColors.filter(
+                    (color) => color.carModelId === model.id
+                  );
+                  return (
+                    <Card key={model.id}>
+                      <CardHeader>
+                        <CardTitle>{model.name}</CardTitle>
+                        <CardDescription>{model.type}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1 md:w-1/2">
+                          <p className="font-medium mb-2">Available Colors:</p>
+                          {modelColors.length > 0 ? (
+                            <ul className="space-y-1">
+                              {modelColors.map((color) => (
+                                <li
+                                  key={color.id}
+                                  className="flex items-center space-x-2"
+                                >
+                                  {color.imageUrl ? (
+                                    <Image
+                                      src={color.imageUrl}
+                                      alt={color.name}
+                                      className="w-8 h-8 rounded object-cover"
+                                      width={500}
+                                      height={500}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="w-8 h-8 rounded"
+                                      style={{ backgroundColor: color.hex }}
+                                    ></div>
+                                  )}
+                                  <span className="text-sm">
+                                    {color.name} ({color.finish})
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              No colors assigned.
+                            </p>
+                          )}
+                          <Button
+                            variant="link"
+                            onClick={() => setActiveTab("colors")}
+                            className="p-0 h-auto text-blue-600 hover:text-blue-800 mt-2 text-sm"
+                            disabled={isDataLoading}
+                          >
+                            Add colors in Colors tab
+                          </Button>
+                        </div>
+                        <div className="flex-1 md:w-1/2 flex flex-col items-center">
+                          {model.imageUrl ? (
+                            <Image
+                              src={model.imageUrl}
+                              alt={model.name}
+                              className="w-full h-auto max-w-sm rounded"
+                              width={500}
+                              height={500}
+                            />
+                          ) : (
+                            <p className="text-muted-foreground">No image</p>
+                          )}
+                        </div>
+                      </CardContent>
+                      <CardFooter className="flex justify-between">
+                        <Button
+                          variant="outline"
+                          onClick={() => openCarModelEdit(model)}
+                          disabled={isDataLoading}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => handleDeleteCarModel(model.id)}
+                          disabled={isDataLoading}
+                        >
+                          Delete
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="colors">
+          <Card>
+            <CardHeader>
+              <CardTitle>Colors</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Dialog
+                open={isPaintColorDialogOpen}
+                onOpenChange={setIsPaintColorDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setEditingPaintColor(null);
+                      setNewPaintColor({});
+                    }}
+                    disabled={isDataLoading}
+                  >
+                    Add Paint Color
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="flex flex-col max-w-4xl">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingPaintColor
+                        ? "Edit Paint Color"
+                        : "Add Paint Color"}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form className="grid grid-cols-2 gap-4 flex-1">
+                    <div className="grid gap-2">
+                      <Label htmlFor="carModel">Car Model</Label>
+                      {isEditingPaintColor ? (
+                        <div className="p-2 bg-muted rounded-md">
+                          {getCarModelName(newPaintColor.carModelId as string)}
+                        </div>
+                      ) : (
+                        <Select
+                          value={newPaintColor.carModelId}
+                          onValueChange={(value) =>
+                            setNewPaintColor({
+                              ...newPaintColor,
+                              carModelId: value,
+                            })
+                          }
+                          disabled={paintColorPending}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select car model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {carModels.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="name">Name</Label>
                       <Input
-                        id="modelName"
-                        value={modelName}
-                        onChange={handleModelNameChange}
-                        className="col-span-3"
+                        id="name"
+                        value={newPaintColor.name ?? ""}
+                        onChange={handleNameChange}
+                        disabled={paintColorPending}
                       />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="modelType" className="text-right">
-                        Type
-                      </Label>
-                      <Input
-                        id="modelType"
-                        value={modelType}
-                        onChange={(e) => setModelType(e.target.value)}
-                        className="col-span-3"
+                    <div className="grid gap-2 col-span-2">
+                      <Label>Hex Code</Label>
+                      <Sketch
+                        color={newPaintColor.hex || "#000000"}
+                        onChange={(color) =>
+                          setNewPaintColor({
+                            ...newPaintColor,
+                            hex: color.hex,
+                          })
+                        }
                       />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="basePrice" className="text-right">
-                        Base Price
-                      </Label>
-                      <Input
-                        id="basePrice"
-                        type="number"
-                        value={basePrice}
-                        onChange={(e) => setBasePrice(e.target.value)}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="modelStatus" className="text-right">
-                        Status
-                      </Label>
+                    <div className="grid gap-2">
+                      <Label htmlFor="finish">Finish</Label>
                       <Select
-                        value={modelStatus}
-                        onValueChange={setModelStatus}
+                        value={newPaintColor.finish}
+                        onValueChange={(value) =>
+                          setNewPaintColor({
+                            ...newPaintColor,
+                            finish: value as PaintColor["finish"],
+                          })
+                        }
+                        disabled={paintColorPending}
                       >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select status" />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select finish" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Active">Active</SelectItem>
-                          <SelectItem value="Inactive">Inactive</SelectItem>
+                          <SelectItem value="Matte">Matte</SelectItem>
+                          <SelectItem value="Glossy">Glossy</SelectItem>
+                          <SelectItem value="Metallic">Metallic</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
+                    <div className="grid gap-2 col-span-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={newPaintColor.description ?? ""}
+                        onChange={(e) =>
+                          setNewPaintColor({
+                            ...newPaintColor,
+                            description: e.target.value,
+                          })
+                        }
+                        disabled={paintColorPending}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="price">Price</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        value={newPaintColor.price ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewPaintColor({
+                            ...newPaintColor,
+                            price: val === "" ? undefined : parseFloat(val),
+                          });
+                        }}
+                        disabled={paintColorPending}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="inventory">Stock</Label>
+                      <Input
+                        id="inventory"
+                        type="number"
+                        value={newPaintColor.inventory ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewPaintColor({
+                            ...newPaintColor,
+                            inventory:
+                              val === "" ? undefined : parseInt(val, 10),
+                          });
+                        }}
+                        disabled={paintColorPending}
+                      />
+                    </div>
+                    <div className="grid gap-2 col-span-2">
+                      <Label htmlFor="image">Color Image</Label>
+                      <Input
+                        id="image"
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePaintImageUpload}
+                        disabled={paintColorPending}
+                      />
+                      {newPaintColor.imageUrl && (
+                        <Image
+                          src={newPaintColor.imageUrl}
+                          alt="Preview"
+                          className="w-32 h-auto mt-2"
+                          width={500}
+                          height={500}
+                        />
+                      )}
+                    </div>
+                  </form>
                   <DialogFooter>
-                    <Button onClick={handleModelSubmit}>Save</Button>
+                    <Button
+                      onClick={handleAddOrUpdatePaintColor}
+                      disabled={
+                        paintColorPending ||
+                        !newPaintColor.name ||
+                        !newPaintColor.carModelId
+                      }
+                    >
+                      {paintColorPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Save
+                    </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="colors" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Paint Colors</CardTitle>
-              <CardDescription>
-                Manage available paint colors for models.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Hex Code</TableHead>
-                    <TableHead>Available For</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paintColors.map((color) => (
-                    <TableRow key={color.id}>
-                      <TableCell>{color.name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <div
-                            className="w-4 h-4 mr-2 rounded-full"
-                            style={{ backgroundColor: color.hex }}
-                          />
-                          {color.hex}
-                        </div>
-                      </TableCell>
-                      <TableCell>{color.availableFor.join(", ")}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setCurrentColor(color);
-                            setColorsOpen(true);
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleColorDelete(color.id)}
-                        >
-                          Delete
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="my-4">
+                <Input
+                  placeholder="Search colors by name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                {filteredPaintColors.map((color) => (
+                  <Card key={color.id}>
+                    <CardHeader>
+                      <CardTitle>{color.name}</CardTitle>
+                      <CardDescription>
+                        {getCarModelName(color.carModelId)} - {color.hex} -{" "}
+                        {color.finish}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {color.imageUrl ? (
+                        <Image
+                          src={color.imageUrl}
+                          alt={color.name}
+                          className="w-full h-auto object-cover rounded mb-2"
+                          width={500}
+                          height={500}
+                        />
+                      ) : (
+                        <div
+                          className="w-16 h-16 border border-gray-300 mb-2"
+                          style={{ backgroundColor: color.hex }}
+                        ></div>
+                      )}
+                      <p className="mb-1">{color.description}</p>
+                      <p>Price: ₱{color.price}</p>
+                      <p>Stock: {color.inventory}</p>
+                    </CardContent>
+                    <CardFooter className="flex justify-between">
+                      <Button
+                        variant="outline"
+                        onClick={() => openPaintColorEdit(color)}
+                        disabled={isDataLoading}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => handleDeletePaintColor(color.id)}
+                        disabled={isDataLoading}
+                      >
+                        Delete
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
             </CardContent>
-            <CardFooter>
-              <Dialog open={colorsOpen} onOpenChange={setColorsOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      setCurrentColor(null);
-                    }}
-                  >
-                    Add New Color
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {currentColor ? "Edit Color" : "Add New Color"}
-                    </DialogTitle>
-                    <DialogDescription>
-                      Enter the details for the paint color.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="colorName" className="text-right">
-                        Name
-                      </Label>
-                      <Input
-                        id="colorName"
-                        value={colorName}
-                        onChange={handleColorNameChange}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="hex" className="text-right">
-                        Hex Code
-                      </Label>
-                      <Input
-                        id="hex"
-                        value={hex}
-                        onChange={(e) => setHex(e.target.value)}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-start gap-4">
-                      <Label className="text-right pt-2">Available For</Label>
-                      <div className="col-span-3 space-y-2">
-                        {carModels.map((model) => (
-                          <div
-                            key={model.id}
-                            className="flex items-center space-x-2"
-                          >
-                            <Checkbox
-                              id={model.name}
-                              checked={availableFor.includes(model.name)}
-                              onCheckedChange={() =>
-                                toggleAvailableFor(model.name)
-                              }
-                            />
-                            <label
-                              htmlFor={model.name}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              {model.name}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button onClick={handleColorSubmit}>Save</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </CardFooter>
           </Card>
         </TabsContent>
 
-        <TabsContent value="pricing" className="space-y-4">
+        <TabsContent value="pricing-rules">
           <Card>
             <CardHeader>
               <CardTitle>Pricing Rules</CardTitle>
-              <CardDescription>
-                Set and update pricing rules and discounts.
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Rule Name</TableHead>
-                    <TableHead>Discount Amount</TableHead>
-                    <TableHead>Applies To</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pricingRules.map((rule) => (
-                    <TableRow key={rule.id}>
-                      <TableCell>{rule.rule}</TableCell>
-                      <TableCell>${rule.discount.toLocaleString()}</TableCell>
-                      <TableCell>{rule.appliesTo}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setCurrentRule(rule);
-                            setPricingOpen(true);
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handlePricingDelete(rule.id)}
-                        >
-                          Delete
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-            <CardFooter>
-              <Dialog open={pricingOpen} onOpenChange={setPricingOpen}>
+              <Dialog
+                open={isPricingRuleDialogOpen}
+                onOpenChange={setIsPricingRuleDialogOpen}
+              >
                 <DialogTrigger asChild>
                   <Button
                     onClick={() => {
-                      setCurrentRule(null);
+                      setEditingPricingRule(null);
+                      setNewPricingRule({});
                     }}
+                    disabled={isDataLoading}
                   >
-                    Add New Rule
+                    Add Pricing Rule
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>
-                      {currentRule ? "Edit Rule" : "Add New Rule"}
+                      {editingPricingRule
+                        ? "Edit Pricing Rule"
+                        : "Add Pricing Rule"}
                     </DialogTitle>
-                    <DialogDescription>
-                      Enter the details for the pricing rule.
-                    </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="ruleName" className="text-right">
-                        Rule Name
-                      </Label>
-                      <Input
-                        id="ruleName"
-                        value={ruleName}
-                        onChange={(e) => setRuleName(e.target.value)}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="discount" className="text-right">
-                        Discount Amount
-                      </Label>
-                      <Input
-                        id="discount"
-                        type="number"
-                        value={discount}
-                        onChange={(e) => setDiscount(e.target.value)}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="appliesTo" className="text-right">
-                        Applies To
-                      </Label>
-                      <Input
-                        id="appliesTo"
-                        value={appliesTo}
-                        onChange={(e) => setAppliesTo(e.target.value)}
-                        className="col-span-3"
-                      />
-                    </div>
+                  <div className="grid gap-4">
+                    <Label htmlFor="description">Description</Label>
+                    <Input
+                      id="description"
+                      value={newPricingRule.description ?? ""}
+                      onChange={(e) =>
+                        setNewPricingRule({
+                          ...newPricingRule,
+                          description: e.target.value,
+                        })
+                      }
+                      disabled={pricingRulePending}
+                    />
+                    <Label htmlFor="multiplier">Multiplier</Label>
+                    <Input
+                      id="multiplier"
+                      type="number"
+                      step="0.1"
+                      value={newPricingRule.multiplier ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewPricingRule({
+                          ...newPricingRule,
+                          multiplier: val === "" ? undefined : parseFloat(val),
+                        });
+                      }}
+                      disabled={pricingRulePending}
+                    />
                   </div>
                   <DialogFooter>
-                    <Button onClick={handlePricingSubmit}>Save</Button>
+                    <Button
+                      onClick={handleAddOrUpdatePricingRule}
+                      disabled={
+                        pricingRulePending || !newPricingRule.description
+                      }
+                    >
+                      {pricingRulePending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Save
+                    </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            </CardFooter>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                {pricingRules.map((rule) => (
+                  <Card key={rule.id}>
+                    <CardHeader>
+                      <CardTitle>{rule.description}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Multiplier: {rule.multiplier}x</p>
+                    </CardContent>
+                    <CardFooter className="flex justify-between">
+                      <Button
+                        variant="outline"
+                        onClick={() => openPricingRuleEdit(rule)}
+                        disabled={isDataLoading}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => handleDeletePricingRule(rule.id)}
+                        disabled={isDataLoading}
+                      >
+                        Delete
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="inventory" className="space-y-4">
+        <TabsContent value="inventory-monitor">
           <Card>
             <CardHeader>
-              <CardTitle>Inventory Levels</CardTitle>
-              <CardDescription>
-                Monitor paint, parts, and car inventory.
-              </CardDescription>
+              <CardTitle>Inventory Monitor</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={inventoryData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar
-                    dataKey="stock"
-                    fill="hsl(var(--primary))"
-                    name="Current Stock"
-                  />
-                  <Bar
-                    dataKey="threshold"
-                    fill="hsl(var(--secondary))"
-                    name="Threshold"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-              <Table className="mt-4">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Current Stock</TableHead>
-                    <TableHead>Threshold</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {inventoryData.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell>{item.stock}</TableCell>
-                      <TableCell>{item.threshold}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            item.stock > item.threshold
-                              ? "default"
-                              : "destructive"
-                          }
-                        >
-                          {item.stock > item.threshold ? "Healthy" : "Low"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <h3 className="text-lg font-semibold mb-2">
+                Low Inventory Paint Colors
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {lowInventoryColors.map((color) => (
+                  <Card key={color.id}>
+                    <CardHeader>
+                      <CardTitle>{color.name}</CardTitle>
+                      <CardDescription>
+                        {getCarModelName(color.carModelId)}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {color.imageUrl ? (
+                        <Image
+                          src={color.imageUrl}
+                          alt={color.name}
+                          className="w-full h-32 object-cover rounded mb-2"
+                          width={500}
+                          height={500}
+                        />
+                      ) : (
+                        <div
+                          className="w-16 h-16 border border-gray-300 mb-2 mx-auto"
+                          style={{ backgroundColor: color.hex }}
+                        ></div>
+                      )}
+                      <p>Stock: {color.inventory} (Low)</p>
+                    </CardContent>
+                  </Card>
+                ))}
+                {lowInventoryColors.length === 0 && (
+                  <p>No low inventory items.</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -777,4 +987,4 @@ const AdminInventory = () => {
   );
 };
 
-export default AdminInventory;
+export default InventoryPage;
