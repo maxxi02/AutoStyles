@@ -19,15 +19,20 @@ import {
 } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { collection, addDoc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase"; // Adjust the import path to your config file
-import { Loader2 } from "lucide-react"; // Assuming lucide-react is available for spinner
+import { db } from "@/lib/firebase";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
+
+interface CarType {
+  id: string;
+  name: string;
+}
 
 interface CarModel {
   id: string;
   name: string;
-  type: "Sedan" | "SUV" | "Pickup" | "Hatchback";
+  carTypeId: string;
   imageUrl?: string;
   basePrice?: number;
 }
@@ -44,20 +49,49 @@ interface PaintColor {
   imageUrl?: string;
 }
 
+interface Wheel {
+  id: string;
+  carModelId: string;
+  name: string;
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
+}
+
+interface Interior {
+  id: string;
+  carModelId: string;
+  name: string;
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
+  hex?: string;
+}
+
 interface CustomizationState {
+  typeId: string;
   modelId: string;
   colorId: string;
+  wheelId: string;
+  interiorId: string;
 }
 
 const CustomizationPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"customize" | "models">(
     "customize"
   );
+  const [carTypes, setCarTypes] = useState<CarType[]>([]);
   const [carModels, setCarModels] = useState<CarModel[]>([]);
   const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
-  const [selectedType, setSelectedType] = useState<CarModel["type"]>("Sedan");
+  const [wheels, setWheels] = useState<Wheel[]>([]);
+  const [interiors, setInteriors] = useState<Interior[]>([]);
+  const [selectedTypeId, setSelectedTypeId] = useState<string>("");
   const [selectedModelId, setSelectedModelId] = useState<string>("");
   const [selectedColorId, setSelectedColorId] = useState<string>("");
+  const [selectedWheelId, setSelectedWheelId] = useState<string>("");
+  const [selectedInteriorId, setSelectedInteriorId] = useState<string>("");
   const [history, setHistory] = useState<CustomizationState[]>([]);
   const [currentState, setCurrentState] = useState<CustomizationState | null>(
     null
@@ -69,6 +103,23 @@ const CustomizationPage: React.FC = () => {
 
   // Load data from Firestore
   useEffect(() => {
+    const unsubscribeCarTypes = onSnapshot(
+      collection(db, "carTypes"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as CarType
+        );
+        setCarTypes(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 5) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
     const unsubscribeCarModels = onSnapshot(
       collection(db, "carModels"),
       (snapshot) => {
@@ -78,7 +129,7 @@ const CustomizationPage: React.FC = () => {
         setCarModels(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 2) {
+          if (next === 5) {
             setIsDataLoading(false);
           }
           return next;
@@ -95,7 +146,41 @@ const CustomizationPage: React.FC = () => {
         setPaintColors(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 2) {
+          if (next === 5) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
+    const unsubscribeWheels = onSnapshot(
+      collection(db, "wheels"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as Wheel
+        );
+        setWheels(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 5) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
+    const unsubscribeInteriors = onSnapshot(
+      collection(db, "interiors"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as Interior
+        );
+        setInteriors(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 5) {
             setIsDataLoading(false);
           }
           return next;
@@ -104,22 +189,32 @@ const CustomizationPage: React.FC = () => {
     );
 
     return () => {
+      unsubscribeCarTypes();
       unsubscribeCarModels();
       unsubscribePaintColors();
+      unsubscribeWheels();
+      unsubscribeInteriors();
     };
   }, []);
 
   // Filtered models by type
   const filteredModels = carModels.filter(
-    (model) => model.type === selectedType
+    (model) => model.carTypeId === selectedTypeId
   );
+
+  // Auto-select first type if none selected and available
+  useEffect(() => {
+    if (carTypes.length > 0 && !selectedTypeId) {
+      setSelectedTypeId(carTypes[0].id);
+    }
+  }, [carTypes, selectedTypeId]);
 
   // Auto-select first model if none selected and available
   useEffect(() => {
     if (filteredModels.length > 0 && !selectedModelId) {
       setSelectedModelId(filteredModels[0].id);
     }
-  }, [selectedType, filteredModels, selectedModelId]);
+  }, [selectedTypeId, filteredModels, selectedModelId]);
 
   // Filtered colors by selected model
   const filteredColors = paintColors.filter(
@@ -133,73 +228,118 @@ const CustomizationPage: React.FC = () => {
     }
   }, [selectedModelId, filteredColors, selectedColorId]);
 
+  // Filtered wheels by selected model
+  const filteredWheels = wheels.filter(
+    (wheel) => wheel.carModelId === selectedModelId
+  );
+
+  // Auto-select first wheel if none selected and available
+  useEffect(() => {
+    if (filteredWheels.length > 0 && !selectedWheelId) {
+      setSelectedWheelId(filteredWheels[0].id);
+    }
+  }, [selectedModelId, filteredWheels, selectedWheelId]);
+
+  // Filtered interiors by selected model
+  const filteredInteriors = interiors.filter(
+    (interior) => interior.carModelId === selectedModelId
+  );
+
+  // Auto-select first interior if none selected and available
+  useEffect(() => {
+    if (filteredInteriors.length > 0 && !selectedInteriorId) {
+      setSelectedInteriorId(filteredInteriors[0].id);
+    }
+  }, [selectedModelId, filteredInteriors, selectedInteriorId]);
+
   // Selected model and color
   const selectedModel = carModels.find((m) => m.id === selectedModelId);
   const selectedColor = paintColors.find((c) => c.id === selectedColorId);
+  const selectedWheel = wheels.find((w) => w.id === selectedWheelId);
+  const selectedInterior = interiors.find((i) => i.id === selectedInteriorId);
 
   // Update history on selection change
   useEffect(() => {
-    if (selectedModelId && selectedColorId) {
+    if (
+      selectedTypeId &&
+      selectedModelId &&
+      selectedColorId &&
+      selectedWheelId &&
+      selectedInteriorId
+    ) {
       const newState: CustomizationState = {
+        typeId: selectedTypeId,
         modelId: selectedModelId,
         colorId: selectedColorId,
+        wheelId: selectedWheelId,
+        interiorId: selectedInteriorId,
       };
       if (
         currentState &&
-        (currentState.modelId !== newState.modelId ||
-          currentState.colorId !== newState.colorId)
+        (currentState.typeId !== newState.typeId ||
+          currentState.modelId !== newState.modelId ||
+          currentState.colorId !== newState.colorId ||
+          currentState.wheelId !== newState.wheelId ||
+          currentState.interiorId !== newState.interiorId)
       ) {
         setHistory((prev) => [...prev, currentState]);
       }
       setCurrentState(newState);
     }
-  }, [selectedModelId, selectedColorId]);
+  }, [
+    selectedTypeId,
+    selectedModelId,
+    selectedColorId,
+    selectedWheelId,
+    selectedInteriorId,
+  ]);
 
   // Calculate price
-  const calculatedPrice =
-    selectedModel?.basePrice && selectedColor?.price
-      ? selectedModel.basePrice + selectedColor.price
-      : 0;
+  const basePrice = selectedModel?.basePrice ?? 0;
+  const colorPrice = selectedColor?.price ?? 0;
+  const wheelPrice = selectedWheel?.price ?? 0;
+  const interiorPrice = selectedInterior?.price ?? 0;
+  const calculatedPrice = basePrice + colorPrice + wheelPrice + interiorPrice;
 
   const handleUndo = () => {
     if (history.length > 0) {
       const previousState = history[history.length - 1];
       setHistory((prev) => prev.slice(0, -1));
       setCurrentState(previousState);
+      setSelectedTypeId(previousState.typeId);
       setSelectedModelId(previousState.modelId);
       setSelectedColorId(previousState.colorId);
-      // Trigger type update based on model
-      const prevModel = carModels.find((m) => m.id === previousState.modelId);
-      if (prevModel) {
-        setSelectedType(prevModel.type);
-      }
+      setSelectedWheelId(previousState.wheelId);
+      setSelectedInteriorId(previousState.interiorId);
     }
   };
 
   const handleSaveDesign = async () => {
-    if (!selectedModelId || !selectedColorId) {
-      toast.error("Please select a model and color first.");
+    if (
+      !selectedModelId ||
+      !selectedColorId ||
+      !selectedWheelId ||
+      !selectedInteriorId
+    ) {
+      toast.error("Please select all customizations first.");
       return;
     }
     try {
-      const designRef = await addDoc(collection(db, "designs"), {
+      const transactionRef = await addDoc(collection(db, "transactions"), {
+        typeId: selectedTypeId,
         modelId: selectedModelId,
         colorId: selectedColorId,
+        wheelId: selectedWheelId,
+        interiorId: selectedInteriorId,
         timestamp: new Date(),
         price: calculatedPrice,
+        status: "saved" as const,
       });
-      toast.success(`Design saved! ID: ${designRef.id}`);
+      toast.success(`Design saved to transaction! ID: ${transactionRef.id}`);
     } catch (error) {
-      console.error("Error saving design:", error);
-      toast.error("Failed to save design");
+      console.error("Error saving transaction:", error);
+      toast.error("Failed to save transaction");
     }
-  };
-
-  const handleShareDesign = () => {
-    if (!currentState) return;
-    const shareUrl = `${window.location.origin}/customize?design=${btoa(JSON.stringify(currentState))}`;
-    navigator.clipboard.writeText(shareUrl);
-    toast.success("Share link copied to clipboard!");
   };
 
   // Get image for preview
@@ -208,9 +348,9 @@ const CustomizationPage: React.FC = () => {
     selectedModel?.imageUrl ||
     "/placeholder-car.png";
 
-  const handleCustomizeModel = (modelId: string, type: CarModel["type"]) => {
+  const handleCustomizeModel = (modelId: string, carTypeId: string) => {
     setActiveTab("customize");
-    setSelectedType(type);
+    setSelectedTypeId(carTypeId);
     setSelectedModelId(modelId);
   };
 
@@ -247,21 +387,26 @@ const CustomizationPage: React.FC = () => {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Car Type</label>
                   <Select
-                    value={selectedType}
-                    onValueChange={(value) =>
-                      setSelectedType(value as CarModel["type"])
-                    }
+                    value={selectedTypeId}
+                    onValueChange={setSelectedTypeId}
+                    disabled={carTypes.length === 0}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select car type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Sedan">Sedan</SelectItem>
-                      <SelectItem value="SUV">SUV</SelectItem>
-                      <SelectItem value="Pickup">Pickup</SelectItem>
-                      <SelectItem value="Hatchback">Hatchback</SelectItem>
+                      {carTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {carTypes.length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      No car types available.
+                    </p>
+                  )}
                 </div>
 
                 {/* Model Selection */}
@@ -358,6 +503,116 @@ const CustomizationPage: React.FC = () => {
                   )}
                 </div>
 
+                {/* Wheel Selection */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Wheels</label>
+                  {filteredWheels.length > 0 ? (
+                    <RadioGroup
+                      value={selectedWheelId}
+                      onValueChange={setSelectedWheelId}
+                    >
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {filteredWheels.map((wheel) => (
+                          <div
+                            key={wheel.id}
+                            className="flex items-center p-2 border rounded-md hover:bg-muted"
+                          >
+                            <RadioGroupItem
+                              value={wheel.id}
+                              id={`wheel-${wheel.id}`}
+                            />
+                            <label
+                              htmlFor={`wheel-${wheel.id}`}
+                              className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                            >
+                              {wheel.imageUrl ? (
+                                <Image
+                                  src={wheel.imageUrl}
+                                  alt={wheel.name}
+                                  className="w-12 h-12 rounded object-cover"
+                                  width={48}
+                                  height={48}
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded bg-muted" />
+                              )}
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium">
+                                  {wheel.name}
+                                </span>
+                              </div>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </RadioGroup>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      No wheels available for this model.
+                    </p>
+                  )}
+                </div>
+
+                {/* Interior Selection */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Interior</label>
+                  {filteredInteriors.length > 0 ? (
+                    <RadioGroup
+                      value={selectedInteriorId}
+                      onValueChange={setSelectedInteriorId}
+                    >
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {filteredInteriors.map((interior) => (
+                          <div
+                            key={interior.id}
+                            className="flex items-center p-2 border rounded-md hover:bg-muted"
+                          >
+                            <RadioGroupItem
+                              value={interior.id}
+                              id={`interior-${interior.id}`}
+                            />
+                            <label
+                              htmlFor={`interior-${interior.id}`}
+                              className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                            >
+                              {interior.imageUrl ? (
+                                <Image
+                                  src={interior.imageUrl}
+                                  alt={interior.name}
+                                  className="w-12 h-12 rounded object-cover"
+                                  width={48}
+                                  height={48}
+                                />
+                              ) : (
+                                <div
+                                  className="w-8 h-8 rounded border"
+                                  style={{
+                                    backgroundColor: interior.hex || "#000000",
+                                  }}
+                                />
+                              )}
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium">
+                                  {interior.name}
+                                </span>
+                              </div>
+                              {interior.hex && (
+                                <span className="text-xs text-muted-foreground ml-auto">
+                                  {interior.hex}
+                                </span>
+                              )}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </RadioGroup>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      No interiors available for this model.
+                    </p>
+                  )}
+                </div>
+
                 {/* Price */}
                 {calculatedPrice > 0 && (
                   <div className="p-3 bg-muted rounded-md">
@@ -367,7 +622,7 @@ const CustomizationPage: React.FC = () => {
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="flex flex-col space-y-2">
+              <CardFooter className="flex flex-col items-start space-y-2">
                 <Button
                   onClick={handleUndo}
                   variant="outline"
@@ -377,16 +632,14 @@ const CustomizationPage: React.FC = () => {
                 </Button>
                 <Button
                   onClick={handleSaveDesign}
-                  disabled={!selectedModelId || !selectedColorId}
+                  disabled={
+                    !selectedModelId ||
+                    !selectedColorId ||
+                    !selectedWheelId ||
+                    !selectedInteriorId
+                  }
                 >
                   Save Design
-                </Button>
-                <Button
-                  onClick={handleShareDesign}
-                  variant="outline"
-                  disabled={!currentState}
-                >
-                  Share Design
                 </Button>
               </CardFooter>
             </Card>
@@ -397,23 +650,78 @@ const CustomizationPage: React.FC = () => {
                 <CardTitle>2D Preview</CardTitle>
                 <CardDescription>Preview your customized car</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col items-center p-4">
-                <Image
-                  src={getPreviewImage()}
-                  alt={`${selectedModel?.name || "Car"} Preview`}
-                  className="w-full max-w-2xl h-auto rounded-lg"
-                  width={800}
-                  height={600}
-                />
-                {selectedColor && (
-                  <div className="text-center mt-4">
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Selected Color
-                    </p>
-                    <div
-                      className="w-32 h-32 rounded-lg border mx-auto"
-                      style={{ backgroundColor: selectedColor.hex }}
+              <CardContent className="flex flex-col items-start p-4 space-y-6">
+                {/* Main Car Preview */}
+                <div className="w-full">
+                  <h3 className="text-sm font-medium mb-2">Exterior</h3>
+                  <Image
+                    src={getPreviewImage()}
+                    alt={`${selectedModel?.name || "Car"} Preview`}
+                    className="w-full h-auto rounded-lg"
+                    width={800}
+                    height={600}
+                  />
+                  {selectedColor && selectedColor.description && (
+                    <div className="text-start mt-4">
+                      <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                        {selectedColor.description}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Wheels Preview */}
+                {selectedWheel?.imageUrl && (
+                  <div className="w-full">
+                    <h3 className="text-sm font-medium mb-2">Wheels</h3>
+                    <Image
+                      src={selectedWheel.imageUrl}
+                      alt="Wheel Preview"
+                      className="w-full h-auto rounded-lg"
+                      width={800}
+                      height={600}
                     />
+                    {selectedWheel && selectedWheel.description && (
+                      <div className="text-start mt-4">
+                        <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                          {selectedWheel.description}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Interior Preview */}
+                {selectedInterior && (
+                  <div className="w-full">
+                    <h3 className="text-sm font-medium mb-2">Interior</h3>
+                    <Image
+                      src={
+                        selectedInterior.imageUrl || "/placeholder-interior.png"
+                      }
+                      alt="Interior Preview"
+                      className="w-full h-auto rounded-lg"
+                      width={800}
+                      height={600}
+                    />
+                    {selectedInterior && selectedInterior.description && (
+                      <div className="text-start mt-4">
+                        <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                          {selectedInterior.description}
+                        </p>
+                      </div>
+                    )}
+                    {selectedInterior?.hex && (
+                      <div className="flex items-center space-x-2 mt-2">
+                        <div
+                          className="w-8 h-8 rounded border"
+                          style={{ backgroundColor: selectedInterior.hex }}
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          {selectedInterior.hex}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -432,11 +740,22 @@ const CustomizationPage: React.FC = () => {
                     const modelColors = paintColors.filter(
                       (color) => color.carModelId === model.id
                     );
+                    const modelWheels = wheels.filter(
+                      (wheel) => wheel.carModelId === model.id
+                    );
+                    const modelInteriors = interiors.filter(
+                      (interior) => interior.carModelId === model.id
+                    );
+                    const modelType = carTypes.find(
+                      (t) => t.id === model.carTypeId
+                    );
                     return (
                       <Card key={model.id}>
                         <CardHeader>
                           <CardTitle>{model.name}</CardTitle>
-                          <CardDescription>{model.type}</CardDescription>
+                          <CardDescription>
+                            {modelType?.name || "Unknown"}
+                          </CardDescription>
                         </CardHeader>
                         <CardContent className="flex flex-col md:flex-row gap-4">
                           <div className="flex-1 md:w-1/2">
@@ -448,31 +767,107 @@ const CustomizationPage: React.FC = () => {
                                 {modelColors.map((color) => (
                                   <li
                                     key={color.id}
-                                    className="flex items-center space-x-2"
+                                    className="flex items-start space-x-2"
                                   >
                                     {color.imageUrl ? (
                                       <Image
                                         src={color.imageUrl}
                                         alt={color.name}
-                                        className="w-8 h-8 rounded object-cover"
+                                        className="w-8 h-8 rounded object-cover flex-shrink-0"
                                         width={500}
                                         height={500}
                                       />
                                     ) : (
                                       <div
-                                        className="w-8 h-8 rounded"
+                                        className="w-8 h-8 rounded flex-shrink-0"
                                         style={{ backgroundColor: color.hex }}
                                       ></div>
                                     )}
-                                    <span className="text-sm">
-                                      {color.name} ({color.finish})
-                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-sm font-medium block">
+                                        {color.name} ({color.finish})
+                                      </span>
+                                    </div>
                                   </li>
                                 ))}
                               </ul>
                             ) : (
                               <p className="text-sm text-muted-foreground">
                                 No colors assigned.
+                              </p>
+                            )}
+                            <p className="font-medium mb-2 mt-4">
+                              Available Wheels:
+                            </p>
+                            {modelWheels.length > 0 ? (
+                              <ul className="space-y-1">
+                                {modelWheels.map((wheel) => (
+                                  <li
+                                    key={wheel.id}
+                                    className="flex items-start space-x-2"
+                                  >
+                                    {wheel.imageUrl ? (
+                                      <Image
+                                        src={wheel.imageUrl}
+                                        alt={wheel.name}
+                                        className="w-8 h-8 rounded object-cover flex-shrink-0"
+                                        width={500}
+                                        height={500}
+                                      />
+                                    ) : (
+                                      <div className="w-8 h-8 rounded bg-muted flex-shrink-0"></div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-sm font-medium block">
+                                        {wheel.name}
+                                      </span>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                No wheels assigned.
+                              </p>
+                            )}
+                            <p className="font-medium mb-2 mt-4">
+                              Available Interiors:
+                            </p>
+                            {modelInteriors.length > 0 ? (
+                              <ul className="space-y-1">
+                                {modelInteriors.map((interior) => (
+                                  <li
+                                    key={interior.id}
+                                    className="flex items-start space-x-2"
+                                  >
+                                    {interior.imageUrl ? (
+                                      <Image
+                                        src={interior.imageUrl}
+                                        alt={interior.name}
+                                        className="w-8 h-8 rounded object-cover flex-shrink-0"
+                                        width={500}
+                                        height={500}
+                                      />
+                                    ) : (
+                                      <div
+                                        className="w-8 h-8 rounded flex-shrink-0"
+                                        style={{
+                                          backgroundColor:
+                                            interior.hex || "#000000",
+                                        }}
+                                      ></div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-sm font-medium block">
+                                        {interior.name}
+                                      </span>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                No interiors assigned.
                               </p>
                             )}
                           </div>
@@ -490,10 +885,10 @@ const CustomizationPage: React.FC = () => {
                             )}
                           </div>
                         </CardContent>
-                        <CardFooter className="flex justify-center">
+                        <CardFooter className="flex justify-start">
                           <Button
                             onClick={() =>
-                              handleCustomizeModel(model.id, model.type)
+                              handleCustomizeModel(model.id, model.carTypeId)
                             }
                           >
                             Customize

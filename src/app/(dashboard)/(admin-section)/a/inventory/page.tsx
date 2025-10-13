@@ -43,11 +43,19 @@ import { Loader2 } from "lucide-react"; // Assuming lucide-react is available fo
 import { toast } from "sonner";
 import Image from "next/image";
 
+interface CarType {
+  id: string;
+  name: string;
+}
+
+type CarTypeData = Omit<CarType, "id">;
+
 interface CarModel {
   id: string;
   name: string;
-  type: "Sedan" | "SUV" | "Pickup" | "Hatchback";
+  carTypeId: string;
   imageUrl?: string;
+  basePrice?: number;
 }
 
 type CarModelData = Omit<CarModel, "id">;
@@ -66,6 +74,31 @@ interface PaintColor {
 
 type PaintColorData = Omit<PaintColor, "id">;
 
+interface Wheel {
+  id: string;
+  carModelId: string;
+  name: string;
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
+}
+
+type WheelData = Omit<Wheel, "id">;
+
+interface Interior {
+  id: string;
+  carModelId: string;
+  name: string;
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
+  hex?: string;
+}
+
+type InteriorData = Omit<Interior, "id">;
+
 interface PricingRule {
   id: string;
   description: string;
@@ -74,34 +107,73 @@ interface PricingRule {
 
 type PricingRuleData = Omit<PricingRule, "id">;
 
+const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+const uploadToCloudinary = async (file: File): Promise<string> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET || "ml_default");
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Upload failed");
+  }
+
+  const data = await response.json();
+  return data.secure_url;
+};
+
 const InventoryPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState("car-models");
+  const [carTypes, setCarTypes] = useState<CarType[]>([]);
   const [carModels, setCarModels] = useState<CarModel[]>([]);
   const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
+  const [wheels, setWheels] = useState<Wheel[]>([]);
+  const [interiors, setInteriors] = useState<Interior[]>([]);
   const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
 
   // State for modals
+  const [isCarTypeDialogOpen, setIsCarTypeDialogOpen] = useState(false);
   const [isCarModelDialogOpen, setIsCarModelDialogOpen] = useState(false);
   const [isPaintColorDialogOpen, setIsPaintColorDialogOpen] = useState(false);
+  const [isWheelDialogOpen, setIsWheelDialogOpen] = useState(false);
+  const [isInteriorDialogOpen, setIsInteriorDialogOpen] = useState(false);
   const [isPricingRuleDialogOpen, setIsPricingRuleDialogOpen] = useState(false);
 
+  const [editingCarType, setEditingCarType] = useState<CarType | null>(null);
   const [editingCarModel, setEditingCarModel] = useState<CarModel | null>(null);
   const [editingPaintColor, setEditingPaintColor] = useState<PaintColor | null>(
     null
   );
+  const [editingWheel, setEditingWheel] = useState<Wheel | null>(null);
+  const [editingInterior, setEditingInterior] = useState<Interior | null>(null);
   const [editingPricingRule, setEditingPricingRule] =
     useState<PricingRule | null>(null);
 
   // Loading states for operations
+  const [carTypePending, setCarTypePending] = useState(false);
   const [carModelPending, setCarModelPending] = useState(false);
   const [paintColorPending, setPaintColorPending] = useState(false);
+  const [wheelPending, setWheelPending] = useState(false);
+  const [interiorPending, setInteriorPending] = useState(false);
   const [pricingRulePending, setPricingRulePending] = useState(false);
 
   // Form states
+  const [newCarType, setNewCarType] = useState<Partial<CarTypeData>>({});
   const [newCarModel, setNewCarModel] = useState<Partial<CarModelData>>({});
   const [newPaintColor, setNewPaintColor] = useState<Partial<PaintColorData>>(
     {}
   );
+  const [newWheel, setNewWheel] = useState<Partial<WheelData>>({});
+  const [newInterior, setNewInterior] = useState<Partial<InteriorData>>({});
   const [newPricingRule, setNewPricingRule] = useState<
     Partial<PricingRuleData>
   >({});
@@ -115,6 +187,23 @@ const InventoryPage: React.FC = () => {
 
   // Load data from Firestore
   useEffect(() => {
+    const unsubscribeCarTypes = onSnapshot(
+      collection(db, "carTypes"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as CarType
+        );
+        setCarTypes(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 6) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
     const unsubscribeCarModels = onSnapshot(
       collection(db, "carModels"),
       (snapshot) => {
@@ -124,7 +213,7 @@ const InventoryPage: React.FC = () => {
         setCarModels(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 3) {
+          if (next === 6) {
             setIsDataLoading(false);
           }
           return next;
@@ -141,7 +230,41 @@ const InventoryPage: React.FC = () => {
         setPaintColors(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 3) {
+          if (next === 6) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
+    const unsubscribeWheels = onSnapshot(
+      collection(db, "wheels"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as Wheel
+        );
+        setWheels(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 6) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
+    const unsubscribeInteriors = onSnapshot(
+      collection(db, "interiors"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as Interior
+        );
+        setInteriors(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 6) {
             setIsDataLoading(false);
           }
           return next;
@@ -158,7 +281,7 @@ const InventoryPage: React.FC = () => {
         setPricingRules(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 3) {
+          if (next === 6) {
             setIsDataLoading(false);
           }
           return next;
@@ -167,34 +290,116 @@ const InventoryPage: React.FC = () => {
     );
 
     return () => {
+      unsubscribeCarTypes();
       unsubscribeCarModels();
       unsubscribePaintColors();
+      unsubscribeWheels();
+      unsubscribeInteriors();
       unsubscribePricingRules();
     };
   }, []);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewCarModel({ ...newCarModel, imageUrl: reader.result as string });
+  const handleAddOrUpdateCarType = async () => {
+    setCarTypePending(true);
+    try {
+      const carTypeData: CarTypeData = {
+        name: newCarType.name || "",
       };
-      reader.readAsDataURL(file);
+      if (editingCarType) {
+        const carTypeRef = doc(db, "carTypes", editingCarType.id);
+        await updateDoc(carTypeRef, carTypeData);
+        toast.success("Car type updated successfully");
+      } else {
+        await addDoc(collection(db, "carTypes"), carTypeData);
+        toast.success("Car type added successfully");
+      }
+      setIsCarTypeDialogOpen(false);
+      setNewCarType({});
+      setEditingCarType(null);
+    } catch (error) {
+      console.error("Error adding/updating car type:", error);
+      toast.error("Failed to add/update car type");
+    } finally {
+      setCarTypePending(false);
     }
   };
 
-  const handlePaintImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const openAddCarType = () => {
+    setEditingCarType(null);
+    setNewCarType({});
+    setIsCarTypeDialogOpen(true);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
+    if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
+      try {
+        const url = await uploadToCloudinary(file);
+        setNewCarModel({ ...newCarModel, imageUrl: url });
+        toast.success("Image uploaded successfully");
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error("Failed to upload image");
+      }
+    } else {
+      toast.error("Cloudinary configuration missing");
+    }
+  };
+
+  const handlePaintImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
+      try {
+        const url = await uploadToCloudinary(file);
         setNewPaintColor({
           ...newPaintColor,
-          imageUrl: reader.result as string,
+          imageUrl: url,
         });
-      };
-      reader.readAsDataURL(file);
+        toast.success("Image uploaded successfully");
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error("Failed to upload image");
+      }
+    } else {
+      toast.error("Cloudinary configuration missing");
+    }
+  };
+
+  const handleWheelImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
+      try {
+        const url = await uploadToCloudinary(file);
+        setNewWheel({
+          ...newWheel,
+          imageUrl: url,
+        });
+        toast.success("Image uploaded successfully");
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error("Failed to upload image");
+      }
+    } else {
+      toast.error("Cloudinary configuration missing");
+    }
+  };
+
+  const handleInteriorImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
+      try {
+        const url = await uploadToCloudinary(file);
+        setNewInterior({
+          ...newInterior,
+          imageUrl: url,
+        });
+        toast.success("Image uploaded successfully");
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error("Failed to upload image");
+      }
+    } else {
+      toast.error("Cloudinary configuration missing");
     }
   };
 
@@ -221,8 +426,9 @@ const InventoryPage: React.FC = () => {
     try {
       const carModelData: CarModelData = {
         name: newCarModel.name || "",
-        type: newCarModel.type || "Sedan",
+        carTypeId: newCarModel.carTypeId || "",
         ...(newCarModel.imageUrl && { imageUrl: newCarModel.imageUrl }),
+        ...(typeof newCarModel.basePrice === "number" && { basePrice: newCarModel.basePrice }),
       };
       if (editingCarModel) {
         const carModelRef = doc(db, "carModels", editingCarModel.id);
@@ -275,6 +481,67 @@ const InventoryPage: React.FC = () => {
     }
   };
 
+  const handleAddOrUpdateWheel = async () => {
+    setWheelPending(true);
+    try {
+      const wheelData: WheelData = {
+        carModelId: newWheel.carModelId || "",
+        name: newWheel.name || "",
+        description: newWheel.description || "",
+        price: newWheel.price ?? 0,
+        inventory: newWheel.inventory ?? 0,
+        ...(newWheel.imageUrl && { imageUrl: newWheel.imageUrl }),
+      };
+      if (editingWheel) {
+        const wheelRef = doc(db, "wheels", editingWheel.id);
+        await updateDoc(wheelRef, wheelData);
+        toast.success("Wheel updated successfully");
+      } else {
+        await addDoc(collection(db, "wheels"), wheelData);
+        toast.success("Wheel added successfully");
+      }
+      setIsWheelDialogOpen(false);
+      setNewWheel({});
+      setEditingWheel(null);
+    } catch (error) {
+      console.error("Error adding/updating wheel:", error);
+      toast.error("Failed to add/update wheel");
+    } finally {
+      setWheelPending(false);
+    }
+  };
+
+  const handleAddOrUpdateInterior = async () => {
+    setInteriorPending(true);
+    try {
+      const interiorData: InteriorData = {
+        carModelId: newInterior.carModelId || "",
+        name: newInterior.name || "",
+        description: newInterior.description || "",
+        price: newInterior.price ?? 0,
+        inventory: newInterior.inventory ?? 0,
+        ...(newInterior.imageUrl && { imageUrl: newInterior.imageUrl }),
+        ...(newInterior.hex && { hex: newInterior.hex }),
+      };
+      if (editingInterior) {
+        const interiorRef = doc(db, "interiors", editingInterior.id);
+        await updateDoc(interiorRef, interiorData);
+        toast.success("Interior updated successfully");
+      } else {
+        await addDoc(collection(db, "interiors"), interiorData);
+        toast.success("Interior added successfully");
+      }
+      setIsInteriorDialogOpen(false);
+      setNewInterior({});
+      setEditingInterior(null);
+    } catch (error) {
+      console.error("Error adding/updating interior:", error);
+      toast.error("Failed to add/update interior");
+    } finally {
+      setInteriorPending(false);
+    }
+  };
+
   const handleAddOrUpdatePricingRule = async () => {
     setPricingRulePending(true);
     try {
@@ -323,6 +590,28 @@ const InventoryPage: React.FC = () => {
     }
   };
 
+  const handleDeleteWheel = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this wheel?")) return;
+    try {
+      await deleteDoc(doc(db, "wheels", id));
+      toast.success("Wheel deleted successfully");
+    } catch (error) {
+      console.error("Error deleting wheel:", error);
+      toast.error("Failed to delete wheel");
+    }
+  };
+
+  const handleDeleteInterior = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this interior?")) return;
+    try {
+      await deleteDoc(doc(db, "interiors", id));
+      toast.success("Interior deleted successfully");
+    } catch (error) {
+      console.error("Error deleting interior:", error);
+      toast.error("Failed to delete interior");
+    }
+  };
+
   const handleDeletePricingRule = async (id: string) => {
     if (!confirm("Are you sure you want to delete this pricing rule?")) return;
     try {
@@ -338,8 +627,9 @@ const InventoryPage: React.FC = () => {
     setEditingCarModel(model);
     setNewCarModel({
       name: model.name,
-      type: model.type,
+      carTypeId: model.carTypeId,
       ...(model.imageUrl && { imageUrl: model.imageUrl }),
+      ...(typeof model.basePrice === "number" && { basePrice: model.basePrice }),
     });
     setIsCarModelDialogOpen(true);
   };
@@ -359,6 +649,33 @@ const InventoryPage: React.FC = () => {
     setIsPaintColorDialogOpen(true);
   };
 
+  const openWheelEdit = (wheel: Wheel) => {
+    setEditingWheel(wheel);
+    setNewWheel({
+      carModelId: wheel.carModelId,
+      name: wheel.name,
+      description: wheel.description,
+      price: wheel.price,
+      inventory: wheel.inventory,
+      ...(wheel.imageUrl && { imageUrl: wheel.imageUrl }),
+    });
+    setIsWheelDialogOpen(true);
+  };
+
+  const openInteriorEdit = (interior: Interior) => {
+    setEditingInterior(interior);
+    setNewInterior({
+      carModelId: interior.carModelId,
+      name: interior.name,
+      description: interior.description,
+      price: interior.price,
+      inventory: interior.inventory,
+      ...(interior.imageUrl && { imageUrl: interior.imageUrl }),
+      ...(interior.hex && { hex: interior.hex }),
+    });
+    setIsInteriorDialogOpen(true);
+  };
+
   const openPricingRuleEdit = (rule: PricingRule) => {
     setEditingPricingRule(rule);
     setNewPricingRule({
@@ -371,6 +688,12 @@ const InventoryPage: React.FC = () => {
   const lowInventoryColors = paintColors.filter(
     (color) => color.inventory < 50
   );
+
+  const getCarTypeName = (carTypeId: string) => {
+    return (
+      carTypes.find((type) => type.id === carTypeId)?.name || "Unknown"
+    );
+  };
 
   const getCarModelName = (carModelId: string) => {
     return (
@@ -414,7 +737,7 @@ const InventoryPage: React.FC = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="car-models">Car Models</TabsTrigger>
-          <TabsTrigger value="colors">Colors</TabsTrigger>
+          <TabsTrigger value="customize">Customize</TabsTrigger>
           <TabsTrigger value="pricing-rules">Pricing Rules</TabsTrigger>
           <TabsTrigger value="inventory-monitor">Inventory Monitor</TabsTrigger>
         </TabsList>
@@ -456,27 +779,81 @@ const InventoryPage: React.FC = () => {
                       }
                       disabled={carModelPending}
                     />
-                    <Label htmlFor="type">Type</Label>
-                    <Select
-                      value={newCarModel.type}
-                      onValueChange={(value) =>
+                    <div className="space-y-2">
+                      <Label htmlFor="carTypeId">Car Type</Label>
+                      <Select
+                        value={newCarModel.carTypeId}
+                        onValueChange={(value) =>
+                          setNewCarModel({
+                            ...newCarModel,
+                            carTypeId: value,
+                          })
+                        }
+                        disabled={carModelPending || carTypes.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select car type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {carTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.id}>
+                              {type.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {carTypes.length === 0 && (
+                        <p className="text-sm text-muted-foreground mt-1">No car types available.</p>
+                      )}
+                      <Dialog open={isCarTypeDialogOpen} onOpenChange={setIsCarTypeDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="link" size="sm" onClick={openAddCarType}>
+                            + Add New Type
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add Car Type</DialogTitle>
+                          </DialogHeader>
+                          <div className="grid gap-4">
+                            <Label htmlFor="typeName">Name</Label>
+                            <Input
+                              id="typeName"
+                              value={newCarType.name ?? ""}
+                              onChange={(e) =>
+                                setNewCarType({ ...newCarType, name: e.target.value })
+                              }
+                              disabled={carTypePending}
+                            />
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              onClick={handleAddOrUpdateCarType}
+                              disabled={carTypePending || !newCarType.name}
+                            >
+                              {carTypePending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              )}
+                              Save
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                    <Label htmlFor="basePrice">Base Price</Label>
+                    <Input
+                      id="basePrice"
+                      type="number"
+                      value={newCarModel.basePrice ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
                         setNewCarModel({
                           ...newCarModel,
-                          type: value as CarModel["type"],
-                        })
-                      }
+                          basePrice: val === "" ? undefined : parseFloat(val),
+                        });
+                      }}
                       disabled={carModelPending}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Sedan">Sedan</SelectItem>
-                        <SelectItem value="SUV">SUV</SelectItem>
-                        <SelectItem value="Pickup">Pickup</SelectItem>
-                        <SelectItem value="Hatchback">Hatchback</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    />
                     <Label htmlFor="image">Default Car Image</Label>
                     <Input
                       id="image"
@@ -498,7 +875,7 @@ const InventoryPage: React.FC = () => {
                   <DialogFooter>
                     <Button
                       onClick={handleAddOrUpdateCarModel}
-                      disabled={carModelPending || !newCarModel.name}
+                      disabled={carModelPending || !newCarModel.name || !newCarModel.carTypeId}
                     >
                       {carModelPending && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -517,7 +894,7 @@ const InventoryPage: React.FC = () => {
                     <Card key={model.id}>
                       <CardHeader>
                         <CardTitle>{model.name}</CardTitle>
-                        <CardDescription>{model.type}</CardDescription>
+                        <CardDescription>{getCarTypeName(model.carTypeId)}</CardDescription>
                       </CardHeader>
                       <CardContent className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1 md:w-1/2">
@@ -556,11 +933,11 @@ const InventoryPage: React.FC = () => {
                           )}
                           <Button
                             variant="link"
-                            onClick={() => setActiveTab("colors")}
+                            onClick={() => setActiveTab("customize")}
                             className="p-0 h-auto text-blue-600 hover:text-blue-800 mt-2 text-sm"
                             disabled={isDataLoading}
                           >
-                            Add colors in Colors tab
+                            Add customizations in Customize tab
                           </Button>
                         </div>
                         <div className="flex-1 md:w-1/2 flex flex-col items-center">
@@ -601,250 +978,676 @@ const InventoryPage: React.FC = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="colors">
-          <Card>
-            <CardHeader>
-              <CardTitle>Colors</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Dialog
-                open={isPaintColorDialogOpen}
-                onOpenChange={setIsPaintColorDialogOpen}
-              >
-                <DialogTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      setEditingPaintColor(null);
-                      setNewPaintColor({});
-                    }}
-                    disabled={isDataLoading}
+        <TabsContent value="customize">
+          <Tabs defaultValue="paint-colors">
+            <TabsList>
+              <TabsTrigger value="paint-colors">Paint Colors</TabsTrigger>
+              <TabsTrigger value="wheels">Wheels</TabsTrigger>
+              <TabsTrigger value="interiors">Interiors</TabsTrigger>
+            </TabsList>
+            <TabsContent value="paint-colors">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Paint Colors</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Dialog
+                    open={isPaintColorDialogOpen}
+                    onOpenChange={setIsPaintColorDialogOpen}
                   >
-                    Add Paint Color
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="flex flex-col max-w-4xl">
-                  <DialogHeader>
-                    <DialogTitle>
-                      {editingPaintColor
-                        ? "Edit Paint Color"
-                        : "Add Paint Color"}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <form className="grid grid-cols-2 gap-4 flex-1">
-                    <div className="grid gap-2">
-                      <Label htmlFor="carModel">Car Model</Label>
-                      {isEditingPaintColor ? (
-                        <div className="p-2 bg-muted rounded-md">
-                          {getCarModelName(newPaintColor.carModelId as string)}
+                    <DialogTrigger asChild>
+                      <Button
+                        onClick={() => {
+                          setEditingPaintColor(null);
+                          setNewPaintColor({});
+                        }}
+                        disabled={isDataLoading}
+                      >
+                        Add Paint Color
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="flex flex-col max-w-4xl">
+                      <DialogHeader>
+                        <DialogTitle>
+                          {editingPaintColor
+                            ? "Edit Paint Color"
+                            : "Add Paint Color"}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <form className="grid grid-cols-2 gap-4 flex-1">
+                        <div className="grid gap-2">
+                          <Label htmlFor="carModel">Car Model</Label>
+                          {isEditingPaintColor ? (
+                            <div className="p-2 bg-muted rounded-md">
+                              {getCarModelName(newPaintColor.carModelId as string)}
+                            </div>
+                          ) : (
+                            <Select
+                              value={newPaintColor.carModelId}
+                              onValueChange={(value) =>
+                                setNewPaintColor({
+                                  ...newPaintColor,
+                                  carModelId: value,
+                                })
+                              }
+                              disabled={paintColorPending}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select car model" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {carModels.map((model) => (
+                                  <SelectItem key={model.id} value={model.id}>
+                                    {model.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
-                      ) : (
-                        <Select
-                          value={newPaintColor.carModelId}
-                          onValueChange={(value) =>
-                            setNewPaintColor({
-                              ...newPaintColor,
-                              carModelId: value,
-                            })
+                        <div className="grid gap-2">
+                          <Label htmlFor="name">Name</Label>
+                          <Input
+                            id="name"
+                            value={newPaintColor.name ?? ""}
+                            onChange={handleNameChange}
+                            disabled={paintColorPending}
+                          />
+                        </div>
+                        <div className="grid gap-2 col-span-2">
+                          <Label>Hex Code</Label>
+                          <Sketch
+                            color={newPaintColor.hex || "#000000"}
+                            onChange={(color) =>
+                              setNewPaintColor({
+                                ...newPaintColor,
+                                hex: color.hex,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="finish">Finish</Label>
+                          <Select
+                            value={newPaintColor.finish}
+                            onValueChange={(value) =>
+                              setNewPaintColor({
+                                ...newPaintColor,
+                                finish: value as PaintColor["finish"],
+                              })
+                            }
+                            disabled={paintColorPending}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select finish" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Matte">Matte</SelectItem>
+                              <SelectItem value="Glossy">Glossy</SelectItem>
+                              <SelectItem value="Metallic">Metallic</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2 col-span-2">
+                          <Label htmlFor="description">Description</Label>
+                          <Textarea
+                            id="description"
+                            value={newPaintColor.description ?? ""}
+                            onChange={(e) =>
+                              setNewPaintColor({
+                                ...newPaintColor,
+                                description: e.target.value,
+                              })
+                            }
+                            disabled={paintColorPending}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="price">Price</Label>
+                          <Input
+                            id="price"
+                            type="number"
+                            value={newPaintColor.price ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewPaintColor({
+                                ...newPaintColor,
+                                price: val === "" ? undefined : parseFloat(val),
+                              });
+                            }}
+                            disabled={paintColorPending}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="inventory">Stock</Label>
+                          <Input
+                            id="inventory"
+                            type="number"
+                            value={newPaintColor.inventory ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewPaintColor({
+                                ...newPaintColor,
+                                inventory:
+                                  val === "" ? undefined : parseInt(val, 10),
+                              });
+                            }}
+                            disabled={paintColorPending}
+                          />
+                        </div>
+                        <div className="grid gap-2 col-span-2">
+                          <Label htmlFor="image">Color Image</Label>
+                          <Input
+                            id="image"
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePaintImageUpload}
+                            disabled={paintColorPending}
+                          />
+                          {newPaintColor.imageUrl && (
+                            <Image
+                              src={newPaintColor.imageUrl}
+                              alt="Preview"
+                              className="w-32 h-auto mt-2"
+                              width={500}
+                              height={500}
+                            />
+                          )}
+                        </div>
+                      </form>
+                      <DialogFooter>
+                        <Button
+                          onClick={handleAddOrUpdatePaintColor}
+                          disabled={
+                            paintColorPending ||
+                            !newPaintColor.name ||
+                            !newPaintColor.carModelId
                           }
-                          disabled={paintColorPending}
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select car model" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {carModels.map((model) => (
-                              <SelectItem key={model.id} value={model.id}>
-                                {model.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="name">Name</Label>
-                      <Input
-                        id="name"
-                        value={newPaintColor.name ?? ""}
-                        onChange={handleNameChange}
-                        disabled={paintColorPending}
-                      />
-                    </div>
-                    <div className="grid gap-2 col-span-2">
-                      <Label>Hex Code</Label>
-                      <Sketch
-                        color={newPaintColor.hex || "#000000"}
-                        onChange={(color) =>
-                          setNewPaintColor({
-                            ...newPaintColor,
-                            hex: color.hex,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="finish">Finish</Label>
-                      <Select
-                        value={newPaintColor.finish}
-                        onValueChange={(value) =>
-                          setNewPaintColor({
-                            ...newPaintColor,
-                            finish: value as PaintColor["finish"],
-                          })
-                        }
-                        disabled={paintColorPending}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select finish" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Matte">Matte</SelectItem>
-                          <SelectItem value="Glossy">Glossy</SelectItem>
-                          <SelectItem value="Metallic">Metallic</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2 col-span-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea
-                        id="description"
-                        value={newPaintColor.description ?? ""}
-                        onChange={(e) =>
-                          setNewPaintColor({
-                            ...newPaintColor,
-                            description: e.target.value,
-                          })
-                        }
-                        disabled={paintColorPending}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="price">Price</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        value={newPaintColor.price ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setNewPaintColor({
-                            ...newPaintColor,
-                            price: val === "" ? undefined : parseFloat(val),
-                          });
-                        }}
-                        disabled={paintColorPending}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="inventory">Stock</Label>
-                      <Input
-                        id="inventory"
-                        type="number"
-                        value={newPaintColor.inventory ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setNewPaintColor({
-                            ...newPaintColor,
-                            inventory:
-                              val === "" ? undefined : parseInt(val, 10),
-                          });
-                        }}
-                        disabled={paintColorPending}
-                      />
-                    </div>
-                    <div className="grid gap-2 col-span-2">
-                      <Label htmlFor="image">Color Image</Label>
-                      <Input
-                        id="image"
-                        type="file"
-                        accept="image/*"
-                        onChange={handlePaintImageUpload}
-                        disabled={paintColorPending}
-                      />
-                      {newPaintColor.imageUrl && (
-                        <Image
-                          src={newPaintColor.imageUrl}
-                          alt="Preview"
-                          className="w-32 h-auto mt-2"
-                          width={500}
-                          height={500}
-                        />
-                      )}
-                    </div>
-                  </form>
-                  <DialogFooter>
-                    <Button
-                      onClick={handleAddOrUpdatePaintColor}
-                      disabled={
-                        paintColorPending ||
-                        !newPaintColor.name ||
-                        !newPaintColor.carModelId
-                      }
-                    >
-                      {paintColorPending && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Save
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-              <div className="my-4">
-                <Input
-                  placeholder="Search colors by name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                {filteredPaintColors.map((color) => (
-                  <Card key={color.id}>
-                    <CardHeader>
-                      <CardTitle>{color.name}</CardTitle>
-                      <CardDescription>
-                        {getCarModelName(color.carModelId)} - {color.hex} -{" "}
-                        {color.finish}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {color.imageUrl ? (
-                        <Image
-                          src={color.imageUrl}
-                          alt={color.name}
-                          className="w-full h-auto object-cover rounded mb-2"
-                          width={500}
-                          height={500}
-                        />
-                      ) : (
-                        <div
-                          className="w-16 h-16 border border-gray-300 mb-2"
-                          style={{ backgroundColor: color.hex }}
-                        ></div>
-                      )}
-                      <p className="mb-1">{color.description}</p>
-                      <p>Price: ₱{color.price}</p>
-                      <p>Stock: {color.inventory}</p>
-                    </CardContent>
-                    <CardFooter className="flex justify-between">
+                          {paintColorPending && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          )}
+                          Save
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  <div className="my-4">
+                    <Input
+                      placeholder="Search paint colors by name..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                    {filteredPaintColors.map((color) => (
+                      <Card key={color.id}>
+                        <CardHeader>
+                          <CardTitle>{color.name}</CardTitle>
+                          <CardDescription>
+                            {getCarModelName(color.carModelId)} - {color.hex} -{" "}
+                            {color.finish}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {color.imageUrl ? (
+                            <Image
+                              src={color.imageUrl}
+                              alt={color.name}
+                              className="w-full h-auto object-cover rounded mb-2"
+                              width={500}
+                              height={500}
+                            />
+                          ) : (
+                            <div
+                              className="w-16 h-16 border border-gray-300 mb-2"
+                              style={{ backgroundColor: color.hex }}
+                            ></div>
+                          )}
+                          <p className="mb-1">{color.description}</p>
+                          <p>Price: ₱{color.price}</p>
+                          <p>Stock: {color.inventory}</p>
+                        </CardContent>
+                        <CardFooter className="flex justify-between">
+                          <Button
+                            variant="outline"
+                            onClick={() => openPaintColorEdit(color)}
+                            disabled={isDataLoading}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={() => handleDeletePaintColor(color.id)}
+                            disabled={isDataLoading}
+                          >
+                            Delete
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="wheels">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Wheels</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Dialog
+                    open={isWheelDialogOpen}
+                    onOpenChange={setIsWheelDialogOpen}
+                  >
+                    <DialogTrigger asChild>
                       <Button
-                        variant="outline"
-                        onClick={() => openPaintColorEdit(color)}
+                        onClick={() => {
+                          setEditingWheel(null);
+                          setNewWheel({});
+                        }}
                         disabled={isDataLoading}
                       >
-                        Edit
+                        Add Wheel
                       </Button>
+                    </DialogTrigger>
+                    <DialogContent className="flex flex-col max-w-4xl">
+                      <DialogHeader>
+                        <DialogTitle>
+                          {editingWheel ? "Edit Wheel" : "Add Wheel"}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <form className="grid grid-cols-2 gap-4 flex-1">
+                        <div className="grid gap-2">
+                          <Label htmlFor="carModel">Car Model</Label>
+                          {editingWheel ? (
+                            <div className="p-2 bg-muted rounded-md">
+                              {getCarModelName(newWheel.carModelId as string)}
+                            </div>
+                          ) : (
+                            <Select
+                              value={newWheel.carModelId}
+                              onValueChange={(value) =>
+                                setNewWheel({
+                                  ...newWheel,
+                                  carModelId: value,
+                                })
+                              }
+                              disabled={wheelPending}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select car model" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {carModels.map((model) => (
+                                  <SelectItem key={model.id} value={model.id}>
+                                    {model.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="name">Name</Label>
+                          <Input
+                            id="name"
+                            value={newWheel.name ?? ""}
+                            onChange={(e) =>
+                              setNewWheel({ ...newWheel, name: e.target.value })
+                            }
+                            disabled={wheelPending}
+                          />
+                        </div>
+                        <div className="grid gap-2 col-span-2">
+                          <Label htmlFor="description">Description</Label>
+                          <Textarea
+                            id="description"
+                            value={newWheel.description ?? ""}
+                            onChange={(e) =>
+                              setNewWheel({
+                                ...newWheel,
+                                description: e.target.value,
+                              })
+                            }
+                            disabled={wheelPending}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="price">Price</Label>
+                          <Input
+                            id="price"
+                            type="number"
+                            value={newWheel.price ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewWheel({
+                                ...newWheel,
+                                price: val === "" ? undefined : parseFloat(val),
+                              });
+                            }}
+                            disabled={wheelPending}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="inventory">Stock</Label>
+                          <Input
+                            id="inventory"
+                            type="number"
+                            value={newWheel.inventory ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewWheel({
+                                ...newWheel,
+                                inventory:
+                                  val === "" ? undefined : parseInt(val, 10),
+                              });
+                            }}
+                            disabled={wheelPending}
+                          />
+                        </div>
+                        <div className="grid gap-2 col-span-2">
+                          <Label htmlFor="image">Wheel Image</Label>
+                          <Input
+                            id="image"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleWheelImageUpload}
+                            disabled={wheelPending}
+                          />
+                          {newWheel.imageUrl && (
+                            <Image
+                              src={newWheel.imageUrl}
+                              alt="Preview"
+                              className="w-32 h-auto mt-2"
+                              width={500}
+                              height={500}
+                            />
+                          )}
+                        </div>
+                      </form>
+                      <DialogFooter>
+                        <Button
+                          onClick={handleAddOrUpdateWheel}
+                          disabled={
+                            wheelPending ||
+                            !newWheel.name ||
+                            !newWheel.carModelId
+                          }
+                        >
+                          {wheelPending && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          )}
+                          Save
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                    {wheels.map((wheel) => (
+                      <Card key={wheel.id}>
+                        <CardHeader>
+                          <CardTitle>{wheel.name}</CardTitle>
+                          <CardDescription>
+                            {getCarModelName(wheel.carModelId)}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {wheel.imageUrl ? (
+                            <Image
+                              src={wheel.imageUrl}
+                              alt={wheel.name}
+                              className="w-full h-auto object-cover rounded mb-2"
+                              width={500}
+                              height={500}
+                            />
+                          ) : (
+                            <div
+                              className="w-16 h-16 border border-gray-300 mb-2 mx-auto bg-muted"
+                            ></div>
+                          )}
+                          <p className="mb-1">{wheel.description}</p>
+                          <p>Price: ₱{wheel.price}</p>
+                          <p>Stock: {wheel.inventory}</p>
+                        </CardContent>
+                        <CardFooter className="flex justify-between">
+                          <Button
+                            variant="outline"
+                            onClick={() => openWheelEdit(wheel)}
+                            disabled={isDataLoading}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={() => handleDeleteWheel(wheel.id)}
+                            disabled={isDataLoading}
+                          >
+                            Delete
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="interiors">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Interiors</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Dialog
+                    open={isInteriorDialogOpen}
+                    onOpenChange={setIsInteriorDialogOpen}
+                  >
+                    <DialogTrigger asChild>
                       <Button
-                        variant="destructive"
-                        onClick={() => handleDeletePaintColor(color.id)}
+                        onClick={() => {
+                          setEditingInterior(null);
+                          setNewInterior({});
+                        }}
                         disabled={isDataLoading}
                       >
-                        Delete
+                        Add Interior
                       </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                    </DialogTrigger>
+                    <DialogContent className="flex flex-col max-w-4xl">
+                      <DialogHeader>
+                        <DialogTitle>
+                          {editingInterior ? "Edit Interior" : "Add Interior"}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <form className="grid grid-cols-2 gap-4 flex-1">
+                        <div className="grid gap-2">
+                          <Label htmlFor="carModel">Car Model</Label>
+                          {editingInterior ? (
+                            <div className="p-2 bg-muted rounded-md">
+                              {getCarModelName(newInterior.carModelId as string)}
+                            </div>
+                          ) : (
+                            <Select
+                              value={newInterior.carModelId}
+                              onValueChange={(value) =>
+                                setNewInterior({
+                                  ...newInterior,
+                                  carModelId: value,
+                                })
+                              }
+                              disabled={interiorPending}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select car model" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {carModels.map((model) => (
+                                  <SelectItem key={model.id} value={model.id}>
+                                    {model.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="name">Name</Label>
+                          <Input
+                            id="name"
+                            value={newInterior.name ?? ""}
+                            onChange={(e) =>
+                              setNewInterior({ ...newInterior, name: e.target.value })
+                            }
+                            disabled={interiorPending}
+                          />
+                        </div>
+                        <div className="grid gap-2 col-span-2">
+                          <Label>Hex Code</Label>
+                          <Sketch
+                            color={newInterior.hex || "#000000"}
+                            onChange={(color) =>
+                              setNewInterior({
+                                ...newInterior,
+                                hex: color.hex,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="grid gap-2 col-span-2">
+                          <Label htmlFor="description">Description</Label>
+                          <Textarea
+                            id="description"
+                            value={newInterior.description ?? ""}
+                            onChange={(e) =>
+                              setNewInterior({
+                                ...newInterior,
+                                description: e.target.value,
+                              })
+                            }
+                            disabled={interiorPending}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="price">Price</Label>
+                          <Input
+                            id="price"
+                            type="number"
+                            value={newInterior.price ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewInterior({
+                                ...newInterior,
+                                price: val === "" ? undefined : parseFloat(val),
+                              });
+                            }}
+                            disabled={interiorPending}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="inventory">Stock</Label>
+                          <Input
+                            id="inventory"
+                            type="number"
+                            value={newInterior.inventory ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewInterior({
+                                ...newInterior,
+                                inventory:
+                                  val === "" ? undefined : parseInt(val, 10),
+                              });
+                            }}
+                            disabled={interiorPending}
+                          />
+                        </div>
+                        <div className="grid gap-2 col-span-2">
+                          <Label htmlFor="image">Interior Image</Label>
+                          <Input
+                            id="image"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleInteriorImageUpload}
+                            disabled={interiorPending}
+                          />
+                          {newInterior.imageUrl && (
+                            <Image
+                              src={newInterior.imageUrl}
+                              alt="Preview"
+                              className="w-32 h-auto mt-2"
+                              width={500}
+                              height={500}
+                            />
+                          )}
+                        </div>
+                      </form>
+                      <DialogFooter>
+                        <Button
+                          onClick={handleAddOrUpdateInterior}
+                          disabled={
+                            interiorPending ||
+                            !newInterior.name ||
+                            !newInterior.carModelId
+                          }
+                        >
+                          {interiorPending && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          )}
+                          Save
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                    {interiors.map((interior) => (
+                      <Card key={interior.id}>
+                        <CardHeader>
+                          <CardTitle>{interior.name}</CardTitle>
+                          <CardDescription>
+                            {getCarModelName(interior.carModelId)}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {interior.imageUrl ? (
+                            <Image
+                              src={interior.imageUrl}
+                              alt={interior.name}
+                              className="w-full h-auto object-cover rounded mb-2"
+                              width={500}
+                              height={500}
+                            />
+                          ) : (
+                            <div
+                              className="w-16 h-16 border border-gray-300 mb-2 mx-auto"
+                              style={{ backgroundColor: interior.hex || '#000000' }}
+                            ></div>
+                          )}
+                          <p className="mb-1">{interior.description}</p>
+                          <p>Price: ₱{interior.price}</p>
+                          <p>Stock: {interior.inventory}</p>
+                        </CardContent>
+                        <CardFooter className="flex justify-between">
+                          <Button
+                            variant="outline"
+                            onClick={() => openInteriorEdit(interior)}
+                            disabled={isDataLoading}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={() => handleDeleteInterior(interior.id)}
+                            disabled={isDataLoading}
+                          >
+                            Delete
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="pricing-rules">
