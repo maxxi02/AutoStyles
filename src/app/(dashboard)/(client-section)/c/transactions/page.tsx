@@ -95,6 +95,21 @@ interface Transaction {
   status: "saved" | "booked" | "paid" | "cancelled";
 }
 
+interface PayMongoPaymentIntent {
+  id: string;
+  attributes: {
+    status: string;
+    client_key?: string;
+    checkout_url?: string;
+    next_action?: {
+      redirect: {
+        url: string;
+      };
+    };
+    last_payment_error?: unknown;
+  };
+}
+
 const CustomEditModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
@@ -121,9 +136,13 @@ const CustomEditModal: React.FC<{
                   {title}
                 </h3>
                 <div className="mt-2">
-                  <p className="text-sm text-accent-foreground">{description}</p>
+                  <p className="text-sm text-accent-foreground">
+                    {description}
+                  </p>
                 </div>
-                <div className="mt-4 max-h-[60vh] overflow-y-auto">{children}</div>
+                <div className="mt-4 max-h-[60vh] overflow-y-auto">
+                  {children}
+                </div>
               </div>
             </div>
           </div>
@@ -165,6 +184,9 @@ const ClientTransaction: React.FC = () => {
   const [editColorId, setEditColorId] = useState<string>("");
   const [editWheelId, setEditWheelId] = useState<string>("");
   const [editInteriorId, setEditInteriorId] = useState<string>("");
+  // Payment states
+  const [paymentStatus, setPaymentStatus] = useState("");
+  const [currentPaymentIntentId, setCurrentPaymentIntentId] = useState<string>("");
 
   useEffect(() => {
     const unsubscribeTransactions = onSnapshot(
@@ -291,13 +313,64 @@ const ClientTransaction: React.FC = () => {
     return { type, model, color, wheel, interior };
   };
 
-  const handleBookAppointment = async () => {
-    if (!selectedTransaction || !appointmentDate) {
-      toast.error("Please select a date.");
-      return;
+  // PayMongo functions
+  const createPaymentIntent = async (): Promise<PayMongoPaymentIntent> => {
+    const response = await fetch("/api/create-payment-intent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: selectedTransaction!.price,
+        description: `Payment for transaction ${selectedTransaction!.id}`,
+        requestId: selectedTransaction!.id,
+      }),
+    });
+    const res = await response.json();
+    if (res.body?.errors) {
+      throw new Error(res.body.errors[0].detail);
     }
+    return res.body.data;
+  };
+
+  const pollPaymentStatus = async (paymentIntentId: string) => {
+    let attempts = 0;
+    const maxAttempts = 24; // 2 minutes
+    while (attempts < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      const response = await fetch(
+        `https://api.paymongo.com/v1/payment_intents/${paymentIntentId}`,
+        {
+          headers: {
+            Authorization: `Basic ${btoa(
+              (process.env.NEXT_PUBLIC_PAYMONGO_PUBLIC_API_KEY || "") + ":"
+            )}`,
+          },
+        }
+      );
+      const res = await response.json();
+      if (res.data.attributes.status === "paid") {
+        await bookAppointmentAfterPayment();
+        return;
+      } else if (
+        res.data.attributes.status === "failed" ||
+        res.data.attributes.last_payment_error
+      ) {
+        setPaymentStatus("Payment failed");
+        toast.error("Payment failed. Please try again.");
+        return;
+      }
+      attempts++;
+      setPaymentStatus(
+        `Waiting for payment confirmation... (${attempts * 5}s)`
+      );
+    }
+    toast.error("Payment confirmation timed out");
+  };
+
+  const bookAppointmentAfterPayment = async () => {
+    if (!selectedTransaction || !appointmentDate) return;
     try {
-      // Save appointment
       await addDoc(collection(db, "appointments"), {
         transactionId: selectedTransaction.id,
         appointmentDate: new Date(appointmentDate),
@@ -305,18 +378,46 @@ const ClientTransaction: React.FC = () => {
         timestamp: new Date(),
       });
 
-      // Update transaction status
       await updateDoc(doc(db, "transactions", selectedTransaction.id), {
-        status: "booked" as const,
+        status: "paid" as const,
       });
 
-      toast.success("Appointment booked successfully!");
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id === selectedTransaction.id ? { ...t, status: "paid" } : t
+        )
+      );
+
+      toast.success("Payment successful! Appointment booked.");
       setIsDialogOpen(false);
+      // Reset forms
       setAppointmentDate("");
+      setPaymentStatus("");
+      setCurrentPaymentIntentId("");
       setSelectedTransaction(null);
     } catch (error) {
-      console.error("Error booking appointment:", error);
-      toast.error("Failed to book appointment");
+      console.error("Error booking after payment:", error);
+      toast.error("Failed to book appointment after payment");
+    }
+  };
+
+  const handleBookAppointment = async () => {
+    if (!selectedTransaction || !appointmentDate) {
+      toast.error("Please select an appointment date.");
+      return;
+    }
+    try {
+      setPaymentStatus("Creating payment session...");
+      const intent = await createPaymentIntent();
+
+      setCurrentPaymentIntentId(intent.id);
+      setPaymentStatus("Redirecting to payment gateway...");
+      window.open(intent.attributes.checkout_url, "_blank");
+      pollPaymentStatus(intent.id);
+    } catch (error: unknown) {
+      console.error("Payment error:", error);
+      setPaymentStatus("Payment failed");
+      toast.error((error as Error).message || "Payment failed");
     }
   };
 
@@ -444,9 +545,7 @@ const ClientTransaction: React.FC = () => {
               <SelectItem key={type.id} value={type.id}>
                 <div className="flex justify-between items-center w-full">
                   <span className="truncate flex-1">{type.name}</span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                    
-                  </span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2"></span>
                 </div>
               </SelectItem>
             ))}
@@ -656,17 +755,22 @@ const ClientTransaction: React.FC = () => {
           })}
       </div>
 
-      {/* Appointment Dialog */}
+      {/* Appointment and Payment Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Book Appointment</DialogTitle>
+            <DialogTitle>Pay & Book Appointment</DialogTitle>
             <DialogDescription>
-              Select a date for your appointment to finalize the payment and
-              customization.
+              Select appointment date and proceed to payment gateway to choose
+              your preferred method.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {paymentStatus && (
+              <div className="p-3 bg-muted rounded-md">
+                <p className="text-sm">{paymentStatus}</p>
+              </div>
+            )}
             <div>
               <Label htmlFor="appointmentDate">Appointment Date</Label>
               <Input
@@ -675,14 +779,31 @@ const ClientTransaction: React.FC = () => {
                 value={appointmentDate}
                 onChange={(e) => setAppointmentDate(e.target.value)}
                 min={new Date().toISOString().split("T")[0]}
+                className="w-full"
               />
             </div>
+            {selectedTransaction && (
+              <div className="p-4 bg-muted rounded-md">
+                <h3 className="font-medium mb-2">Payment Amount</h3>
+                <p className="text-lg font-bold">
+                  ₱{selectedTransaction.price.toLocaleString()}
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleBookAppointment}>Confirm & Pay</Button>
+            <Button
+              onClick={handleBookAppointment}
+              disabled={
+                (!!paymentStatus && paymentStatus.includes("Creating")) ||
+                paymentStatus.includes("Redirecting")
+              }
+            >
+              Proceed to Payment
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -704,7 +825,8 @@ const ClientTransaction: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Cancel Transaction</DialogTitle>
             <DialogDescription>
-              Are you sure you want to cancel this transaction? This action cannot be undone.
+              Are you sure you want to cancel this transaction? This action
+              cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
