@@ -1,15 +1,13 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   collection,
   onSnapshot,
+  orderBy,
+  query,
   addDoc,
-  updateDoc,
-  doc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -19,24 +17,49 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Clock, DollarSign, Calendar, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
+import { format } from "date-fns";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
 
+interface Transaction {
+  id: string;
+  typeId: string;
+  modelId: string;
+  colorId: string;
+  wheelId: string;
+  interiorId: string;
+  timestamp: Date;
+  price: number;
+  status: "saved" | "purchased" | "cancelled";
+  paymentVerifiedAt?: Date;
+  paymentId?: string;
+}
+
+interface Appointment {
+  id: string;
+  transactionId: string;
+  date: string;
+  time: string;
+  status: string;
+  timestamp: Date;
+  paymentStatus?: "pending" | "paid";
+  paidAt?: Date;
+  paymentId?: string;
+}
 interface CarType {
   id: string;
   name: string;
@@ -83,127 +106,84 @@ interface Interior {
   hex?: string;
 }
 
-interface Transaction {
-  id: string;
-  typeId: string;
-  modelId: string;
-  colorId: string;
-  wheelId: string;
-  interiorId: string;
-  timestamp: Date;
-  price: number;
-  status: "saved" | "booked" | "paid" | "cancelled";
-}
-
-interface PayMongoPaymentIntent {
-  id: string;
-  attributes: {
-    status: string;
-    client_key?: string;
-    checkout_url?: string;
-    next_action?: {
-      redirect: {
-        url: string;
-      };
-    };
-    last_payment_error?: unknown;
-  };
-}
-
-const CustomEditModal: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-  onSave: () => void;
-}> = ({ isOpen, onClose, title, description, children, onSave }) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-        <div
-          className="fixed inset-0 bg-gray-transparent bg-opacity-75 transition-opacity"
-          aria-hidden="true"
-          onClick={onClose}
-        />
-        <div className="relative transform rounded-lg text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-3xl">
-          <div className="dark:bg-accent px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div className="sm:flex sm:items-start">
-              <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                <h3 className="text-base font-semibold leading-6 text-accent-foreground">
-                  {title}
-                </h3>
-                <div className="mt-2">
-                  <p className="text-sm text-accent-foreground">
-                    {description}
-                  </p>
-                </div>
-                <div className="mt-4 max-h-[60vh] overflow-y-auto">
-                  {children}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-accent px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-            <Button type="button" className="sm:ml-3" onClick={onSave}>
-              Save Changes
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-3 sm:mt-0"
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ClientTransaction: React.FC = () => {
+const TransactionsPage: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [carTypes, setCarTypes] = useState<CarType[]>([]);
   const [carModels, setCarModels] = useState<CarModel[]>([]);
   const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
   const [wheels, setWheels] = useState<Wheel[]>([]);
   const [interiors, setInteriors] = useState<Interior[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedTransaction, setSelectedTransaction] =
-    useState<Transaction | null>(null);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+  const [snapshotCount, setSnapshotCount] = useState(0);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<
+    string | null
+  >(null);
+  const [showModal, setShowModal] = useState(false);
   const [appointmentDate, setAppointmentDate] = useState("");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isCancelOpen, setIsCancelOpen] = useState(false);
-  const [editTypeId, setEditTypeId] = useState<string>("");
-  const [editModelId, setEditModelId] = useState<string>("");
-  const [editColorId, setEditColorId] = useState<string>("");
-  const [editWheelId, setEditWheelId] = useState<string>("");
-  const [editInteriorId, setEditInteriorId] = useState<string>("");
-  // Payment states
-  const [paymentStatus, setPaymentStatus] = useState("");
-  const [currentPaymentIntentId, setCurrentPaymentIntentId] = useState<string>("");
+  const [appointmentTime, setAppointmentTime] = useState("");
+  const [verifyingTransactionId, setVerifyingTransactionId] = useState<
+    string | null
+  >(null);
+  const searchParams = useSearchParams();
+  const verificationAttempted = useRef<Set<string>>(new Set());
 
+  // Load data from Firestore
   useEffect(() => {
-    const unsubscribeTransactions = onSnapshot(
+    const expectedSnapshots = 7; // transactions + appointments + 5 others
+
+    // Load transactions
+    const q = query(
       collection(db, "transactions"),
+      orderBy("timestamp", "desc")
+    );
+    const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(
+        (doc) =>
+          ({
+            id: doc.id,
+            ...doc.data(),
+            timestamp: doc.data().timestamp.toDate(),
+            paymentVerifiedAt: doc.data().paymentVerifiedAt?.toDate(),
+          }) as Transaction
+      );
+      setTransactions(data);
+      console.log("Transactions updated, count:", data.length);
+
+      setSnapshotCount((prev) => {
+        const next = prev + 1;
+        if (next === expectedSnapshots) {
+          setIsDataLoading(false);
+        }
+        return next;
+      });
+    });
+
+    // Load appointments
+    const unsubscribeAppointments = onSnapshot(
+      collection(db, "appointments"),
       (snapshot) => {
         const data = snapshot.docs.map(
           (doc) =>
             ({
               id: doc.id,
               ...doc.data(),
-              timestamp: doc.data().timestamp?.toDate(),
-            }) as Transaction
+              timestamp: doc.data().timestamp.toDate(),
+              paidAt: doc.data().paidAt?.toDate(),
+            }) as Appointment
         );
-        setTransactions(data);
+        setAppointments(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
       }
     );
 
+    // Load supporting data (same as CustomizationPage)
     const unsubscribeCarTypes = onSnapshot(
       collection(db, "carTypes"),
       (snapshot) => {
@@ -211,6 +191,13 @@ const ClientTransaction: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as CarType
         );
         setCarTypes(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
       }
     );
 
@@ -221,6 +208,13 @@ const ClientTransaction: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as CarModel
         );
         setCarModels(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
       }
     );
 
@@ -231,6 +225,13 @@ const ClientTransaction: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as PaintColor
         );
         setPaintColors(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
       }
     );
 
@@ -241,6 +242,13 @@ const ClientTransaction: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as Wheel
         );
         setWheels(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
       }
     );
 
@@ -251,12 +259,19 @@ const ClientTransaction: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as Interior
         );
         setInteriors(data);
-        setIsLoading(false);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
       }
     );
 
     return () => {
       unsubscribeTransactions();
+      unsubscribeAppointments();
       unsubscribeCarTypes();
       unsubscribeCarModels();
       unsubscribePaintColors();
@@ -265,43 +280,145 @@ const ClientTransaction: React.FC = () => {
     };
   }, []);
 
-  // Edit modal filtered data
-  const filteredEditModels = carModels.filter(
-    (model) => model.carTypeId === editTypeId
-  );
-  const filteredEditColors = paintColors.filter(
-    (color) => color.carModelId === editModelId
-  );
-  const filteredEditWheels = wheels.filter(
-    (wheel) => wheel.carModelId === editModelId
-  );
-  const filteredEditInteriors = interiors.filter(
-    (interior) => interior.carModelId === editModelId
-  );
-
-  // Reset dependents on type change
   useEffect(() => {
-    setEditModelId("");
-    if (filteredEditModels.length > 0) {
-      setEditModelId(filteredEditModels[0].id);
-    }
-  }, [editTypeId]);
+    const success = searchParams.get("success");
+    const cancelled = searchParams.get("cancelled");
+    const tid = searchParams.get("tid");
 
-  // Reset on model change
-  useEffect(() => {
-    setEditColorId("");
-    setEditWheelId("");
-    setEditInteriorId("");
-    if (filteredEditColors.length > 0) {
-      setEditColorId(filteredEditColors[0].id);
+    // Only process if we have valid params and haven't attempted verification
+    if (!tid || verificationAttempted.current.has(tid)) {
+      return;
     }
-    if (filteredEditWheels.length > 0) {
-      setEditWheelId(filteredEditWheels[0].id);
+
+    if (cancelled === "true") {
+      verificationAttempted.current.add(tid);
+      toast.error("Payment was cancelled. Please try again.");
+      setTimeout(() => {
+        window.history.replaceState({}, "", "/c/transactions");
+      }, 3000);
+      return;
     }
-    if (filteredEditInteriors.length > 0) {
-      setEditInteriorId(filteredEditInteriors[0].id);
+
+    if (success === "true") {
+      console.log("Payment success detected for transaction:", tid);
+
+      // Wait for transactions to be loaded before attempting verification
+      if (!isDataLoading && transactions.length > 0) {
+        const transaction = transactions.find((t) => t.id === tid);
+
+        if (transaction) {
+          verificationAttempted.current.add(tid);
+
+          // Check if already verified
+          if (transaction.status === "purchased") {
+            console.log("Transaction already verified");
+            toast.success("Payment already verified!");
+            setSelectedTransactionId(tid);
+            setShowModal(true);
+          } else {
+            console.log("Starting verification process");
+            handleVerifyPayment(tid);
+          }
+        } else {
+          console.log("Transaction not found yet, waiting...");
+          // Don't mark as attempted yet, let it retry
+        }
+      } else {
+        console.log("Still loading data, waiting...");
+        // Don't mark as attempted yet, let it retry when data loads
+      }
     }
-  }, [editModelId]);
+  }, [searchParams, transactions, isDataLoading]);
+
+  const handleVerifyPayment = async (tid: string) => {
+    // Prevent duplicate calls
+    if (verifyingTransactionId === tid) {
+      console.log("Already verifying this transaction, skipping...");
+      return;
+    }
+
+    const transaction = transactions.find((t) => t.id === tid);
+    if (!transaction) {
+      console.error("Transaction not found:", tid);
+      toast.error("Transaction not found. Please refresh the page.");
+      return;
+    }
+
+    // Double-check status before API call
+    if (transaction.status === "purchased") {
+      console.log("Transaction already purchased, skipping verification");
+      toast.success("Payment already verified!");
+      setSelectedTransactionId(tid);
+      setShowModal(true);
+      // Clean URL after processing
+      setTimeout(() => {
+        window.history.replaceState({}, "", "/c/transactions");
+      }, 2000);
+      return;
+    }
+
+    console.log("Starting verification for transaction:", tid);
+    setVerifyingTransactionId(tid);
+    const loadingToast = toast.loading("Verifying payment...");
+
+    try {
+      const response = await fetch("/api/transactions/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactionId: tid }),
+      });
+
+      const data = await response.json();
+      toast.dismiss(loadingToast);
+
+      if (response.ok) {
+        console.log("Verification successful:", data);
+
+        if (data.alreadyPaid) {
+          toast.success("Payment already verified!");
+        } else {
+          toast.success("Payment verified! Your appointment is now confirmed.");
+        }
+
+        // Show modal with details
+        setSelectedTransactionId(tid);
+        setShowModal(true);
+
+        // Clean URL after showing success
+        setTimeout(() => {
+          window.history.replaceState({}, "", "/c/transactions");
+        }, 2000);
+      } else {
+        console.error("Verification API error:", data);
+        toast.error(
+          data.error || "Verification failed. Please contact support."
+        );
+      }
+    } catch (error) {
+      console.error("Verification network error:", error);
+      toast.dismiss(loadingToast);
+      toast.error("Network error during verification. Please try again.");
+    } finally {
+      setVerifyingTransactionId(null);
+    }
+  };
+
+  if (isDataLoading) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin mb-2" />
+          <p>Loading transactions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const getLatestTransaction = () => {
+    return selectedTransactionId
+      ? transactions.find((t) => t.id === selectedTransactionId)
+      : null;
+  };
 
   const getTransactionDetails = (transaction: Transaction) => {
     const type = carTypes.find((t) => t.id === transaction.typeId);
@@ -313,540 +430,393 @@ const ClientTransaction: React.FC = () => {
     return { type, model, color, wheel, interior };
   };
 
-  // PayMongo functions
-  const createPaymentIntent = async (): Promise<PayMongoPaymentIntent> => {
-    const response = await fetch("/api/create-payment-intent", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        amount: selectedTransaction!.price,
-        description: `Payment for transaction ${selectedTransaction!.id}`,
-        requestId: selectedTransaction!.id,
-      }),
-    });
-    const res = await response.json();
-    if (res.body?.errors) {
-      throw new Error(res.body.errors[0].detail);
-    }
-    return res.body.data;
+  const getTransactionAppointments = (transactionId: string) => {
+    return appointments.filter((apt) => apt.transactionId === transactionId);
   };
 
-  const pollPaymentStatus = async (paymentIntentId: string) => {
-    let attempts = 0;
-    const maxAttempts = 24; // 2 minutes
-    while (attempts < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      const response = await fetch(
-        `https://api.paymongo.com/v1/payment_intents/${paymentIntentId}`,
-        {
-          headers: {
-            Authorization: `Basic ${btoa(
-              (process.env.NEXT_PUBLIC_PAYMONGO_PUBLIC_API_KEY || "") + ":"
-            )}`,
-          },
-        }
-      );
-      const res = await response.json();
-      if (res.data.attributes.status === "paid") {
-        await bookAppointmentAfterPayment();
-        return;
-      } else if (
-        res.data.attributes.status === "failed" ||
-        res.data.attributes.last_payment_error
-      ) {
-        setPaymentStatus("Payment failed");
-        toast.error("Payment failed. Please try again.");
-        return;
-      }
-      attempts++;
-      setPaymentStatus(
-        `Waiting for payment confirmation... (${attempts * 5}s)`
-      );
-    }
-    toast.error("Payment confirmation timed out");
+  const handleViewDetails = (transaction: Transaction) => {
+    setSelectedTransactionId(transaction.id);
+    setShowModal(true);
   };
 
-  const bookAppointmentAfterPayment = async () => {
-    if (!selectedTransaction || !appointmentDate) return;
+  const handlePay = async () => {
+    const latestTransaction = getLatestTransaction();
+    if (!latestTransaction) return;
+
+    const { model } = getTransactionDetails(latestTransaction);
+
     try {
-      await addDoc(collection(db, "appointments"), {
-        transactionId: selectedTransaction.id,
-        appointmentDate: new Date(appointmentDate),
-        status: "scheduled" as const,
-        timestamp: new Date(),
+      const response = await fetch("/api/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionId: latestTransaction.id,
+          amount: Math.round(latestTransaction.price * 100), // Ensure integer centavos
+          description: `Payment for ${model?.name || "Custom Design"} customization`,
+        }),
       });
 
-      await updateDoc(doc(db, "transactions", selectedTransaction.id), {
-        status: "paid" as const,
-      });
+      const data = await response.json();
 
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === selectedTransaction.id ? { ...t, status: "paid" } : t
-        )
-      );
-
-      toast.success("Payment successful! Appointment booked.");
-      setIsDialogOpen(false);
-      // Reset forms
-      setAppointmentDate("");
-      setPaymentStatus("");
-      setCurrentPaymentIntentId("");
-      setSelectedTransaction(null);
+      if (response.ok && data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        // Improved error handling
+        const errorMsg = data.error
+          ? Array.isArray(data.error)
+            ? data.error
+                .map(
+                  (e: { code: string; detail: string }) =>
+                    `${e.code}: ${e.detail}`
+                )
+                .join("; ")
+            : typeof data.error === "string"
+              ? data.error
+              : JSON.stringify(data.error)
+          : "Unknown error occurred";
+        toast.error(`Payment initiation failed: ${errorMsg}`);
+        console.error("PayMongo error:", data);
+      }
     } catch (error) {
-      console.error("Error booking after payment:", error);
-      toast.error("Failed to book appointment after payment");
+      toast.error("Failed to initiate payment. Check console for details.");
+      console.error(error);
     }
   };
 
   const handleBookAppointment = async () => {
-    if (!selectedTransaction || !appointmentDate) {
-      toast.error("Please select an appointment date.");
+    const latestTransaction = getLatestTransaction();
+    if (!latestTransaction || !appointmentDate || !appointmentTime) {
+      toast.error("Please select date and time.");
       return;
     }
+
     try {
-      setPaymentStatus("Creating payment session...");
-      const intent = await createPaymentIntent();
-
-      setCurrentPaymentIntentId(intent.id);
-      setPaymentStatus("Redirecting to payment gateway...");
-      window.open(intent.attributes.checkout_url, "_blank");
-      pollPaymentStatus(intent.id);
-    } catch (error: unknown) {
-      console.error("Payment error:", error);
-      setPaymentStatus("Payment failed");
-      toast.error((error as Error).message || "Payment failed");
-    }
-  };
-
-  const handleEdit = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
-    setEditTypeId(transaction.typeId);
-    setEditModelId(transaction.modelId);
-    setEditColorId(transaction.colorId);
-    setEditWheelId(transaction.wheelId);
-    setEditInteriorId(transaction.interiorId);
-    setIsEditOpen(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (
-      !editTypeId ||
-      !editModelId ||
-      !editColorId ||
-      !editWheelId ||
-      !editInteriorId
-    ) {
-      toast.error("Please select all customizations.");
-      return;
-    }
-    try {
-      const editModel = carModels.find((m) => m.id === editModelId);
-      const editColor = paintColors.find((c) => c.id === editColorId);
-      const editWheel = wheels.find((w) => w.id === editWheelId);
-      const editInterior = interiors.find((i) => i.id === editInteriorId);
-      const newPrice =
-        (editModel?.basePrice ?? 0) +
-        (editColor?.price ?? 0) +
-        (editWheel?.price ?? 0) +
-        (editInterior?.price ?? 0);
-
-      await updateDoc(doc(db, "transactions", selectedTransaction!.id), {
-        typeId: editTypeId,
-        modelId: editModelId,
-        colorId: editColorId,
-        wheelId: editWheelId,
-        interiorId: editInteriorId,
-        price: newPrice,
+      await addDoc(collection(db, "appointments"), {
+        transactionId: latestTransaction.id,
+        date: appointmentDate,
+        time: appointmentTime,
+        status: "booked",
+        paymentStatus:
+          latestTransaction.status === "purchased" ? "paid" : "pending",
+        timestamp: new Date(),
       });
-
-      // Update local state for immediate UI update
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === selectedTransaction!.id
-            ? {
-                ...t,
-                typeId: editTypeId,
-                modelId: editModelId,
-                colorId: editColorId,
-                wheelId: editWheelId,
-                interiorId: editInteriorId,
-                price: newPrice,
-              }
-            : t
-        )
-      );
-
-      toast.success("Transaction updated successfully!");
-      setIsEditOpen(false);
-      setSelectedTransaction(null);
+      toast.success("Appointment booked successfully!");
+      setShowModal(false);
+      setAppointmentDate("");
+      setAppointmentTime("");
     } catch (error) {
-      console.error("Error updating transaction:", error);
-      toast.error("Failed to update transaction");
+      toast.error("Failed to book appointment");
+      console.error(error);
     }
   };
 
-  const handleCancel = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
-    setIsCancelOpen(true);
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setSelectedTransactionId(null);
+    setAppointmentDate("");
+    setAppointmentTime("");
   };
 
-  const confirmCancel = async () => {
-    if (!selectedTransaction) return;
-    try {
-      await updateDoc(doc(db, "transactions", selectedTransaction.id), {
-        status: "cancelled" as const,
-      });
-
-      // Update local state for immediate UI update
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === selectedTransaction.id ? { ...t, status: "cancelled" } : t
-        )
-      );
-
-      toast.success("Transaction cancelled!");
-      setIsCancelOpen(false);
-      setSelectedTransaction(null);
-    } catch (error) {
-      console.error("Error cancelling transaction:", error);
-      toast.error("Failed to cancel transaction");
-    }
-  };
-
-  const closeEditModal = () => {
-    setIsEditOpen(false);
-    setSelectedTransaction(null);
-  };
-
-  // Calculate edit price
-  const editModel = carModels.find((m) => m.id === editModelId);
-  const editColor = paintColors.find((c) => c.id === editColorId);
-  const editWheel = wheels.find((w) => w.id === editWheelId);
-  const editInterior = interiors.find((i) => i.id === editInteriorId);
-  const editPrice =
-    (editModel?.basePrice ?? 0) +
-    (editColor?.price ?? 0) +
-    (editWheel?.price ?? 0) +
-    (editInterior?.price ?? 0);
-
-  const editModalContent = (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Car Type</Label>
-        <Select value={editTypeId} onValueChange={setEditTypeId}>
-          <SelectTrigger className="w-full">
-            <SelectValue className="truncate" />
-          </SelectTrigger>
-          <SelectContent>
-            {carTypes.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                <div className="flex justify-between items-center w-full">
-                  <span className="truncate flex-1">{type.name}</span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2"></span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Model</Label>
-        <Select
-          value={editModelId}
-          onValueChange={setEditModelId}
-          disabled={filteredEditModels.length === 0}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue className="truncate" />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredEditModels.map((model) => (
-              <SelectItem key={model.id} value={model.id}>
-                <div className="flex justify-between items-center w-full">
-                  <span className="truncate flex-1">{model.name}</span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                    ₱{(model.basePrice || 0).toLocaleString()}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Exterior Color</Label>
-        <Select
-          value={editColorId}
-          onValueChange={setEditColorId}
-          disabled={filteredEditColors.length === 0}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue className="truncate" />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredEditColors.map((color) => (
-              <SelectItem key={color.id} value={color.id}>
-                <div className="flex justify-between items-center w-full">
-                  <span className="truncate flex-1">
-                    {color.name} ({color.finish})
-                  </span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                    ₱{color.price.toLocaleString()}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Wheels</Label>
-        <Select
-          value={editWheelId}
-          onValueChange={setEditWheelId}
-          disabled={filteredEditWheels.length === 0}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue className="truncate" />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredEditWheels.map((wheel) => (
-              <SelectItem key={wheel.id} value={wheel.id}>
-                <div className="flex justify-between items-center w-full">
-                  <span className="truncate flex-1">{wheel.name}</span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                    ₱{wheel.price.toLocaleString()}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Interior</Label>
-        <Select
-          value={editInteriorId}
-          onValueChange={setEditInteriorId}
-          disabled={filteredEditInteriors.length === 0}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue className="truncate" />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredEditInteriors.map((interior) => (
-              <SelectItem key={interior.id} value={interior.id}>
-                <div className="flex justify-between items-center w-full">
-                  <span className="truncate flex-1">{interior.name}</span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                    ₱{interior.price.toLocaleString()}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {editPrice > 0 && (
-        <div className="p-3 bg-muted rounded-md">
-          <p className="text-lg font-bold">
-            Total Price: ₱{editPrice.toLocaleString()}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto p-4 flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <Loader2 className="h-8 w-8 animate-spin mb-2" />
-          <p>Loading transactions...</p>
-        </div>
-      </div>
-    );
-  }
+  const latestTransaction = getLatestTransaction();
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">My Transactions</h1>
-      <div className="space-y-6">
-        {transactions
-          .filter((t) => t.status === "saved")
-          .map((transaction) => {
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Saved Designs</h1>
+        <Badge variant={transactions.length > 0 ? "default" : "secondary"}>
+          {transactions.length} Design{transactions.length !== 1 ? "s" : ""}
+        </Badge>
+      </div>
+
+      {transactions.length === 0 ? (
+        <Card className="text-center py-12">
+          <CardContent>
+            <p className="text-muted-foreground">
+              No saved designs yet. Start customizing a car to save your first
+              design!
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {transactions.map((transaction) => {
             const { type, model, color, wheel, interior } =
               getTransactionDetails(transaction);
+            const previewImage =
+              color?.imageUrl || model?.imageUrl || "/placeholder-car.png";
+            const transactionAppointments = getTransactionAppointments(
+              transaction.id
+            );
+            const hasPaidAppointments = transactionAppointments.some(
+              (apt) => apt.paymentStatus === "paid"
+            );
+
             return (
               <Card key={transaction.id}>
                 <CardHeader>
-                  <CardTitle>{model?.name || "Custom Design"}</CardTitle>
-                  <CardDescription>
-                    {type?.name} | Saved on{" "}
-                    {transaction.timestamp?.toLocaleDateString()}
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">
+                      {model?.name || "Custom Design"}
+                    </CardTitle>
+                    <Badge variant="outline">
+                      {type?.name || "Unknown Type"}
+                    </Badge>
+                  </div>
+                  <CardDescription className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      {format(transaction.timestamp, "MMM dd, yyyy HH:mm")}
+                    </span>
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <p>
-                      <strong>Car Type:</strong> {type?.name}
-                    </p>
-                    <p>
-                      <strong>Model:</strong> {model?.name}
-                    </p>
-                    <p>
-                      <strong>Exterior Color:</strong> {color?.name} (
-                      {color?.finish})
-                    </p>
-                    <p>
-                      <strong>Wheels:</strong> {wheel?.name}
-                    </p>
-                    <p>
-                      <strong>Interior:</strong> {interior?.name}
-                    </p>
+                  {/* Preview Image */}
+                  <div className="w-full">
+                    <Image
+                      src={previewImage}
+                      alt={`${model?.name} Preview`}
+                      className="w-full h-48 object-cover rounded-lg"
+                      width={400}
+                      height={300}
+                    />
                   </div>
-                  <div className="p-4 bg-muted rounded-md">
-                    <h3 className="font-medium mb-2">Receipt</h3>
-                    <div className="space-y-1 text-sm">
-                      <p>
-                        Base Price: ₱{(model?.basePrice || 0).toLocaleString()}
-                      </p>
-                      <p>Color: ₱{(color?.price || 0).toLocaleString()}</p>
-                      <p>Wheels: ₱{(wheel?.price || 0).toLocaleString()}</p>
-                      <p>
-                        Interior: ₱{(interior?.price || 0).toLocaleString()}
-                      </p>
-                      <p className="font-bold border-t pt-1">
-                        Total: ₱{transaction.price.toLocaleString()}
-                      </p>
+
+                  {/* Quick Details */}
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className="w-4 h-4 rounded"
+                        style={{ backgroundColor: color?.hex || "#000000" }}
+                      />
+                      <span className="text-sm font-medium">
+                        Exterior: {color?.name} ({color?.finish})
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium">
+                        Wheels: {wheel?.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium">
+                        Interior: {interior?.name}
+                      </span>
+                      {interior?.hex && (
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: interior.hex }}
+                        />
+                      )}
                     </div>
                   </div>
+
+                  {/* Price */}
+                  <div className="flex items-center justify-between p-2 bg-muted rounded-md">
+                    <DollarSign className="h-4 w-4" />
+                    <span className="text-lg font-bold">
+                      ₱{transaction.price.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Appointment Status */}
+                  {transactionAppointments.length > 0 && (
+                    <div className="pt-2 border-t">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">
+                          Appointments: {transactionAppointments.length}
+                        </span>
+                        {hasPaidAppointments && (
+                          <Badge variant="default" className="gap-1">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Paid
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
-                <CardFooter className="justify-start space-x-2">
+                <CardFooter className="flex justify-between">
+                  <Badge
+                    variant={
+                      transaction.status === "purchased"
+                        ? "default"
+                        : "secondary"
+                    }
+                  >
+                    {transaction.status.toUpperCase()}
+                  </Badge>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleEdit(transaction)}
+                    onClick={() => handleViewDetails(transaction)}
                   >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleCancel(transaction)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setSelectedTransaction(transaction);
-                      setIsDialogOpen(true);
-                    }}
-                  >
-                    Pay & Book Appointment
+                    View Details
                   </Button>
                 </CardFooter>
               </Card>
             );
           })}
-      </div>
+        </div>
+      )}
 
-      {/* Appointment and Payment Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* Details Modal */}
+      <Dialog open={showModal} onOpenChange={handleCloseModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Pay & Book Appointment</DialogTitle>
-            <DialogDescription>
-              Select appointment date and proceed to payment gateway to choose
-              your preferred method.
-            </DialogDescription>
+            <DialogTitle>Design Details</DialogTitle>
+            <DialogDescription>Manage your saved design</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            {paymentStatus && (
-              <div className="p-3 bg-muted rounded-md">
-                <p className="text-sm">{paymentStatus}</p>
+          {latestTransaction && (
+            <>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium">
+                    Model:{" "}
+                    {getTransactionDetails(latestTransaction).model?.name}
+                  </h3>
+                </div>
+                <div>
+                  <h3 className="font-medium">
+                    Exterior:{" "}
+                    {getTransactionDetails(latestTransaction).color?.name} (
+                    {getTransactionDetails(latestTransaction).color?.finish})
+                  </h3>
+                </div>
+                <div>
+                  <h3 className="font-medium">
+                    Wheels:{" "}
+                    {getTransactionDetails(latestTransaction).wheel?.name}
+                  </h3>
+                </div>
+                <div>
+                  <h3 className="font-medium">
+                    Interior:{" "}
+                    {getTransactionDetails(latestTransaction).interior?.name}
+                  </h3>
+                </div>
+                <div className="text-2xl font-bold">
+                  Total: ₱{latestTransaction.price.toLocaleString()}
+                </div>
+
+                {/* Payment Status */}
+                {latestTransaction.status === "purchased" && (
+                  <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <div>
+                      <p className="font-medium text-green-900">
+                        Payment Verified
+                      </p>
+                      {latestTransaction.paymentVerifiedAt && (
+                        <p className="text-sm text-green-700">
+                          {format(
+                            latestTransaction.paymentVerifiedAt,
+                            "MMM dd, yyyy HH:mm"
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            <div>
-              <Label htmlFor="appointmentDate">Appointment Date</Label>
-              <Input
-                id="appointmentDate"
-                type="date"
-                value={appointmentDate}
-                onChange={(e) => setAppointmentDate(e.target.value)}
-                min={new Date().toISOString().split("T")[0]}
-                className="w-full"
-              />
-            </div>
-            {selectedTransaction && (
-              <div className="p-4 bg-muted rounded-md">
-                <h3 className="font-medium mb-2">Payment Amount</h3>
-                <p className="text-lg font-bold">
-                  ₱{selectedTransaction.price.toLocaleString()}
-                </p>
+
+              {/* Payment Button */}
+              {latestTransaction.status !== "purchased" && (
+                <div className="space-y-2 pt-4">
+                  <Button onClick={handlePay} className="w-full">
+                    Pay Now with PayMongo
+                  </Button>
+                </div>
+              )}
+
+              {/* Existing Appointments */}
+              {getTransactionAppointments(latestTransaction.id).length > 0 && (
+                <div className="space-y-2 pt-4 border-t">
+                  <h4 className="font-medium">Booked Appointments</h4>
+                  <div className="space-y-2">
+                    {getTransactionAppointments(latestTransaction.id).map(
+                      (apt) => (
+                        <div
+                          key={apt.id}
+                          className="flex items-center justify-between p-3 border rounded-md"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            <div>
+                              <p className="font-medium">
+                                {format(new Date(apt.date), "MMM dd, yyyy")} at{" "}
+                                {apt.time}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                Status: {apt.status}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge
+                            variant={
+                              apt.paymentStatus === "paid"
+                                ? "default"
+                                : "secondary"
+                            }
+                          >
+                            {apt.paymentStatus === "paid" ? (
+                              <span className="flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Paid & Ready
+                              </span>
+                            ) : (
+                              "Pending Payment"
+                            )}
+                          </Badge>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Book New Appointment */}
+              <div className="space-y-2 pt-4 border-t">
+                <h4 className="font-medium">Book New Appointment</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="date">Date</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={appointmentDate}
+                      onChange={(e) => setAppointmentDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="time">Time</Label>
+                    <Input
+                      id="time"
+                      type="time"
+                      value={appointmentTime}
+                      onChange={(e) => setAppointmentTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={handleBookAppointment}
+                  className="w-full"
+                  variant="outline"
+                >
+                  Book Appointment
+                </Button>
               </div>
-            )}
-          </div>
+            </>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleBookAppointment}
-              disabled={
-                (!!paymentStatus && paymentStatus.includes("Creating")) ||
-                paymentStatus.includes("Redirecting")
-              }
-            >
-              Proceed to Payment
+            <Button variant="outline" onClick={handleCloseModal}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Custom Edit Modal */}
-      <CustomEditModal
-        isOpen={isEditOpen}
-        onClose={closeEditModal}
-        title="Edit Customization"
-        description="Modify your selected options."
-        onSave={handleSaveEdit}
-      >
-        {editModalContent}
-      </CustomEditModal>
-
-      {/* Cancel Confirmation Dialog */}
-      <Dialog open={isCancelOpen} onOpenChange={setIsCancelOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel Transaction</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to cancel this transaction? This action
-              cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCancelOpen(false)}>
-              No, Keep It
-            </Button>
-            <Button variant="destructive" onClick={confirmCancel}>
-              Yes, Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {transactions.filter((t) => t.status === "saved").length === 0 && (
-        <p className="text-center text-muted-foreground mt-8">
-          No active transactions.
-        </p>
-      )}
     </div>
   );
 };
 
-export default ClientTransaction;
+export default TransactionsPage;
