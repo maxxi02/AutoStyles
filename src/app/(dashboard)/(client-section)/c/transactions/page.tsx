@@ -6,6 +6,9 @@ import {
   orderBy,
   query,
   addDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -18,7 +21,14 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, DollarSign, Calendar, CheckCircle2 } from "lucide-react";
+import {
+  Clock,
+  DollarSign,
+  Calendar,
+  CheckCircle2,
+  Trash2,
+  Search,
+} from "lucide-react";
 import Image from "next/image";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
@@ -127,6 +137,14 @@ const TransactionsPage: React.FC = () => {
   >(null);
   const searchParams = useSearchParams();
   const verificationAttempted = useRef<Set<string>>(new Set());
+
+  const [editingAppointmentId, setEditingAppointmentId] = useState<
+    string | null
+  >(null);
+  const [editDate, setEditDate] = useState("");
+  const [editTime, setEditTime] = useState("");
+
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Load data from Firestore
   useEffect(() => {
@@ -400,6 +418,24 @@ const TransactionsPage: React.FC = () => {
     }
   };
 
+  const getFilteredAndSortedAppointments = (transactionId: string) => {
+    const filtered = appointments.filter(
+      (apt) => apt.transactionId === transactionId
+    );
+
+    // Sort by date and time (nearest first), but keep cancelled at the end
+    return filtered.sort((a, b) => {
+      // Put cancelled appointments at the end
+      if (a.status === "cancelled" && b.status !== "cancelled") return 1;
+      if (b.status === "cancelled" && a.status !== "cancelled") return -1;
+
+      // Sort by date and time (ascending - nearest first)
+      const dateA = new Date(`${a.date}T${a.time}`);
+      const dateB = new Date(`${b.date}T${b.time}`);
+      return dateA.getTime() - dateB.getTime();
+    });
+  };
+
   if (isDataLoading) {
     return (
       <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
@@ -410,6 +446,39 @@ const TransactionsPage: React.FC = () => {
       </div>
     );
   }
+
+  const getFilteredTransactions = () => {
+    if (!searchQuery) return transactions;
+
+    return transactions.filter((transaction) => {
+      const searchLower = searchQuery.toLowerCase();
+      const { type, model, color, wheel, interior } =
+        getTransactionDetails(transaction);
+
+      const modelName = model?.name?.toLowerCase() || "";
+      const typeName = type?.name?.toLowerCase() || "";
+      const colorName = color?.name?.toLowerCase() || "";
+      const wheelName = wheel?.name?.toLowerCase() || "";
+      const interiorName = interior?.name?.toLowerCase() || "";
+      const status = transaction.status.toLowerCase();
+      const dateStr = format(
+        transaction.timestamp,
+        "MMM dd, yyyy HH:mm"
+      ).toLowerCase();
+      const priceStr = transaction.price.toString();
+
+      return (
+        modelName.includes(searchLower) ||
+        typeName.includes(searchLower) ||
+        colorName.includes(searchLower) ||
+        wheelName.includes(searchLower) ||
+        interiorName.includes(searchLower) ||
+        status.includes(searchLower) ||
+        dateStr.includes(searchLower) ||
+        priceStr.includes(searchLower)
+      );
+    });
+  };
 
   const getLatestTransaction = () => {
     return selectedTransactionId
@@ -487,6 +556,21 @@ const TransactionsPage: React.FC = () => {
       return;
     }
 
+    // Check if there's already an active appointment
+    const existingAppointments = getTransactionAppointments(
+      latestTransaction.id
+    );
+    const hasActiveAppointment = existingAppointments.some(
+      (apt) => apt.status !== "cancelled"
+    );
+
+    if (hasActiveAppointment) {
+      toast.error(
+        "You already have an active appointment for this customization. Please cancel or edit the existing one."
+      );
+      return;
+    }
+
     try {
       await addDoc(collection(db, "appointments"), {
         transactionId: latestTransaction.id,
@@ -498,11 +582,73 @@ const TransactionsPage: React.FC = () => {
         timestamp: new Date(),
       });
       toast.success("Appointment booked successfully!");
-      setShowModal(false);
       setAppointmentDate("");
       setAppointmentTime("");
     } catch (error) {
       toast.error("Failed to book appointment");
+      console.error(error);
+    }
+  };
+
+  const handleEditAppointment = (appointment: Appointment) => {
+    setEditingAppointmentId(appointment.id);
+    setEditDate(appointment.date);
+    setEditTime(appointment.time);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingAppointmentId || !editDate || !editTime) {
+      toast.error("Please select date and time.");
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "appointments", editingAppointmentId), {
+        date: editDate,
+        time: editTime,
+      });
+      toast.success("Appointment updated successfully!");
+      setEditingAppointmentId(null);
+      setEditDate("");
+      setEditTime("");
+    } catch (error) {
+      toast.error("Failed to update appointment");
+      console.error(error);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingAppointmentId(null);
+    setEditDate("");
+    setEditTime("");
+  };
+
+  const handleCancelAppointment = async (appointmentId: string) => {
+    try {
+      await updateDoc(doc(db, "appointments", appointmentId), {
+        status: "cancelled",
+      });
+      toast.success("Appointment cancelled successfully!");
+    } catch (error) {
+      toast.error("Failed to cancel appointment");
+      console.error(error);
+    }
+  };
+
+  const handleDeleteAppointment = async (
+    appointmentId: string,
+    paymentStatus: string | undefined
+  ) => {
+    if (paymentStatus === "paid") {
+      toast.error("Cannot delete a paid appointment.");
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, "appointments", appointmentId));
+      toast.success("Appointment deleted successfully!");
+    } catch (error) {
+      toast.error("Failed to delete appointment");
       console.error(error);
     }
   };
@@ -512,19 +658,37 @@ const TransactionsPage: React.FC = () => {
     setSelectedTransactionId(null);
     setAppointmentDate("");
     setAppointmentTime("");
+    setSearchQuery("");
+    setEditingAppointmentId(null);
+    setEditDate("");
+    setEditTime("");
   };
 
   const latestTransaction = getLatestTransaction();
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
+    <div className="flex flex-col gap-4 mb-6">
+      <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Transactions</h1>
         <Badge variant={transactions.length > 0 ? "default" : "secondary"}>
           {transactions.length} Transaction
           {transactions.length !== 1 ? "s" : ""}
         </Badge>
       </div>
+
+      {/* Global Search Bar */}
+      {transactions.length > 0 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search transactions by model, type, color, wheels, interior, status, date, or price..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      )}
 
       {transactions.length === 0 ? (
         <Card className="text-center py-12">
@@ -536,7 +700,7 @@ const TransactionsPage: React.FC = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {transactions.map((transaction) => {
+          {getFilteredTransactions().map((transaction) => {
             const { type, model, color, wheel, interior } =
               getTransactionDetails(transaction);
             const previewImage =
@@ -703,87 +867,239 @@ const TransactionsPage: React.FC = () => {
                   </Button>
                 </div>
               )}
-
               {/* Existing Appointments */}
               {getTransactionAppointments(latestTransaction.id).length > 0 && (
                 <div className="space-y-2 pt-4 border-t">
-                  <h4 className="font-medium">Booked Appointments</h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium">Booked Appointments</h4>
+                    <Badge variant="outline">
+                      {getTransactionAppointments(latestTransaction.id).length}{" "}
+                      Total
+                    </Badge>
+                  </div>
                   <div className="space-y-2">
-                    {getTransactionAppointments(latestTransaction.id).map(
-                      (apt) => (
-                        <div
-                          key={apt.id}
-                          className="flex items-center justify-between p-3 border rounded-md"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4" />
-                            <div>
-                              <p className="font-medium">
-                                {format(new Date(apt.date), "MMM dd, yyyy")} at{" "}
-                                {apt.time}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                Status: {apt.status}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge
-                            variant={
-                              apt.paymentStatus === "paid"
-                                ? "default"
-                                : "secondary"
-                            }
+                    {getFilteredAndSortedAppointments(latestTransaction.id).map(
+                      (apt) => {
+                        const appointmentDateTime = new Date(
+                          `${apt.date}T${apt.time}`
+                        );
+                        const isUpcoming =
+                          appointmentDateTime > new Date() &&
+                          apt.status !== "cancelled";
+                        const isPast =
+                          appointmentDateTime < new Date() &&
+                          apt.status !== "cancelled";
+
+                        return (
+                          <div
+                            key={apt.id}
+                            className={`p-3 border rounded-md space-y-3 ${
+                              isUpcoming ? "border-primary/50 bg-primary/5" : ""
+                            } ${isPast ? "opacity-60" : ""}`}
                           >
-                            {apt.paymentStatus === "paid" ? (
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="h-3 w-3" />
-                                Booked
-                              </span>
+                            {editingAppointmentId === apt.id ? (
+                              // Edit Mode
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label htmlFor="edit-date">Date</Label>
+                                    <Input
+                                      id="edit-date"
+                                      type="date"
+                                      value={editDate}
+                                      onChange={(e) =>
+                                        setEditDate(e.target.value)
+                                      }
+                                      min={
+                                        new Date().toISOString().split("T")[0]
+                                      }
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="edit-time">Time</Label>
+                                    <Input
+                                      id="edit-time"
+                                      type="time"
+                                      value={editTime}
+                                      onChange={(e) =>
+                                        setEditTime(e.target.value)
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    onClick={handleSaveEdit}
+                                    size="sm"
+                                    className="flex-1"
+                                  >
+                                    Save Changes
+                                  </Button>
+                                  <Button
+                                    onClick={handleCancelEdit}
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1"
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
                             ) : (
-                              "Pending Payment"
+                              // View Mode
+                              <>
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-start gap-2">
+                                    <Calendar className="h-4 w-4 mt-1" />
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium">
+                                          {format(
+                                            new Date(apt.date),
+                                            "MMM dd, yyyy"
+                                          )}{" "}
+                                          at {apt.time}
+                                        </p>
+                                        {isUpcoming && (
+                                          <Badge
+                                            variant="default"
+                                            className="text-xs"
+                                          >
+                                            Upcoming
+                                          </Badge>
+                                        )}
+                                        {isPast && (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs"
+                                          >
+                                            Past
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <p className="text-sm text-muted-foreground">
+                                        Status: {apt.status}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <Badge
+                                    variant={
+                                      apt.paymentStatus === "paid"
+                                        ? "default"
+                                        : "secondary"
+                                    }
+                                  >
+                                    {apt.paymentStatus === "paid" ? (
+                                      <span className="flex items-center gap-1">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Paid
+                                      </span>
+                                    ) : (
+                                      "Pending Payment"
+                                    )}
+                                  </Badge>
+                                </div>
+
+                                {apt.status !== "cancelled" &&
+                                  apt.paymentStatus !== "paid" && (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleEditAppointment(apt)
+                                        }
+                                        className="flex-1"
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleCancelAppointment(apt.id)
+                                        }
+                                        className="flex-1"
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleDeleteAppointment(
+                                            apt.id,
+                                            apt.paymentStatus
+                                          )
+                                        }
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )}
+
+                                {apt.status === "cancelled" && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="w-full justify-center"
+                                  >
+                                    Cancelled
+                                  </Badge>
+                                )}
+
+                                {apt.paymentStatus === "paid" && (
+                                  <p className="text-xs text-muted-foreground text-center">
+                                    Paid appointments cannot be edited or
+                                    cancelled
+                                  </p>
+                                )}
+                              </>
                             )}
-                          </Badge>
-                        </div>
-                      )
+                          </div>
+                        );
+                      }
                     )}
                   </div>
                 </div>
               )}
 
               {/* Book New Appointment */}
-              {latestTransaction.status !== "purchased" && (
-                <div className="space-y-2 pt-4 border-t">
-                  <h4 className="font-medium">Book New Appointment</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="date">Date</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        value={appointmentDate}
-                        onChange={(e) => setAppointmentDate(e.target.value)}
-                        min={new Date().toISOString().split("T")[0]}
-                      />
+              {latestTransaction.status !== "purchased" &&
+                !getTransactionAppointments(latestTransaction.id).some(
+                  (apt) => apt.status !== "cancelled"
+                ) && (
+                  <div className="space-y-2 pt-4 border-t">
+                    <h4 className="font-medium">Book New Appointment</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="date">Date</Label>
+                        <Input
+                          id="date"
+                          type="date"
+                          value={appointmentDate}
+                          onChange={(e) => setAppointmentDate(e.target.value)}
+                          min={new Date().toISOString().split("T")[0]}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="time">Time</Label>
+                        <Input
+                          id="time"
+                          type="time"
+                          value={appointmentTime}
+                          onChange={(e) => setAppointmentTime(e.target.value)}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="time">Time</Label>
-                      <Input
-                        id="time"
-                        type="time"
-                        value={appointmentTime}
-                        onChange={(e) => setAppointmentTime(e.target.value)}
-                      />
-                    </div>
+                    <Button
+                      onClick={handleBookAppointment}
+                      className="w-full"
+                      variant="outline"
+                    >
+                      Book Appointment
+                    </Button>
                   </div>
-                  <Button
-                    onClick={handleBookAppointment}
-                    className="w-full"
-                    variant="outline"
-                  >
-                    Book Appointment
-                  </Button>
-                </div>
-              )}
+                )}
             </>
           )}
           <DialogFooter>
