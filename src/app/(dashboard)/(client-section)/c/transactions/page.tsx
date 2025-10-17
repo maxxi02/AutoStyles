@@ -342,7 +342,6 @@ const TransactionsPage: React.FC = () => {
       return;
     }
 
-    // Double-check status before API call
     if (transaction.status === "purchased") {
       console.log("Transaction already purchased, skipping verification");
       toast.success("Payment already verified!");
