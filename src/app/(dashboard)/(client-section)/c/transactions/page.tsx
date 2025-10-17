@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import {
   collection,
   onSnapshot,
@@ -321,11 +321,9 @@ const TransactionsPage: React.FC = () => {
           }
         } else {
           console.log("Transaction not found yet, waiting...");
-          // Don't mark as attempted yet, let it retry
         }
       } else {
         console.log("Still loading data, waiting...");
-        // Don't mark as attempted yet, let it retry when data loads
       }
     }
   }, [searchParams, transactions, isDataLoading]);
@@ -522,9 +520,10 @@ const TransactionsPage: React.FC = () => {
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Saved Designs</h1>
+        <h1 className="text-3xl font-bold">Transactions</h1>
         <Badge variant={transactions.length > 0 ? "default" : "secondary"}>
-          {transactions.length} Design{transactions.length !== 1 ? "s" : ""}
+          {transactions.length} Transaction
+          {transactions.length !== 1 ? "s" : ""}
         </Badge>
       </div>
 
@@ -532,8 +531,7 @@ const TransactionsPage: React.FC = () => {
         <Card className="text-center py-12">
           <CardContent>
             <p className="text-muted-foreground">
-              No saved designs yet. Start customizing a car to save your first
-              design!
+              No transactions yet. Start by saving a design!
             </p>
           </CardContent>
         </Card>
@@ -544,12 +542,6 @@ const TransactionsPage: React.FC = () => {
               getTransactionDetails(transaction);
             const previewImage =
               color?.imageUrl || model?.imageUrl || "/placeholder-car.png";
-            const transactionAppointments = getTransactionAppointments(
-              transaction.id
-            );
-            const hasPaidAppointments = transactionAppointments.some(
-              (apt) => apt.paymentStatus === "paid"
-            );
 
             return (
               <Card key={transaction.id}>
@@ -617,23 +609,6 @@ const TransactionsPage: React.FC = () => {
                       ₱{transaction.price.toLocaleString()}
                     </span>
                   </div>
-
-                  {/* Appointment Status */}
-                  {transactionAppointments.length > 0 && (
-                    <div className="pt-2 border-t">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">
-                          Appointments: {transactionAppointments.length}
-                        </span>
-                        {hasPaidAppointments && (
-                          <Badge variant="default" className="gap-1">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Paid
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
                 <CardFooter className="flex justify-between">
                   <Badge
@@ -643,7 +618,9 @@ const TransactionsPage: React.FC = () => {
                         : "secondary"
                     }
                   >
-                    {transaction.status.toUpperCase()}
+                    {transaction.status === "purchased"
+                      ? "BOOKED"
+                      : transaction.status.toUpperCase()}
                   </Badge>
                   <Button
                     variant="outline"
@@ -761,7 +738,7 @@ const TransactionsPage: React.FC = () => {
                             {apt.paymentStatus === "paid" ? (
                               <span className="flex items-center gap-1">
                                 <CheckCircle2 className="h-3 w-3" />
-                                Paid & Ready
+                                Booked
                               </span>
                             ) : (
                               "Pending Payment"
@@ -775,37 +752,39 @@ const TransactionsPage: React.FC = () => {
               )}
 
               {/* Book New Appointment */}
-              <div className="space-y-2 pt-4 border-t">
-                <h4 className="font-medium">Book New Appointment</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="date">Date</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={appointmentDate}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
-                      min={new Date().toISOString().split("T")[0]}
-                    />
+              {latestTransaction.status !== "purchased" && (
+                <div className="space-y-2 pt-4 border-t">
+                  <h4 className="font-medium">Book New Appointment</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="date">Date</Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        value={appointmentDate}
+                        onChange={(e) => setAppointmentDate(e.target.value)}
+                        min={new Date().toISOString().split("T")[0]}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="time">Time</Label>
+                      <Input
+                        id="time"
+                        type="time"
+                        value={appointmentTime}
+                        onChange={(e) => setAppointmentTime(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="time">Time</Label>
-                    <Input
-                      id="time"
-                      type="time"
-                      value={appointmentTime}
-                      onChange={(e) => setAppointmentTime(e.target.value)}
-                    />
-                  </div>
+                  <Button
+                    onClick={handleBookAppointment}
+                    className="w-full"
+                    variant="outline"
+                  >
+                    Book Appointment
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleBookAppointment}
-                  className="w-full"
-                  variant="outline"
-                >
-                  Book Appointment
-                </Button>
-              </div>
+              )}
             </>
           )}
           <DialogFooter>
@@ -819,4 +798,21 @@ const TransactionsPage: React.FC = () => {
   );
 };
 
-export default TransactionsPage;
+const TransactionsPageWrapper: React.FC = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
+          <div className="flex flex-col items-center">
+            <Loader2 className="h-8 w-8 animate-spin mb-2" />
+            <p>Loading transactions...</p>
+          </div>
+        </div>
+      }
+    >
+      <TransactionsPage />
+    </Suspense>
+  );
+};
+
+export default TransactionsPageWrapper;
