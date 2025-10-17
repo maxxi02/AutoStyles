@@ -34,8 +34,10 @@ export async function POST(req: NextRequest) {
 
     // Use the correct base URL - remove trailing slash from NEXT_PUBLIC_BASE_URL
     const baseUrl =
-      process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
-      "http://localhost:3000";
+      process.env.NODE_ENV === "production"
+        ? process.env.NEXT_PUBLIC_URL
+        : process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
+          "http://localhost:3000";
 
     // Construct URLs without line breaks
     const success_url = `${baseUrl}/c/transactions?success=true&tid=${transactionId}`;
