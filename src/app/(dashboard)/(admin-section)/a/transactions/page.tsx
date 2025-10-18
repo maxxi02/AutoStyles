@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format } from "date-fns";
 import {
@@ -24,7 +23,6 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -42,19 +40,73 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type React from "react";
-
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import Image from "next/image";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import {
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+  Timestamp,
+} from "firebase/firestore";
 interface Transaction {
   id: string;
   typeId: string;
   modelId: string;
   colorId: string;
+  wheelId: string;
+  interiorId: string;
   timestamp: Date;
   price: number;
   status: "saved" | "purchased" | "cancelled";
   paymentVerifiedAt?: Date;
   paymentId?: string;
+  customizationProgress?: {
+    paintCompleted: boolean;
+    paintCompletedAt: Date | null;
+    wheelsCompleted: boolean;
+    wheelsCompletedAt: Date | null;
+    interiorCompleted: boolean;
+    interiorCompletedAt: Date | null;
+    overallStatus: "pending" | "in-progress" | "completed";
+  };
+  customerDetails?: {
+    fullName: string;
+    email: string;
+    contactNumber: string;
+    address: string;
+  };
 }
 
+interface Wheel {
+  id: string;
+  carModelId: string;
+  name: string;
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
+}
+
+interface Interior {
+  id: string;
+  carModelId: string;
+  name: string;
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
+  hex?: string;
+}
 interface CarType {
   id: string;
   name: string;
@@ -64,12 +116,20 @@ interface CarModel {
   id: string;
   name: string;
   carTypeId: string;
+  imageUrl?: string;
+  basePrice?: number;
 }
 
 interface PaintColor {
   id: string;
   name: string;
   carModelId: string;
+  hex: string;
+  finish: "Matte" | "Glossy" | "Metallic";
+  description?: string;
+  price: number;
+  inventory?: number;
+  imageUrl?: string;
 }
 
 const AdminTransactionPage = () => {
@@ -79,22 +139,42 @@ const AdminTransactionPage = () => {
   const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
+  const [wheels, setWheels] = useState<Wheel[]>([]);
+  const [interiors, setInteriors] = useState<Interior[]>([]);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<Transaction | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [isUpdatingProgress, setIsUpdatingProgress] = useState(false);
 
   useEffect(() => {
-    const expectedSnapshots = 4; // transactions + 3 others
+    const expectedSnapshots = 6;
 
     const unsubscribeTransactions = onSnapshot(
       collection(db, "transactions"),
       (snapshot) => {
-        const data = snapshot.docs.map(
-          (doc) =>
-            ({
-              id: doc.id,
-              ...doc.data(),
-              timestamp: doc.data().timestamp.toDate(),
-              paymentVerifiedAt: doc.data().paymentVerifiedAt?.toDate(),
-            }) as Transaction
-        );
+        const data = snapshot.docs.map((doc) => {
+          const docData = doc.data();
+          return {
+            id: doc.id,
+            ...docData,
+            timestamp: docData.timestamp.toDate(),
+            paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
+            customizationProgress: docData.customizationProgress
+              ? {
+                  ...docData.customizationProgress,
+                  paintCompletedAt:
+                    docData.customizationProgress.paintCompletedAt?.toDate() ||
+                    null,
+                  wheelsCompletedAt:
+                    docData.customizationProgress.wheelsCompletedAt?.toDate() ||
+                    null,
+                  interiorCompletedAt:
+                    docData.customizationProgress.interiorCompletedAt?.toDate() ||
+                    null,
+                }
+              : undefined,
+          } as Transaction;
+        });
         setTransactions(data);
 
         setSnapshotCount((prev) => {
@@ -141,6 +221,40 @@ const AdminTransactionPage = () => {
       }
     );
 
+    const unsubscribeWheels = onSnapshot(
+      collection(db, "wheels"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as Wheel
+        );
+        setWheels(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
+    const unsubscribeInteriors = onSnapshot(
+      collection(db, "interiors"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as Interior
+        );
+        setInteriors(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
     const unsubscribePaintColors = onSnapshot(
       collection(db, "paintColors"),
       (snapshot) => {
@@ -163,8 +277,93 @@ const AdminTransactionPage = () => {
       unsubscribeCarTypes();
       unsubscribeCarModels();
       unsubscribePaintColors();
+      unsubscribeWheels();
+      unsubscribeInteriors();
     };
   }, []);
+
+  //helper functions
+
+  const calculateProgress = (transaction: Transaction): number => {
+    if (!transaction.customizationProgress) return 0;
+
+    const progress = transaction.customizationProgress;
+    let completedStages = 0;
+
+    if (progress.paintCompleted) completedStages++;
+    if (progress.wheelsCompleted) completedStages++;
+    if (progress.interiorCompleted) completedStages++;
+
+    return Math.round((completedStages / 3) * 100);
+  };
+
+  const getProgressColor = (percentage: number): string => {
+    if (percentage === 0) return "text-gray-500";
+    if (percentage < 100) return "text-orange-500";
+    return "text-green-600";
+  };
+
+  const handleViewDetails = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setShowDetailsModal(true);
+  };
+  const handleUpdateProgress = async (
+    transactionId: string,
+    field: "paintCompleted" | "wheelsCompleted" | "interiorCompleted",
+    value: boolean
+  ) => {
+    setIsUpdatingProgress(true);
+    try {
+      const transactionRef = doc(db, "transactions", transactionId);
+      const timestamp = value ? Timestamp.now() : null;
+
+      // Get current progress
+      const transaction = transactions.find((t) => t.id === transactionId);
+      const currentProgress = transaction?.customizationProgress || {
+        paintCompleted: false,
+        paintCompletedAt: null,
+        wheelsCompleted: false,
+        wheelsCompletedAt: null,
+        interiorCompleted: false,
+        interiorCompletedAt: null,
+        overallStatus: "pending" as const,
+      };
+
+      // Update the specific field
+      const updatedProgress = {
+        ...currentProgress,
+        [field]: value,
+        [`${field.replace("Completed", "CompletedAt")}`]: timestamp,
+      };
+
+      // Calculate overall status
+      const completedCount = [
+        updatedProgress.paintCompleted,
+        updatedProgress.wheelsCompleted,
+        updatedProgress.interiorCompleted,
+      ].filter(Boolean).length;
+
+      let overallStatus: "pending" | "in-progress" | "completed" = "pending";
+      if (completedCount === 3) {
+        overallStatus = "completed";
+      } else if (completedCount > 0) {
+        overallStatus = "in-progress";
+      }
+
+      updatedProgress.overallStatus = overallStatus;
+
+      await updateDoc(transactionRef, {
+        customizationProgress: updatedProgress,
+      });
+
+      toast.success("Progress updated successfully!");
+    } catch (error) {
+      console.error("Error updating progress:", error);
+      toast.error("Failed to update progress");
+    } finally {
+      setIsUpdatingProgress(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -185,42 +384,16 @@ const AdminTransactionPage = () => {
     const type = carTypes.find((t) => t.id === transaction.typeId);
     const model = carModels.find((m) => m.id === transaction.modelId);
     const color = paintColors.find((c) => c.id === transaction.colorId);
+    const wheel = wheels.find((w) => w.id === transaction.wheelId);
+    const interior = interiors.find((i) => i.id === transaction.interiorId);
 
-    return { type, model, color };
+    return { type, model, color, wheel, interior };
   };
 
   const totalRevenue = paidTransactions.reduce(
     (sum, transaction) => sum + transaction.price,
     0
   );
-
-  function getStatusBadge(status: Transaction["status"]) {
-    let displayStatus: string;
-    let variant: "default" | "secondary" | "destructive" | "outline";
-    switch (status) {
-      case "saved":
-        displayStatus = "Pending";
-        variant = "secondary";
-        break;
-      case "purchased":
-        displayStatus = "Completed";
-        variant = "outline";
-        break;
-      case "cancelled":
-        displayStatus = "Cancelled";
-        variant = "destructive";
-        break;
-      default:
-        displayStatus = "Unknown";
-        variant = "secondary";
-    }
-
-    return (
-      <Badge variant={variant} className="capitalize">
-        {displayStatus}
-      </Badge>
-    );
-  }
 
   function QuickActions() {
     return (
@@ -329,6 +502,341 @@ const AdminTransactionPage = () => {
     );
   }
 
+  const DetailsModal = () => {
+    if (!selectedTransaction) return null;
+
+    const { type, model, color, wheel, interior } =
+      getTransactionDetails(selectedTransaction);
+    const progress = calculateProgress(selectedTransaction);
+    const previewImage =
+      color?.imageUrl || model?.imageUrl || "/placeholder-car.png";
+
+    const customizationProgress = selectedTransaction.customizationProgress || {
+      paintCompleted: false,
+      paintCompletedAt: null,
+      wheelsCompleted: false,
+      wheelsCompletedAt: null,
+      interiorCompleted: false,
+      interiorCompletedAt: null,
+      overallStatus: "pending" as const,
+    };
+
+    return (
+      <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Transaction Details</DialogTitle>
+            <DialogDescription>
+              View complete customization and customer information
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Customer Information */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <h3 className="font-semibold text-lg">Customer Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Full Name</p>
+                  <p className="font-medium">
+                    {selectedTransaction.customerDetails?.fullName || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <p className="font-medium">
+                    {selectedTransaction.customerDetails?.email || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Contact Number
+                  </p>
+                  <p className="font-medium">
+                    {selectedTransaction.customerDetails?.contactNumber ||
+                      "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Address</p>
+                  <p className="font-medium">
+                    {selectedTransaction.customerDetails?.address || "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Vehicle Preview */}
+            <div className="border rounded-lg overflow-hidden">
+              <Image
+                src={previewImage}
+                alt={`${model?.name} Preview`}
+                className="w-full h-64 object-cover"
+                width={800}
+                height={400}
+              />
+            </div>
+
+            {/* Customization Details */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <h3 className="font-semibold text-lg">Customization Details</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Type:</span>
+                  <span className="font-medium">{type?.name || "N/A"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Model:</span>
+                  <span className="font-medium">{model?.name || "N/A"}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Exterior Color:</span>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-4 h-4 rounded border"
+                      style={{ backgroundColor: color?.hex || "#000000" }}
+                    />
+                    <span className="font-medium">
+                      {color?.name} ({color?.finish})
+                    </span>
+                  </div>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Wheels:</span>
+                  <span className="font-medium">{wheel?.name || "N/A"}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Interior:</span>
+                  <div className="flex items-center gap-2">
+                    {interior?.hex && (
+                      <div
+                        className="w-4 h-4 rounded border"
+                        style={{ backgroundColor: interior.hex }}
+                      />
+                    )}
+                    <span className="font-medium">
+                      {interior?.name || "N/A"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Progress Tracking - NEW ENHANCED SECTION */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">
+                  Customization Progress
+                </h3>
+                <Badge
+                  variant={
+                    customizationProgress.overallStatus === "completed"
+                      ? "default"
+                      : customizationProgress.overallStatus === "in-progress"
+                        ? "secondary"
+                        : "outline"
+                  }
+                >
+                  {customizationProgress.overallStatus.toUpperCase()}
+                </Badge>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="flex items-center gap-3">
+                <span
+                  className={`text-2xl font-bold ${getProgressColor(progress)}`}
+                >
+                  {progress}%
+                </span>
+                <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${
+                      progress === 0
+                        ? "bg-gray-400"
+                        : progress < 100
+                          ? "bg-orange-500"
+                          : "bg-green-600"
+                    }`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+              {/* Timeline */}
+              <div className="space-y-3 mt-4">
+                {/* Paint Progress */}
+                <div className="flex items-start gap-3 p-3 border rounded-md">
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="font-medium flex items-center gap-2">
+                        Exterior Paint/Color
+                        {customizationProgress.paintCompleted && (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        )}
+                      </label>
+                      <Button
+                        size="sm"
+                        variant={
+                          customizationProgress.paintCompleted
+                            ? "outline"
+                            : "default"
+                        }
+                        onClick={() =>
+                          handleUpdateProgress(
+                            selectedTransaction.id,
+                            "paintCompleted",
+                            !customizationProgress.paintCompleted
+                          )
+                        }
+                        disabled={isUpdatingProgress}
+                      >
+                        {customizationProgress.paintCompleted
+                          ? "Mark Incomplete"
+                          : "Mark Complete"}
+                      </Button>
+                    </div>
+                    {customizationProgress.paintCompleted &&
+                      customizationProgress.paintCompletedAt && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Completed:{" "}
+                          {format(
+                            customizationProgress.paintCompletedAt,
+                            "MMM dd, yyyy HH:mm"
+                          )}
+                        </p>
+                      )}
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {color?.name} ({color?.finish})
+                    </p>
+                  </div>
+                </div>
+
+                {/* Wheels Progress */}
+                <div className="flex items-start gap-3 p-3 border rounded-md">
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="font-medium flex items-center gap-2">
+                        Wheels Installation
+                        {customizationProgress.wheelsCompleted && (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        )}
+                      </label>
+                      <Button
+                        size="sm"
+                        variant={
+                          customizationProgress.wheelsCompleted
+                            ? "outline"
+                            : "default"
+                        }
+                        onClick={() =>
+                          handleUpdateProgress(
+                            selectedTransaction.id,
+                            "wheelsCompleted",
+                            !customizationProgress.wheelsCompleted
+                          )
+                        }
+                        disabled={isUpdatingProgress}
+                      >
+                        {customizationProgress.wheelsCompleted
+                          ? "Mark Incomplete"
+                          : "Mark Complete"}
+                      </Button>
+                    </div>
+                    {customizationProgress.wheelsCompleted &&
+                      customizationProgress.wheelsCompletedAt && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Completed:{" "}
+                          {format(
+                            new Date(customizationProgress.wheelsCompletedAt),
+                            "MMM dd, yyyy HH:mm"
+                          )}
+                        </p>
+                      )}
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {wheel?.name}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Interior Progress */}
+                <div className="flex items-start gap-3 p-3 border rounded-md">
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="font-medium flex items-center gap-2">
+                        Interior Customization
+                        {customizationProgress.interiorCompleted && (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        )}
+                      </label>
+                      <Button
+                        size="sm"
+                        variant={
+                          customizationProgress.interiorCompleted
+                            ? "outline"
+                            : "default"
+                        }
+                        onClick={() =>
+                          handleUpdateProgress(
+                            selectedTransaction.id,
+                            "interiorCompleted",
+                            !customizationProgress.interiorCompleted
+                          )
+                        }
+                        disabled={isUpdatingProgress}
+                      >
+                        {customizationProgress.interiorCompleted
+                          ? "Mark Incomplete"
+                          : "Mark Complete"}
+                      </Button>
+                    </div>
+                    {customizationProgress.interiorCompleted &&
+                      customizationProgress.interiorCompletedAt && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Completed:{" "}
+                          {format(
+                            new Date(customizationProgress.interiorCompletedAt),
+                            "MMM dd, yyyy HH:mm"
+                          )}
+                        </p>
+                      )}
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {interior?.name}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Info */}
+            <div className="border rounded-lg p-4">
+              <h3 className="font-semibold mb-2">Total Amount</h3>
+              <p className="text-2xl font-bold">
+                ₱{selectedTransaction.price.toLocaleString()}
+              </p>
+              {selectedTransaction.paymentVerifiedAt && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Paid:{" "}
+                  {format(
+                    selectedTransaction.paymentVerifiedAt,
+                    "MMM dd, yyyy"
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDetailsModal(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   function TransactionsTable() {
     return (
       <Card className="bg-card border-border">
@@ -354,12 +862,12 @@ const AdminTransactionPage = () => {
                 <TableHead className="text-muted-foreground">
                   Customer
                 </TableHead>
-                <TableHead className="text-muted-foreground">
-                  Car Type
-                </TableHead>
-                <TableHead className="text-muted-foreground">Color</TableHead>
+                <TableHead className="text-muted-foreground">Contact</TableHead>
+                <TableHead className="text-muted-foreground">Model</TableHead>
                 <TableHead className="text-muted-foreground">Amount</TableHead>
-                <TableHead className="text-muted-foreground">Status</TableHead>
+                <TableHead className="text-muted-foreground">
+                  Progress
+                </TableHead>
                 <TableHead className="text-muted-foreground">Date</TableHead>
                 <TableHead className="text-right text-muted-foreground">
                   Actions
@@ -369,27 +877,64 @@ const AdminTransactionPage = () => {
             <TableBody>
               {paidTransactions.map((transaction) => {
                 const details = getTransactionDetails(transaction);
+                const progress = calculateProgress(transaction);
+
                 return (
                   <TableRow key={transaction.id} className="border-border">
+                    <TableCell>
+                      <div className="font-medium text-foreground">
+                        {transaction.customerDetails?.fullName || "N/A"}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {transaction.customerDetails?.email || "N/A"}
+                      </div>
+                    </TableCell>
+                    <TableCell className="min-w-[200px]">
+                      <div className="text-sm text-muted-foreground">
+                        {transaction.customerDetails?.contactNumber || "N/A"}
+                      </div>
+                      <div className="text-xs text-muted-foreground whitespace-normal">
+                        {transaction.customerDetails?.address || "N/A"}
+                      </div>
+                    </TableCell>
                     <TableCell className="font-medium text-foreground">
                       {details.model?.name || "N/A"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {details.type?.name || "Unknown Type"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {details.color?.name || "N/A"}
                     </TableCell>
                     <TableCell className="font-medium text-foreground">
                       ₱{transaction.price.toLocaleString()}
                     </TableCell>
-                    <TableCell>{getStatusBadge(transaction.status)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`font-semibold ${getProgressColor(progress)}`}
+                        >
+                          {progress}%
+                        </span>
+                        <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${
+                              progress === 0
+                                ? "bg-gray-400"
+                                : progress < 100
+                                  ? "bg-orange-500"
+                                  : "bg-green-600"
+                            }`}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {format(transaction.timestamp, "MMM dd, yyyy")}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleViewDetails(transaction)}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -417,6 +962,8 @@ const AdminTransactionPage = () => {
         <StatsCards />
 
         <TransactionsTable />
+
+        <DetailsModal />
       </main>
     </div>
   );

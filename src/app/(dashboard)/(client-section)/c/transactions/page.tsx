@@ -47,6 +47,7 @@ import { useSearchParams } from "next/navigation";
 
 interface Transaction {
   id: string;
+  userId?: string;
   typeId: string;
   modelId: string;
   colorId: string;
@@ -57,6 +58,21 @@ interface Transaction {
   status: "saved" | "purchased" | "cancelled";
   paymentVerifiedAt?: Date;
   paymentId?: string;
+  customerDetails?: {
+    fullName: string;
+    email: string;
+    contactNumber: string;
+    address: string;
+  };
+  customizationProgress?: {
+    paintCompleted: boolean;
+    paintCompletedAt: Date | null;
+    wheelsCompleted: boolean;
+    wheelsCompletedAt: Date | null;
+    interiorCompleted: boolean;
+    interiorCompletedAt: Date | null;
+    overallStatus: "pending" | "in-progress" | "completed";
+  };
 }
 
 interface Appointment {
@@ -116,7 +132,7 @@ interface Interior {
   hex?: string;
 }
 
-const TransactionsPage: React.FC = () => {
+const ClientsTransactionPage: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [carTypes, setCarTypes] = useState<CarType[]>([]);
@@ -156,15 +172,29 @@ const TransactionsPage: React.FC = () => {
       orderBy("timestamp", "desc")
     );
     const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(
-        (doc) =>
-          ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: doc.data().timestamp.toDate(),
-            paymentVerifiedAt: doc.data().paymentVerifiedAt?.toDate(),
-          }) as Transaction
-      );
+      const data = snapshot.docs.map((doc) => {
+        const docData = doc.data();
+        return {
+          id: doc.id,
+          ...docData,
+          timestamp: docData.timestamp.toDate(),
+          paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
+          customizationProgress: docData.customizationProgress
+            ? {
+                ...docData.customizationProgress,
+                paintCompletedAt:
+                  docData.customizationProgress.paintCompletedAt?.toDate() ||
+                  null,
+                wheelsCompletedAt:
+                  docData.customizationProgress.wheelsCompletedAt?.toDate() ||
+                  null,
+                interiorCompletedAt:
+                  docData.customizationProgress.interiorCompletedAt?.toDate() ||
+                  null,
+              }
+            : undefined,
+        } as Transaction;
+      });
       setTransactions(data);
       console.log("Transactions updated, count:", data.length);
 
@@ -436,6 +466,25 @@ const TransactionsPage: React.FC = () => {
     });
   };
 
+  const calculateProgress = (transaction: Transaction): number => {
+    if (!transaction.customizationProgress) return 0;
+
+    const progress = transaction.customizationProgress;
+    let completedStages = 0;
+
+    if (progress.paintCompleted) completedStages++;
+    if (progress.wheelsCompleted) completedStages++;
+    if (progress.interiorCompleted) completedStages++;
+
+    return Math.round((completedStages / 3) * 100);
+  };
+
+  const getProgressColor = (percentage: number): string => {
+    if (percentage === 0) return "text-gray-500";
+    if (percentage < 100) return "text-orange-500";
+    return "text-green-600";
+  };
+
   if (isDataLoading) {
     return (
       <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
@@ -508,6 +557,15 @@ const TransactionsPage: React.FC = () => {
   const handlePay = async () => {
     const latestTransaction = getLatestTransaction();
     if (!latestTransaction) return;
+
+    const hasActiveAppointment = getTransactionAppointments(
+      latestTransaction.id
+    ).some((apt) => apt.status !== "cancelled");
+
+    if (!hasActiveAppointment) {
+      toast.error("Please book an appointment first.");
+      return;
+    }
 
     const { model } = getTransactionDetails(latestTransaction);
 
@@ -808,298 +866,460 @@ const TransactionsPage: React.FC = () => {
           </DialogHeader>
           {latestTransaction && (
             <>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-medium">
-                    Model:{" "}
-                    {getTransactionDetails(latestTransaction).model?.name}
-                  </h3>
-                </div>
-                <div>
-                  <h3 className="font-medium">
-                    Exterior:{" "}
-                    {getTransactionDetails(latestTransaction).color?.name} (
-                    {getTransactionDetails(latestTransaction).color?.finish})
-                  </h3>
-                </div>
-                <div>
-                  <h3 className="font-medium">
-                    Wheels:{" "}
-                    {getTransactionDetails(latestTransaction).wheel?.name}
-                  </h3>
-                </div>
-                <div>
-                  <h3 className="font-medium">
-                    Interior:{" "}
-                    {getTransactionDetails(latestTransaction).interior?.name}
-                  </h3>
-                </div>
-                <div className="text-2xl font-bold">
-                  Total: ₱{latestTransaction.price.toLocaleString()}
-                </div>
+              {(() => {
+                const hasActiveAppointment = getTransactionAppointments(
+                  latestTransaction.id
+                ).some((apt) => apt.status !== "cancelled");
+                const progress = calculateProgress(latestTransaction);
+                const customizationProgress =
+                  latestTransaction.customizationProgress || {
+                    paintCompleted: false,
+                    paintCompletedAt: null,
+                    wheelsCompleted: false,
+                    wheelsCompletedAt: null,
+                    interiorCompleted: false,
+                    interiorCompletedAt: null,
+                    overallStatus: "pending" as const,
+                  };
+                const { type, model, color, wheel, interior } =
+                  getTransactionDetails(latestTransaction);
+                return (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="font-medium">Model: {model?.name}</h3>
+                      </div>
+                      <div>
+                        <h3 className="font-medium">
+                          Exterior: {color?.name} ({color?.finish})
+                        </h3>
+                      </div>
+                      <div>
+                        <h3 className="font-medium">Wheels: {wheel?.name}</h3>
+                      </div>
+                      <div>
+                        <h3 className="font-medium">
+                          Interior: {interior?.name}
+                        </h3>
+                      </div>
+                      <div className="text-2xl font-bold">
+                        Total: ₱{latestTransaction.price.toLocaleString()}
+                      </div>
 
-                {/* Payment Status */}
-                {latestTransaction.status === "purchased" && (
-                  <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                    <div>
-                      <p className="font-medium text-green-900">
-                        Payment Verified
-                      </p>
-                      {latestTransaction.paymentVerifiedAt && (
-                        <p className="text-sm text-green-700">
-                          {format(
-                            latestTransaction.paymentVerifiedAt,
-                            "MMM dd, yyyy HH:mm"
-                          )}
-                        </p>
+                      {/* Payment Status */}
+                      {latestTransaction.status === "purchased" && (
+                        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                          <div>
+                            <p className="font-medium text-green-900">
+                              Payment Verified
+                            </p>
+                            {latestTransaction.paymentVerifiedAt && (
+                              <p className="text-sm text-green-700">
+                                {format(
+                                  latestTransaction.paymentVerifiedAt,
+                                  "MMM dd, yyyy HH:mm"
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       )}
-                    </div>
-                  </div>
-                )}
-              </div>
 
-              {/* Payment Button */}
-              {latestTransaction.status !== "purchased" && (
-                <div className="space-y-2 pt-4">
-                  <Button onClick={handlePay} className="w-full">
-                    Pay Now with PayMongo
-                  </Button>
-                </div>
-              )}
-              {/* Existing Appointments */}
-              {getTransactionAppointments(latestTransaction.id).length > 0 && (
-                <div className="space-y-2 pt-4 border-t">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium">Booked Appointments</h4>
-                    <Badge variant="outline">
-                      {getTransactionAppointments(latestTransaction.id).length}{" "}
-                      Total
-                    </Badge>
-                  </div>
-                  <div className="space-y-2">
-                    {getFilteredAndSortedAppointments(latestTransaction.id).map(
-                      (apt) => {
-                        const appointmentDateTime = new Date(
-                          `${apt.date}T${apt.time}`
-                        );
-                        const isUpcoming =
-                          appointmentDateTime > new Date() &&
-                          apt.status !== "cancelled";
-                        const isPast =
-                          appointmentDateTime < new Date() &&
-                          apt.status !== "cancelled";
-
-                        return (
-                          <div
-                            key={apt.id}
-                            className={`p-3 border rounded-md space-y-3 ${
-                              isUpcoming ? "border-primary/50 bg-primary/5" : ""
-                            } ${isPast ? "opacity-60" : ""}`}
+                      {/* Customization Progress Timeline */}
+                      <div className="space-y-4 pt-4 border-t">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">
+                            Customization Progress
+                          </h4>
+                          <Badge
+                            variant={
+                              customizationProgress.overallStatus ===
+                              "completed"
+                                ? "default"
+                                : customizationProgress.overallStatus ===
+                                    "in-progress"
+                                  ? "secondary"
+                                  : "outline"
+                            }
                           >
-                            {editingAppointmentId === apt.id ? (
-                              // Edit Mode
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <Label htmlFor="edit-date">Date</Label>
-                                    <Input
-                                      id="edit-date"
-                                      type="date"
-                                      value={editDate}
-                                      onChange={(e) =>
-                                        setEditDate(e.target.value)
-                                      }
-                                      min={
-                                        new Date().toISOString().split("T")[0]
-                                      }
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor="edit-time">Time</Label>
-                                    <Input
-                                      id="edit-time"
-                                      type="time"
-                                      value={editTime}
-                                      onChange={(e) =>
-                                        setEditTime(e.target.value)
-                                      }
-                                    />
-                                  </div>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    onClick={handleSaveEdit}
-                                    size="sm"
-                                    className="flex-1"
-                                  >
-                                    Save Changes
-                                  </Button>
-                                  <Button
-                                    onClick={handleCancelEdit}
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1"
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              // View Mode
-                              <>
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-start gap-2">
-                                    <Calendar className="h-4 w-4 mt-1" />
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <p className="font-medium">
-                                          {format(
-                                            new Date(apt.date),
-                                            "MMM dd, yyyy"
-                                          )}{" "}
-                                          at {apt.time}
-                                        </p>
-                                        {isUpcoming && (
-                                          <Badge
-                                            variant="default"
-                                            className="text-xs"
-                                          >
-                                            Upcoming
-                                          </Badge>
-                                        )}
-                                        {isPast && (
-                                          <Badge
-                                            variant="outline"
-                                            className="text-xs"
-                                          >
-                                            Past
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <p className="text-sm text-muted-foreground">
-                                        Status: {apt.status}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <Badge
-                                    variant={
-                                      apt.paymentStatus === "paid"
-                                        ? "default"
-                                        : "secondary"
-                                    }
-                                  >
-                                    {apt.paymentStatus === "paid" ? (
-                                      <span className="flex items-center gap-1">
-                                        <CheckCircle2 className="h-3 w-3" />
-                                        Paid
-                                      </span>
-                                    ) : (
-                                      "Pending Payment"
-                                    )}
-                                  </Badge>
-                                </div>
+                            {customizationProgress.overallStatus.toUpperCase()}
+                          </Badge>
+                        </div>
 
-                                {apt.status !== "cancelled" &&
-                                  apt.paymentStatus !== "paid" && (
+                        {/* Progress Bar */}
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`text-2xl font-bold ${getProgressColor(progress)}`}
+                          >
+                            {progress}%
+                          </span>
+                          <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all ${
+                                progress === 0
+                                  ? "bg-gray-400"
+                                  : progress < 100
+                                    ? "bg-orange-500"
+                                    : "bg-green-600"
+                              }`}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Timeline */}
+                        <div className="space-y-3">
+                          {/* Paint Progress */}
+                          <div className="flex items-start gap-3 p-3 border rounded-md">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="font-medium flex items-center gap-2">
+                                  Exterior Paint/Color
+                                  {customizationProgress.paintCompleted && (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  )}
+                                </label>
+                              </div>
+                              {customizationProgress.paintCompleted &&
+                                customizationProgress.paintCompletedAt && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Completed:{" "}
+                                    {format(
+                                      customizationProgress.paintCompletedAt,
+                                      "MMM dd, yyyy HH:mm"
+                                    )}
+                                  </p>
+                                )}
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {color?.name} ({color?.finish})
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Wheels Progress */}
+                          <div className="flex items-start gap-3 p-3 border rounded-md">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="font-medium flex items-center gap-2">
+                                  Wheels Installation
+                                  {customizationProgress.wheelsCompleted && (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  )}
+                                </label>
+                              </div>
+                              {customizationProgress.wheelsCompleted &&
+                                customizationProgress.wheelsCompletedAt && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Completed:{" "}
+                                    {format(
+                                      customizationProgress.wheelsCompletedAt,
+                                      "MMM dd, yyyy HH:mm"
+                                    )}
+                                  </p>
+                                )}
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {wheel?.name}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Interior Progress */}
+                          <div className="flex items-start gap-3 p-3 border rounded-md">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="font-medium flex items-center gap-2">
+                                  Interior Customization
+                                  {customizationProgress.interiorCompleted && (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  )}
+                                </label>
+                              </div>
+                              {customizationProgress.interiorCompleted &&
+                                customizationProgress.interiorCompletedAt && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Completed:{" "}
+                                    {format(
+                                      customizationProgress.interiorCompletedAt,
+                                      "MMM dd, yyyy HH:mm"
+                                    )}
+                                  </p>
+                                )}
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {interior?.name}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment Button */}
+                    {latestTransaction.status !== "purchased" && (
+                      <div className="space-y-2 pt-4">
+                        <Button
+                          onClick={handlePay}
+                          className="w-full"
+                          disabled={!hasActiveAppointment}
+                        >
+                          Pay Now with PayMongo
+                        </Button>
+                        {!hasActiveAppointment && (
+                          <p className="text-sm text-muted-foreground text-center">
+                            Please book an appointment before proceeding to
+                            payment.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {/* Existing Appointments */}
+                    {getTransactionAppointments(latestTransaction.id).length >
+                      0 && (
+                      <div className="space-y-2 pt-4 border-t">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">Booked Appointments</h4>
+                          <Badge variant="outline">
+                            {
+                              getTransactionAppointments(latestTransaction.id)
+                                .length
+                            }{" "}
+                            Total
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          {getFilteredAndSortedAppointments(
+                            latestTransaction.id
+                          ).map((apt) => {
+                            const appointmentDateTime = new Date(
+                              `${apt.date}T${apt.time}`
+                            );
+                            const isUpcoming =
+                              appointmentDateTime > new Date() &&
+                              apt.status !== "cancelled";
+                            const isPast =
+                              appointmentDateTime < new Date() &&
+                              apt.status !== "cancelled";
+
+                            return (
+                              <div
+                                key={apt.id}
+                                className={`p-3 border rounded-md space-y-3 ${
+                                  isUpcoming
+                                    ? "border-primary/50 bg-primary/5"
+                                    : ""
+                                } ${isPast ? "opacity-60" : ""}`}
+                              >
+                                {editingAppointmentId === apt.id ? (
+                                  // Edit Mode
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <Label htmlFor="edit-date">Date</Label>
+                                        <Input
+                                          id="edit-date"
+                                          type="date"
+                                          value={editDate}
+                                          onChange={(e) =>
+                                            setEditDate(e.target.value)
+                                          }
+                                          min={
+                                            new Date()
+                                              .toISOString()
+                                              .split("T")[0]
+                                          }
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label htmlFor="edit-time">Time</Label>
+                                        <Input
+                                          id="edit-time"
+                                          type="time"
+                                          value={editTime}
+                                          onChange={(e) =>
+                                            setEditTime(e.target.value)
+                                          }
+                                        />
+                                      </div>
+                                    </div>
                                     <div className="flex gap-2">
                                       <Button
-                                        variant="outline"
+                                        onClick={handleSaveEdit}
                                         size="sm"
-                                        onClick={() =>
-                                          handleEditAppointment(apt)
-                                        }
                                         className="flex-1"
                                       >
-                                        Edit
+                                        Save Changes
                                       </Button>
                                       <Button
-                                        variant="destructive"
+                                        onClick={handleCancelEdit}
                                         size="sm"
-                                        onClick={() =>
-                                          handleCancelAppointment(apt.id)
-                                        }
+                                        variant="outline"
                                         className="flex-1"
                                       >
                                         Cancel
                                       </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          handleDeleteAppointment(
-                                            apt.id,
-                                            apt.paymentStatus
-                                          )
+                                    </div>
+                                  </div>
+                                ) : (
+                                  // View Mode
+                                  <>
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex items-start gap-2">
+                                        <Calendar className="h-4 w-4 mt-1" />
+                                        <div>
+                                          <div className="flex items-center gap-2">
+                                            <p className="font-medium">
+                                              {format(
+                                                new Date(apt.date),
+                                                "MMM dd, yyyy"
+                                              )}{" "}
+                                              at {apt.time}
+                                            </p>
+                                            {isUpcoming && (
+                                              <Badge
+                                                variant="default"
+                                                className="text-xs"
+                                              >
+                                                Upcoming
+                                              </Badge>
+                                            )}
+                                            {isPast && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs"
+                                              >
+                                                Past
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <p className="text-sm text-muted-foreground">
+                                            Status: {apt.status}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <Badge
+                                        variant={
+                                          apt.paymentStatus === "paid"
+                                            ? "default"
+                                            : "secondary"
                                         }
                                       >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
+                                        {apt.paymentStatus === "paid" ? (
+                                          <span className="flex items-center gap-1">
+                                            <CheckCircle2 className="h-3 w-3" />
+                                            Paid
+                                          </span>
+                                        ) : (
+                                          "Pending Payment"
+                                        )}
+                                      </Badge>
                                     </div>
-                                  )}
 
-                                {apt.status === "cancelled" && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="w-full justify-center"
-                                  >
-                                    Cancelled
-                                  </Badge>
-                                )}
+                                    {apt.status !== "cancelled" &&
+                                      apt.paymentStatus !== "paid" && (
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleEditAppointment(apt)
+                                            }
+                                            className="flex-1"
+                                          >
+                                            Edit
+                                          </Button>
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleCancelAppointment(apt.id)
+                                            }
+                                            className="flex-1"
+                                          >
+                                            Cancel
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleDeleteAppointment(
+                                                apt.id,
+                                                apt.paymentStatus
+                                              )
+                                            }
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      )}
 
-                                {apt.paymentStatus === "paid" && (
-                                  <p className="text-xs text-muted-foreground text-center">
-                                    Paid appointments cannot be edited or
-                                    cancelled
-                                  </p>
+                                    {apt.status === "cancelled" && (
+                                      <Badge
+                                        variant="secondary"
+                                        className="w-full justify-center"
+                                      >
+                                        Cancelled
+                                      </Badge>
+                                    )}
+
+                                    {apt.paymentStatus === "paid" && (
+                                      <p className="text-xs text-muted-foreground text-center">
+                                        Paid appointments cannot be edited or
+                                        cancelled
+                                      </p>
+                                    )}
+                                  </>
                                 )}
-                              </>
-                            )}
-                          </div>
-                        );
-                      }
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
-                  </div>
-                </div>
-              )}
 
-              {/* Book New Appointment */}
-              {latestTransaction.status !== "purchased" &&
-                !getTransactionAppointments(latestTransaction.id).some(
-                  (apt) => apt.status !== "cancelled"
-                ) && (
-                  <div className="space-y-2 pt-4 border-t">
-                    <h4 className="font-medium">Book New Appointment</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="date">Date</Label>
-                        <Input
-                          id="date"
-                          type="date"
-                          value={appointmentDate}
-                          onChange={(e) => setAppointmentDate(e.target.value)}
-                          min={new Date().toISOString().split("T")[0]}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="time">Time</Label>
-                        <Input
-                          id="time"
-                          type="time"
-                          value={appointmentTime}
-                          onChange={(e) => setAppointmentTime(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      onClick={handleBookAppointment}
-                      className="w-full"
-                      variant="outline"
-                    >
-                      Book Appointment
-                    </Button>
-                  </div>
-                )}
+                    {/* Book New Appointment */}
+                    {latestTransaction.status !== "purchased" &&
+                      !getTransactionAppointments(latestTransaction.id).some(
+                        (apt) => apt.status !== "cancelled"
+                      ) && (
+                        <div className="space-y-2 pt-4 border-t">
+                          <h4 className="font-medium">Book Appointment</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="date">Date</Label>
+                              <Input
+                                id="date"
+                                type="date"
+                                value={appointmentDate}
+                                onChange={(e) =>
+                                  setAppointmentDate(e.target.value)
+                                }
+                                min={new Date().toISOString().split("T")[0]}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="time">Time</Label>
+                              <Input
+                                id="time"
+                                type="time"
+                                value={appointmentTime}
+                                onChange={(e) =>
+                                  setAppointmentTime(e.target.value)
+                                }
+                              />
+                            </div>
+                          </div>
+                          <Button
+                            onClick={handleBookAppointment}
+                            className="w-full"
+                            variant="outline"
+                          >
+                            Book Appointment
+                          </Button>
+                        </div>
+                      )}
+                  </>
+                );
+              })()}
             </>
           )}
           <DialogFooter>
@@ -1125,7 +1345,7 @@ const TransactionsPageWrapper: React.FC = () => {
         </div>
       }
     >
-      <TransactionsPage />
+      <ClientsTransactionPage />
     </Suspense>
   );
 };

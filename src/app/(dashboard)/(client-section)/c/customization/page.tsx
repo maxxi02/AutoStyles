@@ -23,6 +23,9 @@ import { db } from "@/lib/firebase";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
+import { auth } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, type User } from "firebase/auth";
 
 interface CarType {
   id: string;
@@ -97,9 +100,21 @@ const CustomizationPage: React.FC = () => {
     null
   );
 
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
   // Loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  //to track authentication
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return unsubscribe;
+  }, []);
 
   // Load data from Firestore
   useEffect(() => {
@@ -196,6 +211,39 @@ const CustomizationPage: React.FC = () => {
       unsubscribeInteriors();
     };
   }, []);
+
+  const getUserDetails = async (userId: string) => {
+    try {
+      const userDocRef = doc(db, "users", userId);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        return {
+          fullName: data.name || currentUser?.displayName || "N/A",
+          email: data.email || currentUser?.email || "N/A",
+          contactNumber: data.phone || "N/A",
+          address: data.address || "N/A",
+        };
+      }
+
+      // Fallback to auth data if Firestore doc doesn't exist
+      return {
+        fullName: currentUser?.displayName || "N/A",
+        email: currentUser?.email || "N/A",
+        contactNumber: "N/A",
+        address: "N/A",
+      };
+    } catch (error) {
+      console.error("Error fetching user details:", error);
+      return {
+        fullName: currentUser?.displayName || "N/A",
+        email: currentUser?.email || "N/A",
+        contactNumber: "N/A",
+        address: "N/A",
+      };
+    }
+  };
 
   // Filtered models by type
   const filteredModels = carModels.filter(
@@ -324,8 +372,27 @@ const CustomizationPage: React.FC = () => {
       toast.error("Please select all customizations first.");
       return;
     }
+
+    if (!currentUser) {
+      toast.error("You must be logged in to save a design.");
+      return;
+    }
+
+    setIsSaving(true);
+
     try {
+      // Fetch customer details
+      const customerDetails = await getUserDetails(currentUser.uid);
+
+      // Warn user if address is missing
+      if (customerDetails.address === "N/A" || !customerDetails.address) {
+        toast.warning(
+          "Please update your address in your profile for delivery purposes."
+        );
+      }
+
       const transactionRef = await addDoc(collection(db, "transactions"), {
+        userId: currentUser.uid,
         typeId: selectedTypeId,
         modelId: selectedModelId,
         colorId: selectedColorId,
@@ -334,11 +401,24 @@ const CustomizationPage: React.FC = () => {
         timestamp: new Date(),
         price: calculatedPrice,
         status: "saved" as const,
+        customerDetails: customerDetails,
+        customizationProgress: {
+          paintCompleted: false,
+          paintCompletedAt: null,
+          wheelsCompleted: false,
+          wheelsCompletedAt: null,
+          interiorCompleted: false,
+          interiorCompletedAt: null,
+          overallStatus: "pending" as const,
+        },
       });
+
       toast.success(`Design saved to transaction! ID: ${transactionRef.id}`);
     } catch (error) {
       console.error("Error saving transaction:", error);
       toast.error("Failed to save transaction");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -633,13 +713,21 @@ const CustomizationPage: React.FC = () => {
                 <Button
                   onClick={handleSaveDesign}
                   disabled={
+                    isSaving ||
                     !selectedModelId ||
                     !selectedColorId ||
                     !selectedWheelId ||
                     !selectedInteriorId
                   }
                 >
-                  Save Design
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Design"
+                  )}
                 </Button>
               </CardFooter>
             </Card>

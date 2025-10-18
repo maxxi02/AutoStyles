@@ -55,7 +55,6 @@ interface CarModel {
   name: string;
   carTypeId: string;
   imageUrl?: string;
-  basePrice?: number;
 }
 
 type CarModelData = Omit<CarModel, "id">;
@@ -108,7 +107,8 @@ interface PricingRule {
 type PricingRuleData = Omit<PricingRule, "id">;
 
 const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+const CLOUDINARY_UPLOAD_PRESET =
+  process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
 const uploadToCloudinary = async (file: File): Promise<string> => {
   const formData = new FormData();
@@ -346,7 +346,9 @@ const InventoryPage: React.FC = () => {
     }
   };
 
-  const handlePaintImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePaintImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
     if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
       try {
@@ -365,7 +367,9 @@ const InventoryPage: React.FC = () => {
     }
   };
 
-  const handleWheelImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleWheelImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
     if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
       try {
@@ -384,7 +388,9 @@ const InventoryPage: React.FC = () => {
     }
   };
 
-  const handleInteriorImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInteriorImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
     if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
       try {
@@ -428,7 +434,6 @@ const InventoryPage: React.FC = () => {
         name: newCarModel.name || "",
         carTypeId: newCarModel.carTypeId || "",
         ...(newCarModel.imageUrl && { imageUrl: newCarModel.imageUrl }),
-        ...(typeof newCarModel.basePrice === "number" && { basePrice: newCarModel.basePrice }),
       };
       if (editingCarModel) {
         const carModelRef = doc(db, "carModels", editingCarModel.id);
@@ -629,7 +634,6 @@ const InventoryPage: React.FC = () => {
       name: model.name,
       carTypeId: model.carTypeId,
       ...(model.imageUrl && { imageUrl: model.imageUrl }),
-      ...(typeof model.basePrice === "number" && { basePrice: model.basePrice }),
     });
     setIsCarModelDialogOpen(true);
   };
@@ -690,9 +694,7 @@ const InventoryPage: React.FC = () => {
   );
 
   const getCarTypeName = (carTypeId: string) => {
-    return (
-      carTypes.find((type) => type.id === carTypeId)?.name || "Unknown"
-    );
+    return carTypes.find((type) => type.id === carTypeId)?.name || "Unknown";
   };
 
   const getCarModelName = (carModelId: string) => {
@@ -803,11 +805,20 @@ const InventoryPage: React.FC = () => {
                         </SelectContent>
                       </Select>
                       {carTypes.length === 0 && (
-                        <p className="text-sm text-muted-foreground mt-1">No car types available.</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          No car types available.
+                        </p>
                       )}
-                      <Dialog open={isCarTypeDialogOpen} onOpenChange={setIsCarTypeDialogOpen}>
+                      <Dialog
+                        open={isCarTypeDialogOpen}
+                        onOpenChange={setIsCarTypeDialogOpen}
+                      >
                         <DialogTrigger asChild>
-                          <Button variant="link" size="sm" onClick={openAddCarType}>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            onClick={openAddCarType}
+                          >
                             + Add New Type
                           </Button>
                         </DialogTrigger>
@@ -821,7 +832,10 @@ const InventoryPage: React.FC = () => {
                               id="typeName"
                               value={newCarType.name ?? ""}
                               onChange={(e) =>
-                                setNewCarType({ ...newCarType, name: e.target.value })
+                                setNewCarType({
+                                  ...newCarType,
+                                  name: e.target.value,
+                                })
                               }
                               disabled={carTypePending}
                             />
@@ -840,20 +854,6 @@ const InventoryPage: React.FC = () => {
                         </DialogContent>
                       </Dialog>
                     </div>
-                    <Label htmlFor="basePrice">Base Price</Label>
-                    <Input
-                      id="basePrice"
-                      type="number"
-                      value={newCarModel.basePrice ?? ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setNewCarModel({
-                          ...newCarModel,
-                          basePrice: val === "" ? undefined : parseFloat(val),
-                        });
-                      }}
-                      disabled={carModelPending}
-                    />
                     <Label htmlFor="image">Default Car Image</Label>
                     <Input
                       id="image"
@@ -875,7 +875,11 @@ const InventoryPage: React.FC = () => {
                   <DialogFooter>
                     <Button
                       onClick={handleAddOrUpdateCarModel}
-                      disabled={carModelPending || !newCarModel.name || !newCarModel.carTypeId}
+                      disabled={
+                        carModelPending ||
+                        !newCarModel.name ||
+                        !newCarModel.carTypeId
+                      }
                     >
                       {carModelPending && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -894,7 +898,9 @@ const InventoryPage: React.FC = () => {
                     <Card key={model.id}>
                       <CardHeader>
                         <CardTitle>{model.name}</CardTitle>
-                        <CardDescription>{getCarTypeName(model.carTypeId)}</CardDescription>
+                        <CardDescription>
+                          {getCarTypeName(model.carTypeId)}
+                        </CardDescription>
                       </CardHeader>
                       <CardContent className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1 md:w-1/2">
@@ -945,7 +951,7 @@ const InventoryPage: React.FC = () => {
                             <Image
                               src={model.imageUrl}
                               alt={model.name}
-                              className="w-full h-auto max-w-sm rounded"
+                              className="w-full h-h-auto max-w-sm rounded"
                               width={500}
                               height={500}
                             />
@@ -1019,7 +1025,9 @@ const InventoryPage: React.FC = () => {
                           <Label htmlFor="carModel">Car Model</Label>
                           {isEditingPaintColor ? (
                             <div className="p-2 bg-muted rounded-md">
-                              {getCarModelName(newPaintColor.carModelId as string)}
+                              {getCarModelName(
+                                newPaintColor.carModelId as string
+                              )}
                             </div>
                           ) : (
                             <Select
@@ -1402,9 +1410,7 @@ const InventoryPage: React.FC = () => {
                               height={500}
                             />
                           ) : (
-                            <div
-                              className="w-16 h-16 border border-gray-300 mb-2 mx-auto bg-muted"
-                            ></div>
+                            <div className="w-16 h-16 border border-gray-300 mb-2 mx-auto bg-muted"></div>
                           )}
                           <p className="mb-1">{wheel.description}</p>
                           <p>Price: ₱{wheel.price}</p>
@@ -1464,7 +1470,9 @@ const InventoryPage: React.FC = () => {
                           <Label htmlFor="carModel">Car Model</Label>
                           {editingInterior ? (
                             <div className="p-2 bg-muted rounded-md">
-                              {getCarModelName(newInterior.carModelId as string)}
+                              {getCarModelName(
+                                newInterior.carModelId as string
+                              )}
                             </div>
                           ) : (
                             <Select
@@ -1496,7 +1504,10 @@ const InventoryPage: React.FC = () => {
                             id="name"
                             value={newInterior.name ?? ""}
                             onChange={(e) =>
-                              setNewInterior({ ...newInterior, name: e.target.value })
+                              setNewInterior({
+                                ...newInterior,
+                                name: e.target.value,
+                              })
                             }
                             disabled={interiorPending}
                           />
@@ -1618,7 +1629,9 @@ const InventoryPage: React.FC = () => {
                           ) : (
                             <div
                               className="w-16 h-16 border border-gray-300 mb-2 mx-auto"
-                              style={{ backgroundColor: interior.hex || '#000000' }}
+                              style={{
+                                backgroundColor: interior.hex || "#000000",
+                              }}
                             ></div>
                           )}
                           <p className="mb-1">{interior.description}</p>
