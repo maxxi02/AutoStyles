@@ -485,19 +485,6 @@ const ClientDashboard = () => {
     });
   };
 
-  const handleDeleteTransaction = async (id: string) => {
-    if (!user) return;
-    try {
-      await updateDoc(doc(db, "transactions", id), {
-        status: "cancelled",
-      });
-      toast?.success("Transaction cancelled successfully!");
-    } catch (error) {
-      console.error("Error cancelling transaction:", error);
-      toast?.error("Failed to cancel transaction.");
-    }
-  };
-
   if (isLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -670,9 +657,6 @@ const ClientDashboard = () => {
                         <TableHead className="text-muted-foreground">
                           Date
                         </TableHead>
-                        <TableHead className="text-right text-muted-foreground">
-                          Actions
-                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -779,29 +763,6 @@ const ClientDashboard = () => {
                             <TableCell className="text-muted-foreground">
                               {formattedDate}
                             </TableCell>
-                            <TableCell className="text-right flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" asChild>
-                                <Link href={`/c/transactions?id=${txn.id}`}>
-                                  <Eye className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                              <Button variant="ghost" size="icon" asChild>
-                                <Link href={`/c/customization?edit=${txn.id}`}>
-                                  <Edit className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                              {txn.status !== "purchased" && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() =>
-                                    handleDeleteTransaction(txn.id)
-                                  }
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -834,9 +795,6 @@ const ClientDashboard = () => {
                         </TableHead>
                         <TableHead className="text-muted-foreground">
                           Payment
-                        </TableHead>
-                        <TableHead className="text-right text-muted-foreground">
-                          Actions
                         </TableHead>
                       </TableRow>
                     </TableHeader>
@@ -921,15 +879,6 @@ const ClientDashboard = () => {
                                   : "Pending"}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="icon" asChild>
-                                <Link
-                                  href={`/c/transactions?id=${apt.transactionId}`}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -941,15 +890,6 @@ const ClientDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Edit Profile Modal (if needed; omitted for brevity, add if showEditProfile is used) */}
-        {showEditProfile && (
-          // Add your edit profile form here
-          <div>Edit Profile Form...</div>
-        )}
-        {showChangePassword && (
-          // Add your change password form here
-          <div>Change Password Form...</div>
-        )}
       </main>
     </div>
   );

@@ -567,6 +567,24 @@ const ClientsTransactionPage: React.FC = () => {
       return;
     }
 
+    const color = paintColors.find((c) => c.id === latestTransaction.colorId);
+    const wheel = wheels.find((w) => w.id === latestTransaction.wheelId);
+    const interior = interiors.find(
+      (i) => i.id === latestTransaction.interiorId
+    );
+
+    if (!color || color.inventory < 1) {
+      toast.error("Sorry, the selected paint color is out of stock.");
+      return;
+    }
+    if (!wheel || wheel.inventory < 1) {
+      toast.error("Sorry, the selected wheels are out of stock.");
+      return;
+    }
+    if (!interior || interior.inventory < 1) {
+      toast.error("Sorry, the selected interior is out of stock.");
+      return;
+    }
     const { model } = getTransactionDetails(latestTransaction);
 
     try {

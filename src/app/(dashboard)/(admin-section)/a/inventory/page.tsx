@@ -38,22 +38,11 @@ import {
   deleteDoc,
   onSnapshot,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase"; // Adjust the import path to your config file
-import { Loader2 } from "lucide-react"; // Assuming lucide-react is available for spinner
+import { db } from "@/lib/firebase"; 
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
+
 interface CarType {
   id: string;
   name: string;
@@ -80,30 +69,7 @@ interface PaintColor {
   price: number;
   inventory: number;
   images?: string[];
-  sold?: number; // Add this
-}
-
-interface Wheel {
-  id: string;
-  carModelId: string;
-  name: string;
-  description: string;
-  price: number;
-  inventory: number;
-  imageUrl?: string;
-  sold?: number; // Add this
-}
-
-interface Interior {
-  id: string;
-  carModelId: string;
-  name: string;
-  description: string;
-  price: number;
-  inventory: number;
-  imageUrl?: string;
-  hex?: string;
-  sold?: number; // Add this
+  sold?: number;
 }
 
 type PaintColorData = Omit<PaintColor, "id">;
@@ -116,7 +82,7 @@ interface Wheel {
   price: number;
   inventory: number;
   imageUrl?: string;
-  sold?: number; // Add this
+  sold?: number;
 }
 
 type WheelData = Omit<Wheel, "id">;
@@ -130,20 +96,10 @@ interface Interior {
   inventory: number;
   imageUrl?: string;
   hex?: string;
-  sold?: number; // Add this
+  sold?: number;
 }
 
 type InteriorData = Omit<Interior, "id">;
-
-interface PricingRule {
-  id: string;
-  description: string;
-  type: "discount" | "markup";
-  percentage: number;
-  isActive: boolean;
-}
-
-type PricingRuleData = Omit<PricingRule, "id">;
 
 const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET =
@@ -177,7 +133,6 @@ const InventoryPage: React.FC = () => {
   const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
   const [wheels, setWheels] = useState<Wheel[]>([]);
   const [interiors, setInteriors] = useState<Interior[]>([]);
-  const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
 
   // State for modals
   const [isCarTypeDialogOpen, setIsCarTypeDialogOpen] = useState(false);
@@ -185,7 +140,6 @@ const InventoryPage: React.FC = () => {
   const [isPaintColorDialogOpen, setIsPaintColorDialogOpen] = useState(false);
   const [isWheelDialogOpen, setIsWheelDialogOpen] = useState(false);
   const [isInteriorDialogOpen, setIsInteriorDialogOpen] = useState(false);
-  const [isPricingRuleDialogOpen, setIsPricingRuleDialogOpen] = useState(false);
 
   const [editingCarType, setEditingCarType] = useState<CarType | null>(null);
   const [editingCarModel, setEditingCarModel] = useState<CarModel | null>(null);
@@ -194,8 +148,6 @@ const InventoryPage: React.FC = () => {
   );
   const [editingWheel, setEditingWheel] = useState<Wheel | null>(null);
   const [editingInterior, setEditingInterior] = useState<Interior | null>(null);
-  const [editingPricingRule, setEditingPricingRule] =
-    useState<PricingRule | null>(null);
 
   // Loading states for operations
   const [carTypePending, setCarTypePending] = useState(false);
@@ -203,7 +155,6 @@ const InventoryPage: React.FC = () => {
   const [paintColorPending, setPaintColorPending] = useState(false);
   const [wheelPending, setWheelPending] = useState(false);
   const [interiorPending, setInteriorPending] = useState(false);
-  const [pricingRulePending, setPricingRulePending] = useState(false);
 
   // Form states
   const [newCarType, setNewCarType] = useState<Partial<CarTypeData>>({});
@@ -213,9 +164,6 @@ const InventoryPage: React.FC = () => {
   );
   const [newWheel, setNewWheel] = useState<Partial<WheelData>>({});
   const [newInterior, setNewInterior] = useState<Partial<InteriorData>>({});
-  const [newPricingRule, setNewPricingRule] = useState<
-    Partial<PricingRuleData>
-  >({});
 
   // Search state for colors
   const [searchTerm, setSearchTerm] = useState("");
@@ -235,7 +183,7 @@ const InventoryPage: React.FC = () => {
         setCarTypes(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 6) {
+          if (next === 4) {
             setIsDataLoading(false);
           }
           return next;
@@ -252,7 +200,7 @@ const InventoryPage: React.FC = () => {
         setCarModels(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 6) {
+          if (next === 4) {
             setIsDataLoading(false);
           }
           return next;
@@ -269,7 +217,7 @@ const InventoryPage: React.FC = () => {
         setPaintColors(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 6) {
+          if (next === 4) {
             setIsDataLoading(false);
           }
           return next;
@@ -286,7 +234,7 @@ const InventoryPage: React.FC = () => {
         setWheels(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 6) {
+          if (next === 4) {
             setIsDataLoading(false);
           }
           return next;
@@ -303,24 +251,7 @@ const InventoryPage: React.FC = () => {
         setInteriors(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 6) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
-      }
-    );
-
-    const unsubscribePricingRules = onSnapshot(
-      collection(db, "pricingRules"),
-      (snapshot) => {
-        const data = snapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() }) as PricingRule
-        );
-        setPricingRules(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 6) {
+          if (next === 4) {
             setIsDataLoading(false);
           }
           return next;
@@ -334,7 +265,6 @@ const InventoryPage: React.FC = () => {
       unsubscribePaintColors();
       unsubscribeWheels();
       unsubscribeInteriors();
-      unsubscribePricingRules();
     };
   }, []);
 
@@ -591,34 +521,6 @@ const InventoryPage: React.FC = () => {
     }
   };
 
-  const handleAddOrUpdatePricingRule = async () => {
-    setPricingRulePending(true);
-    try {
-      const pricingRuleData: PricingRuleData = {
-        description: newPricingRule.description || "",
-        type: newPricingRule.type || "discount",
-        percentage: newPricingRule.percentage ?? 0,
-        isActive: newPricingRule.isActive ?? true,
-      };
-      if (editingPricingRule) {
-        const pricingRuleRef = doc(db, "pricingRules", editingPricingRule.id);
-        await updateDoc(pricingRuleRef, pricingRuleData);
-        toast.success("Pricing rule updated successfully");
-      } else {
-        await addDoc(collection(db, "pricingRules"), pricingRuleData);
-        toast.success("Pricing rule added successfully");
-      }
-      setIsPricingRuleDialogOpen(false);
-      setNewPricingRule({ type: "discount", isActive: true });
-      setEditingPricingRule(null);
-    } catch (error) {
-      console.error("Error adding/updating pricing rule:", error);
-      toast.error("Failed to add/update pricing rule");
-    } finally {
-      setPricingRulePending(false);
-    }
-  };
-
   const handleDeleteCarModel = async (id: string) => {
     if (!confirm("Are you sure you want to delete this car model?")) return;
     try {
@@ -660,17 +562,6 @@ const InventoryPage: React.FC = () => {
     } catch (error) {
       console.error("Error deleting interior:", error);
       toast.error("Failed to delete interior");
-    }
-  };
-
-  const handleDeletePricingRule = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this pricing rule?")) return;
-    try {
-      await deleteDoc(doc(db, "pricingRules", id));
-      toast.success("Pricing rule deleted successfully");
-    } catch (error) {
-      console.error("Error deleting pricing rule:", error);
-      toast.error("Failed to delete pricing rule");
     }
   };
 
@@ -726,17 +617,6 @@ const InventoryPage: React.FC = () => {
     setIsInteriorDialogOpen(true);
   };
 
-  const openPricingRuleEdit = (rule: PricingRule) => {
-    setEditingPricingRule(rule);
-    setNewPricingRule({
-      description: rule.description,
-      type: rule.type,
-      percentage: rule.percentage,
-      isActive: rule.isActive,
-    });
-    setIsPricingRuleDialogOpen(true);
-  };
-
   const handleRemoveImage = (index: number) => {
     setNewPaintColor((prev) => {
       const images = [...(prev.images || new Array(4).fill(undefined))];
@@ -779,8 +659,6 @@ const InventoryPage: React.FC = () => {
         <TabsList>
           <TabsTrigger value="car-models">Car Models</TabsTrigger>
           <TabsTrigger value="customize">Customize</TabsTrigger>
-          <TabsTrigger value="pricing-rules">Pricing Rules</TabsTrigger>
-          <TabsTrigger value="inventory-monitor">Inventory Monitor</TabsTrigger>
         </TabsList>
 
         <TabsContent value="car-models">
@@ -1731,739 +1609,6 @@ const InventoryPage: React.FC = () => {
               </Card>
             </TabsContent>
           </Tabs>
-        </TabsContent>
-
-        <TabsContent value="pricing-rules">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pricing Rules</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Dialog
-                open={isPricingRuleDialogOpen}
-                onOpenChange={setIsPricingRuleDialogOpen}
-              >
-                <DialogTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      setEditingPricingRule(null);
-                      setNewPricingRule({ type: "discount", isActive: true });
-                    }}
-                    disabled={isDataLoading}
-                  >
-                    Add Pricing Rule
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {editingPricingRule
-                        ? "Edit Pricing Rule"
-                        : "Add Pricing Rule"}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="grid gap-4">
-                    <div>
-                      <Label htmlFor="description">Description</Label>
-                      <Input
-                        id="description"
-                        placeholder="e.g., Senior Citizen Discount, Student Discount"
-                        value={newPricingRule.description ?? ""}
-                        onChange={(e) =>
-                          setNewPricingRule({
-                            ...newPricingRule,
-                            description: e.target.value,
-                          })
-                        }
-                        disabled={pricingRulePending}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="type">Type</Label>
-                      <Select
-                        value={newPricingRule.type}
-                        onValueChange={(value) =>
-                          setNewPricingRule({
-                            ...newPricingRule,
-                            type: value as "discount" | "markup",
-                          })
-                        }
-                        disabled={pricingRulePending}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="discount">Discount</SelectItem>
-                          <SelectItem value="markup">Markup</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="percentage">Percentage (%)</Label>
-                      <Input
-                        id="percentage"
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        placeholder="e.g., 20 for 20% off"
-                        value={newPricingRule.percentage ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setNewPricingRule({
-                            ...newPricingRule,
-                            percentage:
-                              val === "" ? undefined : parseFloat(val),
-                          });
-                        }}
-                        disabled={pricingRulePending}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {newPricingRule.type === "discount"
-                          ? "Customer will receive this percentage off the total price"
-                          : "This percentage will be added to the total price"}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="isActive"
-                        checked={newPricingRule.isActive ?? true}
-                        onChange={(e) =>
-                          setNewPricingRule({
-                            ...newPricingRule,
-                            isActive: e.target.checked,
-                          })
-                        }
-                        disabled={pricingRulePending}
-                        className="rounded"
-                      />
-                      <Label htmlFor="isActive" className="cursor-pointer">
-                        Active (rule is currently in effect)
-                      </Label>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      onClick={handleAddOrUpdatePricingRule}
-                      disabled={
-                        pricingRulePending ||
-                        !newPricingRule.description ||
-                        !newPricingRule.percentage
-                      }
-                    >
-                      {pricingRulePending && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Save
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                {pricingRules.map((rule) => (
-                  <Card
-                    key={rule.id}
-                    className={!rule.isActive ? "opacity-50" : ""}
-                  >
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="flex-1">
-                          {rule.description}
-                        </CardTitle>
-                        {rule.isActive && (
-                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <p className="text-2xl font-bold">
-                          {rule.type === "discount" ? "-" : "+"}
-                          {rule.percentage}%
-                        </p>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {rule.type}
-                        </p>
-                        <div className="text-xs text-muted-foreground">
-                          {rule.type === "discount"
-                            ? `Customers get ${rule.percentage}% off their total`
-                            : `${rule.percentage}% added to total price`}
-                        </div>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="flex justify-between">
-                      <Button
-                        variant="outline"
-                        onClick={() => openPricingRuleEdit(rule)}
-                        disabled={isDataLoading}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={() => handleDeletePricingRule(rule.id)}
-                        disabled={isDataLoading}
-                      >
-                        Delete
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="inventory-monitor">
-          <Card>
-            <CardHeader>
-              <CardTitle>Inventory Monitor & Analytics</CardTitle>
-              <CardDescription>
-                Track inventory levels, sales, and performance metrics
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              {/* Key Metrics Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Total Items
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      {paintColors.length + wheels.length + interiors.length}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Colors: {paintColors.length} | Wheels: {wheels.length} |
-                      Interiors: {interiors.length}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Total Inventory Value
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      ₱
-                      {(
-                        paintColors.reduce(
-                          (sum, c) => sum + c.price * c.inventory,
-                          0
-                        ) +
-                        wheels.reduce(
-                          (sum, w) => sum + w.price * w.inventory,
-                          0
-                        ) +
-                        interiors.reduce(
-                          (sum, i) => sum + i.price * i.inventory,
-                          0
-                        )
-                      ).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Current stock value
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Total Revenue
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      ₱
-                      {(
-                        paintColors.reduce(
-                          (sum, c) => sum + c.price * (c.sold || 0),
-                          0
-                        ) +
-                        wheels.reduce(
-                          (sum, w) => sum + w.price * (w.sold || 0),
-                          0
-                        ) +
-                        interiors.reduce(
-                          (sum, i) => sum + i.price * (i.sold || 0),
-                          0
-                        )
-                      ).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      From sold items
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Low Stock Alerts
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold text-red-600">
-                      {paintColors.filter((c) => c.inventory < 50).length +
-                        wheels.filter((w) => w.inventory < 50).length +
-                        interiors.filter((i) => i.inventory < 50).length}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Items below threshold
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Sales Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Paint Colors Sales */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      Top Selling Paint Colors
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <PieChart>
-                        <Pie
-                          data={[...paintColors]
-                            .filter((c) => (c.sold || 0) > 0)
-                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-                            .slice(0, 5)
-                            .map((c) => ({
-                              name: c.name,
-                              value: c.sold || 0,
-                              color: c.hex,
-                            }))}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={(entry) => `${entry.name}: ${entry.value}`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {[...paintColors]
-                            .filter((c) => (c.sold || 0) > 0)
-                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-                            .slice(0, 5)
-                            .map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.hex} />
-                            ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    {paintColors.filter((c) => (c.sold || 0) > 0).length ===
-                      0 && (
-                      <p className="text-center text-sm text-muted-foreground">
-                        No sales data yet
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Wheels Sales */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      Top Selling Wheels
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <PieChart>
-                        <Pie
-                          data={[...wheels]
-                            .filter((w) => (w.sold || 0) > 0)
-                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-                            .slice(0, 5)
-                            .map((w, i) => ({
-                              name: w.name,
-                              value: w.sold || 0,
-                              color: [
-                                "#0088FE",
-                                "#00C49F",
-                                "#FFBB28",
-                                "#FF8042",
-                                "#8884d8",
-                              ][i],
-                            }))}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={(entry) => `${entry.name}: ${entry.value}`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {[...wheels]
-                            .filter((w) => (w.sold || 0) > 0)
-                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-                            .slice(0, 5)
-                            .map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={
-                                  [
-                                    "#0088FE",
-                                    "#00C49F",
-                                    "#FFBB28",
-                                    "#FF8042",
-                                    "#8884d8",
-                                  ][index]
-                                }
-                              />
-                            ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    {wheels.filter((w) => (w.sold || 0) > 0).length === 0 && (
-                      <p className="text-center text-sm text-muted-foreground">
-                        No sales data yet
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Interiors Sales */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      Top Selling Interiors
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <PieChart>
-                        <Pie
-                          data={[...interiors]
-                            .filter((i) => (i.sold || 0) > 0)
-                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-                            .slice(0, 5)
-                            .map((i, idx) => ({
-                              name: i.name,
-                              value: i.sold || 0,
-                              color:
-                                i.hex ||
-                                [
-                                  "#0088FE",
-                                  "#00C49F",
-                                  "#FFBB28",
-                                  "#FF8042",
-                                  "#8884d8",
-                                ][idx],
-                            }))}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={(entry) => `${entry.name}: ${entry.value}`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {[...interiors]
-                            .filter((i) => (i.sold || 0) > 0)
-                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-                            .slice(0, 5)
-                            .map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={
-                                  entry.hex ||
-                                  [
-                                    "#0088FE",
-                                    "#00C49F",
-                                    "#FFBB28",
-                                    "#FF8042",
-                                    "#8884d8",
-                                  ][index]
-                                }
-                              />
-                            ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    {interiors.filter((i) => (i.sold || 0) > 0).length ===
-                      0 && (
-                      <p className="text-center text-sm text-muted-foreground">
-                        No sales data yet
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Inventory Levels Bar Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Current Inventory Levels</CardTitle>
-                  <CardDescription>Stock levels for all items</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart
-                      data={[
-                        ...paintColors.map((c) => ({
-                          name: c.name,
-                          stock: c.inventory,
-                          type: "Color",
-                        })),
-                        ...wheels.map((w) => ({
-                          name: w.name,
-                          stock: w.inventory,
-                          type: "Wheel",
-                        })),
-                        ...interiors.map((i) => ({
-                          name: i.name,
-                          stock: i.inventory,
-                          type: "Interior",
-                        })),
-                      ]
-                        .sort((a, b) => a.stock - b.stock)
-                        .slice(0, 15)}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="name"
-                        angle={-45}
-                        textAnchor="end"
-                        height={100}
-                      />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="stock" fill="#8884d8" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Low Inventory Alerts */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">
-                    Low Inventory Alerts
-                  </h3>
-                  <span className="text-sm text-muted-foreground">
-                    Threshold: 50 units
-                  </span>
-                </div>
-
-                <Tabs defaultValue="colors">
-                  <TabsList>
-                    <TabsTrigger value="colors">
-                      Paint Colors (
-                      {paintColors.filter((c) => c.inventory < 50).length})
-                    </TabsTrigger>
-                    <TabsTrigger value="wheels">
-                      Wheels ({wheels.filter((w) => w.inventory < 50).length})
-                    </TabsTrigger>
-                    <TabsTrigger value="interiors">
-                      Interiors (
-                      {interiors.filter((i) => i.inventory < 50).length})
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="colors">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {paintColors
-                        .filter((c) => c.inventory < 50)
-                        .map((color) => (
-                          <Card key={color.id} className="border-red-200">
-                            <CardHeader>
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <CardTitle className="text-base">
-                                    {color.name}
-                                  </CardTitle>
-                                  <CardDescription>
-                                    {getCarModelName(color.carModelId)}
-                                  </CardDescription>
-                                </div>
-                                <div
-                                  className="w-8 h-8 rounded border"
-                                  style={{ backgroundColor: color.hex }}
-                                />
-                              </div>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="space-y-1">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">
-                                    Stock:
-                                  </span>
-                                  <span className="font-bold text-red-600">
-                                    {color.inventory}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">
-                                    Sold:
-                                  </span>
-                                  <span>{color.sold || 0}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">
-                                    Price:
-                                  </span>
-                                  <span>₱{color.price.toLocaleString()}</span>
-                                </div>
-                              </div>
-                            </CardContent>
-                            <CardFooter>
-                              <Button
-                                size="sm"
-                                className="w-full"
-                                onClick={() => openPaintColorEdit(color)}
-                              >
-                                Restock
-                              </Button>
-                            </CardFooter>
-                          </Card>
-                        ))}
-                      {paintColors.filter((c) => c.inventory < 50).length ===
-                        0 && (
-                        <p className="col-span-full text-center text-muted-foreground py-8">
-                          All paint colors are well-stocked ✓
-                        </p>
-                      )}
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="wheels">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {wheels
-                        .filter((w) => w.inventory < 50)
-                        .map((wheel) => (
-                          <Card key={wheel.id} className="border-red-200">
-                            <CardHeader>
-                              <CardTitle className="text-base">
-                                {wheel.name}
-                              </CardTitle>
-                              <CardDescription>
-                                {getCarModelName(wheel.carModelId)}
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="space-y-1">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">
-                                    Stock:
-                                  </span>
-                                  <span className="font-bold text-red-600">
-                                    {wheel.inventory}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">
-                                    Sold:
-                                  </span>
-                                  <span>{wheel.sold || 0}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">
-                                    Price:
-                                  </span>
-                                  <span>₱{wheel.price.toLocaleString()}</span>
-                                </div>
-                              </div>
-                            </CardContent>
-                            <CardFooter>
-                              <Button
-                                size="sm"
-                                className="w-full"
-                                onClick={() => openWheelEdit(wheel)}
-                              >
-                                Restock
-                              </Button>
-                            </CardFooter>
-                          </Card>
-                        ))}
-                      {wheels.filter((w) => w.inventory < 50).length === 0 && (
-                        <p className="col-span-full text-center text-muted-foreground py-8">
-                          All wheels are well-stocked ✓
-                        </p>
-                      )}
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="interiors">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {interiors
-                        .filter((i) => i.inventory < 50)
-                        .map((interior) => (
-                          <Card key={interior.id} className="border-red-200">
-                            <CardHeader>
-                              <CardTitle className="text-base">
-                                {interior.name}
-                              </CardTitle>
-                              <CardDescription>
-                                {getCarModelName(interior.carModelId)}
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="space-y-1">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">
-                                    Stock:
-                                  </span>
-                                  <span className="font-bold text-red-600">
-                                    {interior.inventory}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">
-                                    Sold:
-                                  </span>
-                                  <span>{interior.sold || 0}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">
-                                    Price:
-                                  </span>
-                                  <span>
-                                    ₱{interior.price.toLocaleString()}
-                                  </span>
-                                </div>
-                              </div>
-                            </CardContent>
-                            <CardFooter>
-                              <Button
-                                size="sm"
-                                className="w-full"
-                                onClick={() => openInteriorEdit(interior)}
-                              >
-                                Restock
-                              </Button>
-                            </CardFooter>
-                          </Card>
-                        ))}
-                      {interiors.filter((i) => i.inventory < 50).length ===
-                        0 && (
-                        <p className="col-span-full text-center text-muted-foreground py-8">
-                          All interiors are well-stocked ✓
-                        </p>
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>

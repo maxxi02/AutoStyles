@@ -1,13 +1,14 @@
 "use client";
-
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,355 +19,499 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Printer, Receipt } from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import React from "react";
-import Image from "next/image";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
+import { Loader2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
-const carTypes = ["Sedan", "SUV", "Pickup", "Hatchback", "Sports Car"];
-const colors = [
-  "Midnight Black",
-  "Pearl White",
-  "Racing Red",
-  "Ocean Blue",
-  "Silver Metallic",
-];
-const finishes = ["Matte", "Glossy", "Metallic"];
-const discounts = [
-  { id: "none", name: "No Discount", value: 0 },
-  { id: "loyalty", name: "Loyalty (10%)", value: 0.1 },
-  { id: "senior", name: "Senior (15%)", value: 0.15 },
-  { id: "student", name: "Student (5%)", value: 0.05 },
-];
-
-interface TransactionForm {
-  customerName: string;
-  carType: string;
-  color: string;
-  finish: string;
-  basePrice: number;
-  discount: string;
-  amountPaid: number;
+interface PayMongoPayment {
+  id: string;
+  type: string;
+  attributes: {
+    amount: number;
+    currency: string;
+    status: string;
+    description: string;
+    created_at: number;
+    updated_at: number;
+    paid_at: number;
+    payment_intent_id: string;
+    billing?: {
+      name: string;
+      email: string;
+      phone: string;
+    };
+  };
 }
 
-const CashierPage = () => {
-  const [form, setForm] = useState<TransactionForm>({
-    customerName: "",
-    carType: "",
-    color: "",
-    finish: "",
-    basePrice: 500, // Default base price
-    discount: "none",
-    amountPaid: 0,
-  });
-  const [totalDue, setTotalDue] = useState(0);
-  const [change, setChange] = useState(0);
-  const [showReceipt, setShowReceipt] = useState(false);
+interface PricingRule {
+  id: string;
+  description: string;
+  type: "discount" | "markup";
+  percentage: number;
+  isActive: boolean;
+}
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
-  };
+type PricingRuleData = Omit<PricingRule, "id">;
 
-  const handleSelectChange = (name: keyof TransactionForm, value: string) => {
-    setForm({ ...form, [name]: value });
-  };
+const CashierPage: React.FC = () => {
+  const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
+  const [payments, setPayments] = useState<PayMongoPayment[]>([]);
+  const [isLoadingPayments, setIsLoadingPayments] = useState(false);
+  const [activeTab, setActiveTab] = useState("pricing-rules");
 
-  const calculateTotal = () => {
-    const discountValue =
-      discounts.find((d) => d.id === form.discount)?.value || 0;
-    const discountedPrice = form.basePrice * (1 - discountValue);
-    setTotalDue(discountedPrice);
-    if (form.amountPaid > 0) {
-      setChange(form.amountPaid - discountedPrice);
-    }
-  };
+  // State for modals
+  const [isPricingRuleDialogOpen, setIsPricingRuleDialogOpen] = useState(false);
+  const [editingPricingRule, setEditingPricingRule] = useState<PricingRule | null>(null);
 
-  const handleFinalize = () => {
-    calculateTotal();
-    if (form.amountPaid < totalDue) {
-      alert("Amount paid must cover the total due.");
-      return;
-    }
-    setShowReceipt(true);
-  };
+  // Loading states for operations
+  const [pricingRulePending, setPricingRulePending] = useState(false);
 
-  const handlePrintReceipt = () => {
-    // Simulate printing
-    window.print();
-    setShowReceipt(false);
-  };
+  // Form states
+  const [newPricingRule, setNewPricingRule] = useState<Partial<PricingRuleData>>({});
 
-  React.useEffect(() => {
-    calculateTotal();
-  }, [form.basePrice, form.discount, form.amountPaid]);
+  // Initial data loading state
+  const [isDataLoading, setIsDataLoading] = useState(true);
+  const [snapshotCount, setSnapshotCount] = useState(0);
 
-  const getPreviewImage = () => {
-    // Simple placeholder based on car type
-    const images = {
-      Sedan:
-        "https://images.unsplash.com/photo-1502877338535-766e3a6052c0?w=300&h=200&fit=crop",
-      SUV: "https://images.unsplash.com/photo-1549317661-bd8e8e7b1d1f?w=300&h=200&fit=crop",
-      Pickup:
-        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=300&h=200&fit=crop",
-      Hatchback:
-        "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=300&h=200&fit=crop",
-      "Sports Car":
-        "https://images.unsplash.com/photo-1571171638497-a3e3c5e0c1e?w=300&h=200&fit=crop",
+  // Load pricing rules from Firestore
+  useEffect(() => {
+    const unsubscribePricingRules = onSnapshot(
+      collection(db, "pricingRules"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as PricingRule
+        );
+        setPricingRules(data);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 1) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
+    return () => {
+      unsubscribePricingRules();
     };
-    return images[form.carType as keyof typeof images] || images.Sedan;
+  }, []);
+
+  const fetchPayments = async () => {
+    setIsLoadingPayments(true);
+    try {
+      const response = await fetch("/api/paymongo/payments");
+      const data = await response.json();
+
+      if (response.ok) {
+        setPayments(data.data || []);
+        toast.success("Payments loaded successfully");
+      } else {
+        toast.error(data.error || "Failed to load payments");
+      }
+    } catch (error) {
+      console.error("Error fetching payments:", error);
+      toast.error("Failed to load payments");
+    } finally {
+      setIsLoadingPayments(false);
+    }
   };
+
+  useEffect(() => {
+    if (activeTab === "payments") {
+      fetchPayments();
+    }
+  }, [activeTab]);
+
+  const handleAddOrUpdatePricingRule = async () => {
+    setPricingRulePending(true);
+    try {
+      const pricingRuleData: PricingRuleData = {
+        description: newPricingRule.description || "",
+        type: newPricingRule.type || "discount",
+        percentage: newPricingRule.percentage ?? 0,
+        isActive: newPricingRule.isActive ?? true,
+      };
+      if (editingPricingRule) {
+        const pricingRuleRef = doc(db, "pricingRules", editingPricingRule.id);
+        await updateDoc(pricingRuleRef, pricingRuleData);
+        toast.success("Pricing rule updated successfully");
+      } else {
+        await addDoc(collection(db, "pricingRules"), pricingRuleData);
+        toast.success("Pricing rule added successfully");
+      }
+      setIsPricingRuleDialogOpen(false);
+      setNewPricingRule({ type: "discount", isActive: true });
+      setEditingPricingRule(null);
+    } catch (error) {
+      console.error("Error adding/updating pricing rule:", error);
+      toast.error("Failed to add/update pricing rule");
+    } finally {
+      setPricingRulePending(false);
+    }
+  };
+
+  const handleDeletePricingRule = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this pricing rule?")) return;
+    try {
+      await deleteDoc(doc(db, "pricingRules", id));
+      toast.success("Pricing rule deleted successfully");
+    } catch (error) {
+      console.error("Error deleting pricing rule:", error);
+      toast.error("Failed to delete pricing rule");
+    }
+  };
+
+  const openPricingRuleEdit = (rule: PricingRule) => {
+    setEditingPricingRule(rule);
+    setNewPricingRule({
+      description: rule.description,
+      type: rule.type,
+      percentage: rule.percentage,
+      isActive: rule.isActive,
+    });
+    setIsPricingRuleDialogOpen(true);
+  };
+
+  if (isDataLoading) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin mb-2" />
+          <p>Loading data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Receipt</DialogTitle>
-                <DialogDescription>
-                  Transaction completed successfully.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 text-sm">
-                <div className="flex justify-between">
-                  <span>Customer:</span>
-                  <span>{form.customerName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Car Type:</span>
-                  <span>{form.carType}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Color:</span>
-                  <span>{form.color}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Finish:</span>
-                  <span>{form.finish}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Discount:</span>
-                  <span>
-                    {discounts.find((d) => d.id === form.discount)?.name}
-                  </span>
-                </div>
-                <div className="text-lg font-bold">
-                  Total Due: ${totalDue.toFixed(2)}
-                </div>
-                <div className="flex justify-between">
-                  Amount Paid: <span>${form.amountPaid.toFixed(2)}</span>
-                </div>
-                <div className="text-lg font-bold text-green-600">
-                  Change: ${change.toFixed(2)}
-                </div>
-                <div className="flex justify-between">
-                  Date: <span>{new Date().toLocaleDateString()}</span>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handlePrintReceipt}>
-                  <Printer className="h-4 w-4 mr-2" />
-                  Print Receipt
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+    <div className="container mx-auto p-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="pricing-rules">Pricing Rules</TabsTrigger>
+          <TabsTrigger value="payments">Payments History</TabsTrigger>
+        </TabsList>
 
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle className="text-foreground">
-              New Walk-In Transaction
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Create and finalize customer order
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="customerName">Customer Name</Label>
-                  <Input
-                    id="customerName"
-                    name="customerName"
-                    value={form.customerName}
-                    onChange={handleInputChange}
-                    placeholder="Enter customer name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="carType">Car Type</Label>
-                  <Select
-                    value={form.carType}
-                    onValueChange={(value) =>
-                      handleSelectChange("carType", value)
-                    }
+        {/* Pricing Rules Tab */}
+        <TabsContent value="pricing-rules">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pricing Rules</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Dialog
+                open={isPricingRuleDialogOpen}
+                onOpenChange={setIsPricingRuleDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setEditingPricingRule(null);
+                      setNewPricingRule({ type: "discount", isActive: true });
+                    }}
+                    disabled={isDataLoading}
                   >
-                    <SelectTrigger id="carType">
-                      <SelectValue placeholder="Select car type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {carTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="color">Exterior Color</Label>
-                  <Select
-                    value={form.color}
-                    onValueChange={(value) =>
-                      handleSelectChange("color", value)
-                    }
-                  >
-                    <SelectTrigger id="color">
-                      <SelectValue placeholder="Select color" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {colors.map((color) => (
-                        <SelectItem key={color} value={color}>
-                          {color}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="finish">Paint Finish</Label>
-                  <Select
-                    value={form.finish}
-                    onValueChange={(value) =>
-                      handleSelectChange("finish", value)
-                    }
-                  >
-                    <SelectTrigger id="finish">
-                      <SelectValue placeholder="Select finish" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {finishes.map((finish) => (
-                        <SelectItem key={finish} value={finish}>
-                          {finish}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="discount">Discount</Label>
-                  <Select
-                    value={form.discount}
-                    onValueChange={(value) =>
-                      handleSelectChange("discount", value)
-                    }
-                  >
-                    <SelectTrigger id="discount">
-                      <SelectValue placeholder="Select discount" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {discounts.map((disc) => (
-                        <SelectItem key={disc.id} value={disc.id}>
-                          {disc.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="aspect-[4/3] bg-muted rounded-lg flex items-center justify-center">
-                  <Image
-                    src={getPreviewImage()}
-                    alt="Car Preview"
-                    className="h-full w-full object-cover rounded-lg"
-                    width={500}
-                    height={500}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="basePrice">Base Price ($)</Label>
-                  <Input
-                    id="basePrice"
-                    name="basePrice"
-                    type="number"
-                    value={form.basePrice}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        basePrice: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="Enter base price"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="amountPaid">Amount Paid ($)</Label>
-                  <Input
-                    id="amountPaid"
-                    name="amountPaid"
-                    type="number"
-                    value={form.amountPaid}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        amountPaid: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="Enter amount paid"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="font-medium">Total Due:</span>
-                    <Badge variant="secondary">${totalDue.toFixed(2)}</Badge>
+                    Add Pricing Rule
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingPricingRule
+                        ? "Edit Pricing Rule"
+                        : "Add Pricing Rule"}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4">
+                    <div>
+                      <Label htmlFor="description">Description</Label>
+                      <Input
+                        id="description"
+                        placeholder="e.g., Senior Citizen Discount, Student Discount"
+                        value={newPricingRule.description ?? ""}
+                        onChange={(e) =>
+                          setNewPricingRule({
+                            ...newPricingRule,
+                            description: e.target.value,
+                          })
+                        }
+                        disabled={pricingRulePending}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="type">Type</Label>
+                      <Select
+                        value={newPricingRule.type}
+                        onValueChange={(value) =>
+                          setNewPricingRule({
+                            ...newPricingRule,
+                            type: value as "discount" | "markup",
+                          })
+                        }
+                        disabled={pricingRulePending}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="discount">Discount</SelectItem>
+                          <SelectItem value="markup">Markup</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="percentage">Percentage (%)</Label>
+                      <Input
+                        id="percentage"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        placeholder="e.g., 20 for 20% off"
+                        value={newPricingRule.percentage ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewPricingRule({
+                            ...newPricingRule,
+                            percentage: val === "" ? undefined : parseFloat(val),
+                          });
+                        }}
+                        disabled={pricingRulePending}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {newPricingRule.type === "discount"
+                          ? "Customer will receive this percentage off the total price"
+                          : "This percentage will be added to the total price"}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="isActive"
+                        checked={newPricingRule.isActive ?? true}
+                        onChange={(e) =>
+                          setNewPricingRule({
+                            ...newPricingRule,
+                            isActive: e.target.checked,
+                          })
+                        }
+                        disabled={pricingRulePending}
+                        className="rounded"
+                      />
+                      <Label htmlFor="isActive" className="cursor-pointer">
+                        Active (rule is currently in effect)
+                      </Label>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Change:</span>
-                    <Badge variant={change >= 0 ? "default" : "destructive"}>
-                      ${change.toFixed(2)}
-                    </Badge>
-                  </div>
-                </div>
+                  <DialogFooter>
+                    <Button
+                      onClick={handleAddOrUpdatePricingRule}
+                      disabled={
+                        pricingRulePending ||
+                        !newPricingRule.description ||
+                        !newPricingRule.percentage
+                      }
+                    >
+                      {pricingRulePending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Save
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                {pricingRules.map((rule) => (
+                  <Card
+                    key={rule.id}
+                    className={!rule.isActive ? "opacity-50" : ""}
+                  >
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <CardTitle className="flex-1">{rule.description}</CardTitle>
+                        {rule.isActive && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <p className="text-2xl font-bold">
+                          {rule.type === "discount" ? "-" : "+"}
+                          {rule.percentage}%
+                        </p>
+                        <p className="text-sm text-muted-foreground capitalize">
+                          {rule.type}
+                        </p>
+                        <div className="text-xs text-muted-foreground">
+                          {rule.type === "discount"
+                            ? `Customers get ${rule.percentage}% off their total`
+                            : `${rule.percentage}% added to total price`}
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex justify-between">
+                      <Button
+                        variant="outline"
+                        onClick={() => openPricingRuleEdit(rule)}
+                        disabled={isDataLoading}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => handleDeletePricingRule(rule.id)}
+                        disabled={isDataLoading}
+                      >
+                        Delete
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
+        {/* Payments Tab */}
+        <TabsContent value="payments">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Payment History</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    All payments processed through PayMongo
+                  </p>
+                </div>
                 <Button
-                  onClick={handleFinalize}
-                  className="w-full"
-                  disabled={
-                    !form.customerName ||
-                    !form.carType ||
-                    !form.color ||
-                    !form.finish
-                  }
+                  onClick={fetchPayments}
+                  disabled={isLoadingPayments}
+                  variant="outline"
+                  size="sm"
                 >
-                  <Receipt className="h-4 w-4 mr-2" />
-                  Finalize Transaction
+                  {isLoadingPayments ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Refresh
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
+            </CardHeader>
+            <CardContent>
+              {isLoadingPayments && payments.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center">
+                    <Loader2 className="h-8 w-8 animate-spin mb-2" />
+                    <p>Loading payments...</p>
+                  </div>
+                </div>
+              ) : payments.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">No payments found</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Payment ID</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payments.map((payment) => (
+                        <TableRow key={payment.id}>
+                          <TableCell className="font-mono text-sm">
+                            {payment.id.substring(0, 20)}...
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">
+                                {payment.attributes.billing?.name || "N/A"}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {payment.attributes.billing?.email || "N/A"}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {payment.attributes.description || "N/A"}
+                          </TableCell>
+                          <TableCell className="font-semibold">
+                            ₱{(payment.attributes.amount / 100).toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                payment.attributes.status === "paid"
+                                  ? "default"
+                                  : payment.attributes.status === "failed"
+                                    ? "destructive"
+                                    : "secondary"
+                              }
+                            >
+                              {payment.attributes.status.toUpperCase()}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(
+                              payment.attributes.paid_at * 1000
+                            ).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="text-sm text-muted-foreground">
+              Total Payments: {payments.length} | Total Amount: ₱
+              {payments
+                .reduce((sum, p) => sum + p.attributes.amount / 100, 0)
+                .toLocaleString()}
+            </CardFooter>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
