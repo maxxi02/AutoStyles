@@ -81,6 +81,49 @@ interface CustomizationState {
   interiorId: string;
 }
 
+interface PricingRule {
+  id: string;
+  description: string;
+  type: "discount" | "markup";
+  percentage: number;
+  isActive: boolean;
+}
+
+interface TransactionData {
+  userId: string;
+  typeId: string;
+  modelId: string;
+  colorId: string;
+  wheelId: string;
+  interiorId: string;
+  timestamp: Date;
+  subtotal: number;
+  price: number;
+  status: "saved";
+  customerDetails: {
+    fullName: string;
+    email: string;
+    contactNumber: string;
+    address: string;
+  };
+  customizationProgress: {
+    paintCompleted: boolean;
+    paintCompletedAt: null;
+    wheelsCompleted: boolean;
+    wheelsCompletedAt: null;
+    interiorCompleted: boolean;
+    interiorCompletedAt: null;
+    overallStatus: "pending";
+  };
+  pricingRule?: {
+    id: string;
+    description: string;
+    type: "discount" | "markup";
+    percentage: number;
+    discountAmount: number;
+  };
+}
+
 const CustomizationPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"customize" | "models">(
     "customize"
@@ -107,8 +150,12 @@ const CustomizationPage: React.FC = () => {
   const [snapshotCount, setSnapshotCount] = useState(0);
 
   const [isSaving, setIsSaving] = useState(false);
-
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // pricing rules
+  const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
+  const [selectedPricingRuleId, setSelectedPricingRuleId] =
+    useState<string>("");
 
   //to track authentication
   useEffect(() => {
@@ -205,12 +252,31 @@ const CustomizationPage: React.FC = () => {
       }
     );
 
+    const unsubscribePricingRules = onSnapshot(
+      collection(db, "pricingRules"),
+      (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() }) as PricingRule
+        );
+        // Only show active rules to customers
+        setPricingRules(data.filter((rule) => rule.isActive));
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 6) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
+
     return () => {
       unsubscribeCarTypes();
       unsubscribeCarModels();
       unsubscribePaintColors();
       unsubscribeWheels();
       unsubscribeInteriors();
+      unsubscribePricingRules();
     };
   }, []);
 
@@ -352,7 +418,7 @@ const CustomizationPage: React.FC = () => {
     setCurrentImageIndex(0);
   }, [selectedColorId]);
 
-  // Calculate price
+  // Calculate price - only add prices for selected items
   const basePrice = selectedModel?.basePrice ?? 0;
   const colorPrice =
     selectedColorId && selectedColor ? (selectedColor.price ?? 0) : 0;
@@ -360,7 +426,25 @@ const CustomizationPage: React.FC = () => {
     selectedWheelId && selectedWheel ? (selectedWheel.price ?? 0) : 0;
   const interiorPrice =
     selectedInteriorId && selectedInterior ? (selectedInterior.price ?? 0) : 0;
-  const calculatedPrice = basePrice + colorPrice + wheelPrice + interiorPrice;
+  const subtotal = basePrice + colorPrice + wheelPrice + interiorPrice;
+
+  // Apply pricing rule if selected
+  const selectedPricingRule = pricingRules.find(
+    (rule) => rule.id === selectedPricingRuleId
+  );
+  let discountAmount = 0;
+  let calculatedPrice = subtotal;
+
+  if (selectedPricingRule) {
+    if (selectedPricingRule.type === "discount") {
+      discountAmount = (subtotal * selectedPricingRule.percentage) / 100;
+      calculatedPrice = subtotal - discountAmount;
+    } else {
+      // markup
+      const markupAmount = (subtotal * selectedPricingRule.percentage) / 100;
+      calculatedPrice = subtotal + markupAmount;
+    }
+  }
 
   const handleUndo = () => {
     if (history.length > 0) {
@@ -374,67 +458,79 @@ const CustomizationPage: React.FC = () => {
       setSelectedInteriorId(previousState.interiorId);
     }
   };
+const handleSaveDesign = async () => {
+  if (
+    !selectedModelId ||
+    !selectedColorId ||
+    !selectedWheelId ||
+    !selectedInteriorId
+  ) {
+    toast.error("Please select all customizations first.");
+    return;
+  }
 
-  const handleSaveDesign = async () => {
-    if (
-      !selectedModelId ||
-      !selectedColorId ||
-      !selectedWheelId ||
-      !selectedInteriorId
-    ) {
-      toast.error("Please select all customizations first.");
-      return;
+  if (!currentUser) {
+    toast.error("You must be logged in to save a design.");
+    return;
+  }
+
+  setIsSaving(true);
+
+  try {
+    // Fetch customer details
+    const customerDetails = await getUserDetails(currentUser.uid);
+
+    // Warn user if address is missing
+    if (customerDetails.address === "N/A" || !customerDetails.address) {
+      toast.warning(
+        "Please update your address in your profile for delivery purposes."
+      );
     }
 
-    if (!currentUser) {
-      toast.error("You must be logged in to save a design.");
-      return;
+    const transactionData: TransactionData = {
+      userId: currentUser.uid,
+      typeId: selectedTypeId,
+      modelId: selectedModelId,
+      colorId: selectedColorId,
+      wheelId: selectedWheelId,
+      interiorId: selectedInteriorId,
+      timestamp: new Date(),
+      subtotal: subtotal,
+      price: calculatedPrice,
+      status: "saved" as const,
+      customerDetails: customerDetails,
+      customizationProgress: {
+        paintCompleted: false,
+        paintCompletedAt: null,
+        wheelsCompleted: false,
+        wheelsCompletedAt: null,
+        interiorCompleted: false,
+        interiorCompletedAt: null,
+        overallStatus: "pending" as const,
+      },
+    };
+
+    // Add pricing rule info if applied
+    if (selectedPricingRuleId && selectedPricingRule) {
+      transactionData.pricingRule = {
+        id: selectedPricingRuleId,
+        description: selectedPricingRule.description,
+        type: selectedPricingRule.type,
+        percentage: selectedPricingRule.percentage,
+        discountAmount: discountAmount,
+      };
     }
 
-    setIsSaving(true);
+    const transactionRef = await addDoc(collection(db, "transactions"), transactionData);
 
-    try {
-      // Fetch customer details
-      const customerDetails = await getUserDetails(currentUser.uid);
-
-      // Warn user if address is missing
-      if (customerDetails.address === "N/A" || !customerDetails.address) {
-        toast.warning(
-          "Please please update your address in your profile for delivery purposes."
-        );
-      }
-
-      const transactionRef = await addDoc(collection(db, "transactions"), {
-        userId: currentUser.uid,
-        typeId: selectedTypeId,
-        modelId: selectedModelId,
-        colorId: selectedColorId,
-        wheelId: selectedWheelId,
-        interiorId: selectedInteriorId,
-        timestamp: new Date(),
-        price: calculatedPrice,
-        status: "saved" as const,
-        customerDetails: customerDetails,
-        customizationProgress: {
-          paintCompleted: false,
-          paintCompletedAt: null,
-          wheelsCompleted: false,
-          wheelsCompletedAt: null,
-          interiorCompleted: false,
-          interiorCompletedAt: null,
-          overallStatus: "pending" as const,
-        },
-      });
-
-      toast.success(`Design saved to transaction! ID: ${transactionRef.id}`);
-    } catch (error) {
-      console.error("Error saving transaction:", error);
-      toast.error("Failed to save transaction");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
+    toast.success(`Design saved to transaction! ID: ${transactionRef.id}`);
+  } catch (error) {
+    console.error("Error saving transaction:", error);
+    toast.error("Failed to save transaction");
+  } finally {
+    setIsSaving(false);
+  }
+};
   // Get image for preview fallback
   const getPreviewImage = () =>
     selectedModel?.imageUrl || "/placeholder-car.png";
@@ -443,6 +539,10 @@ const CustomizationPage: React.FC = () => {
     setActiveTab("customize");
     setSelectedTypeId(carTypeId);
     setSelectedModelId(modelId);
+  };
+
+  const handlePricingRuleChange = (value: string) => {
+    setSelectedPricingRuleId(value === "none" ? "" : value);
   };
 
   if (isDataLoading) {
@@ -703,10 +803,35 @@ const CustomizationPage: React.FC = () => {
                     </p>
                   )}
                 </div>
-
+                {/* Pricing Rule Selection */}
+                {pricingRules.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Apply Discount/Offer
+                    </label>
+                    <Select
+                      value={selectedPricingRuleId}
+                      onValueChange={handlePricingRuleChange}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="No discount applied" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No discount</SelectItem>
+                        {pricingRules.map((rule) => (
+                          <SelectItem key={rule.id} value={rule.id}>
+                            {rule.description} (
+                            {rule.type === "discount" ? "-" : "+"}
+                            {rule.percentage}%)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 {/* Price */}
                 {(selectedColorId || selectedWheelId || selectedInteriorId) &&
-                  calculatedPrice > 0 && (
+                  subtotal > 0 && (
                     <div className="p-3 bg-muted rounded-md">
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">
@@ -733,6 +858,21 @@ const CustomizationPage: React.FC = () => {
                           </p>
                         )}
                         <hr className="my-2" />
+                        <p className="text-sm font-medium">
+                          Subtotal: ₱{subtotal.toLocaleString()}
+                        </p>
+                        {selectedPricingRule && (
+                          <>
+                            <p className="text-xs text-green-600">
+                              {selectedPricingRule.description}:{" "}
+                              {selectedPricingRule.type === "discount"
+                                ? "-"
+                                : "+"}
+                              ₱{discountAmount.toLocaleString()}
+                            </p>
+                            <hr className="my-2" />
+                          </>
+                        )}
                         <p className="text-lg font-bold">
                           Total: ₱{calculatedPrice.toLocaleString()}
                         </p>

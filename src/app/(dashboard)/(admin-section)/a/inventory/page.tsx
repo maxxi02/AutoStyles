@@ -101,7 +101,9 @@ type InteriorData = Omit<Interior, "id">;
 interface PricingRule {
   id: string;
   description: string;
-  multiplier: number;
+  type: "discount" | "markup";
+  percentage: number;
+  isActive: boolean;
 }
 
 type PricingRuleData = Omit<PricingRule, "id">;
@@ -557,7 +559,9 @@ const InventoryPage: React.FC = () => {
     try {
       const pricingRuleData: PricingRuleData = {
         description: newPricingRule.description || "",
-        multiplier: newPricingRule.multiplier ?? 1,
+        type: newPricingRule.type || "discount",
+        percentage: newPricingRule.percentage ?? 0,
+        isActive: newPricingRule.isActive ?? true,
       };
       if (editingPricingRule) {
         const pricingRuleRef = doc(db, "pricingRules", editingPricingRule.id);
@@ -568,7 +572,7 @@ const InventoryPage: React.FC = () => {
         toast.success("Pricing rule added successfully");
       }
       setIsPricingRuleDialogOpen(false);
-      setNewPricingRule({});
+      setNewPricingRule({ type: "discount", isActive: true });
       setEditingPricingRule(null);
     } catch (error) {
       console.error("Error adding/updating pricing rule:", error);
@@ -689,7 +693,9 @@ const InventoryPage: React.FC = () => {
     setEditingPricingRule(rule);
     setNewPricingRule({
       description: rule.description,
-      multiplier: rule.multiplier,
+      type: rule.type,
+      percentage: rule.percentage,
+      isActive: rule.isActive,
     });
     setIsPricingRuleDialogOpen(true);
   };
@@ -1722,7 +1728,7 @@ const InventoryPage: React.FC = () => {
                   <Button
                     onClick={() => {
                       setEditingPricingRule(null);
-                      setNewPricingRule({});
+                      setNewPricingRule({ type: "discount", isActive: true });
                     }}
                     disabled={isDataLoading}
                   >
@@ -1738,39 +1744,94 @@ const InventoryPage: React.FC = () => {
                     </DialogTitle>
                   </DialogHeader>
                   <div className="grid gap-4">
-                    <Label htmlFor="description">Description</Label>
-                    <Input
-                      id="description"
-                      value={newPricingRule.description ?? ""}
-                      onChange={(e) =>
-                        setNewPricingRule({
-                          ...newPricingRule,
-                          description: e.target.value,
-                        })
-                      }
-                      disabled={pricingRulePending}
-                    />
-                    <Label htmlFor="multiplier">Multiplier</Label>
-                    <Input
-                      id="multiplier"
-                      type="number"
-                      step="0.1"
-                      value={newPricingRule.multiplier ?? ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setNewPricingRule({
-                          ...newPricingRule,
-                          multiplier: val === "" ? undefined : parseFloat(val),
-                        });
-                      }}
-                      disabled={pricingRulePending}
-                    />
+                    <div>
+                      <Label htmlFor="description">Description</Label>
+                      <Input
+                        id="description"
+                        placeholder="e.g., Senior Citizen Discount, Student Discount"
+                        value={newPricingRule.description ?? ""}
+                        onChange={(e) =>
+                          setNewPricingRule({
+                            ...newPricingRule,
+                            description: e.target.value,
+                          })
+                        }
+                        disabled={pricingRulePending}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="type">Type</Label>
+                      <Select
+                        value={newPricingRule.type}
+                        onValueChange={(value) =>
+                          setNewPricingRule({
+                            ...newPricingRule,
+                            type: value as "discount" | "markup",
+                          })
+                        }
+                        disabled={pricingRulePending}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="discount">Discount</SelectItem>
+                          <SelectItem value="markup">Markup</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="percentage">Percentage (%)</Label>
+                      <Input
+                        id="percentage"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        placeholder="e.g., 20 for 20% off"
+                        value={newPricingRule.percentage ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewPricingRule({
+                            ...newPricingRule,
+                            percentage:
+                              val === "" ? undefined : parseFloat(val),
+                          });
+                        }}
+                        disabled={pricingRulePending}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {newPricingRule.type === "discount"
+                          ? "Customer will receive this percentage off the total price"
+                          : "This percentage will be added to the total price"}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="isActive"
+                        checked={newPricingRule.isActive ?? true}
+                        onChange={(e) =>
+                          setNewPricingRule({
+                            ...newPricingRule,
+                            isActive: e.target.checked,
+                          })
+                        }
+                        disabled={pricingRulePending}
+                        className="rounded"
+                      />
+                      <Label htmlFor="isActive" className="cursor-pointer">
+                        Active (rule is currently in effect)
+                      </Label>
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button
                       onClick={handleAddOrUpdatePricingRule}
                       disabled={
-                        pricingRulePending || !newPricingRule.description
+                        pricingRulePending ||
+                        !newPricingRule.description ||
+                        !newPricingRule.percentage
                       }
                     >
                       {pricingRulePending && (
@@ -1783,12 +1844,37 @@ const InventoryPage: React.FC = () => {
               </Dialog>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                 {pricingRules.map((rule) => (
-                  <Card key={rule.id}>
+                  <Card
+                    key={rule.id}
+                    className={!rule.isActive ? "opacity-50" : ""}
+                  >
                     <CardHeader>
-                      <CardTitle>{rule.description}</CardTitle>
+                      <div className="flex items-start justify-between">
+                        <CardTitle className="flex-1">
+                          {rule.description}
+                        </CardTitle>
+                        {rule.isActive && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                            Active
+                          </span>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <p>Multiplier: {rule.multiplier}x</p>
+                      <div className="space-y-2">
+                        <p className="text-2xl font-bold">
+                          {rule.type === "discount" ? "-" : "+"}
+                          {rule.percentage}%
+                        </p>
+                        <p className="text-sm text-muted-foreground capitalize">
+                          {rule.type}
+                        </p>
+                        <div className="text-xs text-muted-foreground">
+                          {rule.type === "discount"
+                            ? `Customers get ${rule.percentage}% off their total`
+                            : `${rule.percentage}% added to total price`}
+                        </div>
+                      </div>
                     </CardContent>
                     <CardFooter className="flex justify-between">
                       <Button
