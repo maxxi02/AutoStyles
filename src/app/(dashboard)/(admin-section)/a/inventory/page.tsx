@@ -42,7 +42,18 @@ import { db } from "@/lib/firebase"; // Adjust the import path to your config fi
 import { Loader2 } from "lucide-react"; // Assuming lucide-react is available for spinner
 import { toast } from "sonner";
 import Image from "next/image";
-
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 interface CarType {
   id: string;
   name: string;
@@ -69,6 +80,30 @@ interface PaintColor {
   price: number;
   inventory: number;
   images?: string[];
+  sold?: number; // Add this
+}
+
+interface Wheel {
+  id: string;
+  carModelId: string;
+  name: string;
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
+  sold?: number; // Add this
+}
+
+interface Interior {
+  id: string;
+  carModelId: string;
+  name: string;
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
+  hex?: string;
+  sold?: number; // Add this
 }
 
 type PaintColorData = Omit<PaintColor, "id">;
@@ -81,6 +116,7 @@ interface Wheel {
   price: number;
   inventory: number;
   imageUrl?: string;
+  sold?: number; // Add this
 }
 
 type WheelData = Omit<Wheel, "id">;
@@ -94,6 +130,7 @@ interface Interior {
   inventory: number;
   imageUrl?: string;
   hex?: string;
+  sold?: number; // Add this
 }
 
 type InteriorData = Omit<Interior, "id">;
@@ -709,10 +746,6 @@ const InventoryPage: React.FC = () => {
     toast.success("Image removed");
   };
 
-  const lowInventoryColors = paintColors.filter(
-    (color) => color.inventory < 50
-  );
-
   const getCarTypeName = (carTypeId: string) => {
     return carTypes.find((type) => type.id === carTypeId)?.name || "Unknown";
   };
@@ -739,20 +772,6 @@ const InventoryPage: React.FC = () => {
   const filteredPaintColors = paintColors.filter((color) =>
     color.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  // Analytics computations
-  const totalColors = paintColors.length;
-  const totalValue = paintColors.reduce(
-    (sum, color) => sum + color.price * color.inventory,
-    0
-  );
-  const totalSold = 0; // Assuming no sold data available; can be extended with a sold field
-  const recentlyAdded = [...paintColors]
-    .sort((a, b) => b.id.localeCompare(a.id))
-    .slice(0, 5);
-  const bestSellers = [...paintColors]
-    .sort((a, b) => a.inventory - b.inventory)
-    .slice(0, 5); // Lowest inventory as best sellers
 
   return (
     <div className="container mx-auto p-4">
@@ -1902,146 +1921,546 @@ const InventoryPage: React.FC = () => {
         <TabsContent value="inventory-monitor">
           <Card>
             <CardHeader>
-              <CardTitle>Inventory Monitor</CardTitle>
+              <CardTitle>Inventory Monitor & Analytics</CardTitle>
+              <CardDescription>
+                Track inventory levels, sales, and performance metrics
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <CardContent className="space-y-8">
+              {/* Key Metrics Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Total Colors</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{totalColors}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Total Value</CardTitle>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total Items
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold">
-                      ₱{totalValue.toLocaleString()}
+                      {paintColors.length + wheels.length + interiors.length}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Colors: {paintColors.length} | Wheels: {wheels.length} |
+                      Interiors: {interiors.length}
                     </p>
                   </CardContent>
                 </Card>
+
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Total Sold</CardTitle>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total Inventory Value
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold">
-                      ₱{totalSold.toLocaleString()}
+                      ₱
+                      {(
+                        paintColors.reduce(
+                          (sum, c) => sum + c.price * c.inventory,
+                          0
+                        ) +
+                        wheels.reduce(
+                          (sum, w) => sum + w.price * w.inventory,
+                          0
+                        ) +
+                        interiors.reduce(
+                          (sum, i) => sum + i.price * i.inventory,
+                          0
+                        )
+                      ).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Current stock value
                     </p>
                   </CardContent>
                 </Card>
+
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Low Inventory</CardTitle>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total Revenue
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold">
-                      {lowInventoryColors.length}
+                      ₱
+                      {(
+                        paintColors.reduce(
+                          (sum, c) => sum + c.price * (c.sold || 0),
+                          0
+                        ) +
+                        wheels.reduce(
+                          (sum, w) => sum + w.price * (w.sold || 0),
+                          0
+                        ) +
+                        interiors.reduce(
+                          (sum, i) => sum + i.price * (i.sold || 0),
+                          0
+                        )
+                      ).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      From sold items
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Low Stock Alerts
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold text-red-600">
+                      {paintColors.filter((c) => c.inventory < 50).length +
+                        wheels.filter((w) => w.inventory < 50).length +
+                        interiors.filter((i) => i.inventory < 50).length}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Items below threshold
                     </p>
                   </CardContent>
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Sales Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Paint Colors Sales */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Recently Added</CardTitle>
+                    <CardTitle className="text-base">
+                      Top Selling Paint Colors
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {recentlyAdded.length > 0 ? (
-                      <ul className="space-y-2">
-                        {recentlyAdded.map((color) => (
-                          <li
-                            key={color.id}
-                            className="flex items-center space-x-2"
-                          >
-                            <div
-                              className="w-4 h-4 rounded"
-                              style={{ backgroundColor: color.hex }}
-                            />
-                            <span>
-                              {color.name} ({getCarModelName(color.carModelId)})
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>No recently added colors.</p>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={[...paintColors]
+                            .filter((c) => (c.sold || 0) > 0)
+                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+                            .slice(0, 5)
+                            .map((c) => ({
+                              name: c.name,
+                              value: c.sold || 0,
+                              color: c.hex,
+                            }))}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={(entry) => `${entry.name}: ${entry.value}`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {[...paintColors]
+                            .filter((c) => (c.sold || 0) > 0)
+                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+                            .slice(0, 5)
+                            .map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.hex} />
+                            ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {paintColors.filter((c) => (c.sold || 0) > 0).length ===
+                      0 && (
+                      <p className="text-center text-sm text-muted-foreground">
+                        No sales data yet
+                      </p>
                     )}
                   </CardContent>
                 </Card>
 
+                {/* Wheels Sales */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Best Sellers</CardTitle>
+                    <CardTitle className="text-base">
+                      Top Selling Wheels
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {bestSellers.length > 0 ? (
-                      <ul className="space-y-2">
-                        {bestSellers.map((color) => (
-                          <li
-                            key={color.id}
-                            className="flex items-center justify-between"
-                          >
-                            <span>{color.name}</span>
-                            <span className="text-sm text-muted-foreground">
-                              Stock: {color.inventory}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>No best sellers identified.</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold mb-2">
-                  Low Inventory Paint Colors
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {lowInventoryColors.map((color) => (
-                    <Card key={color.id}>
-                      <CardHeader>
-                        <CardTitle>{color.name}</CardTitle>
-                        <CardDescription>
-                          {getCarModelName(color.carModelId)}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex overflow-x-auto space-x-2 pb-2 mb-2">
-                          {color.images
-                            ?.filter((img): img is string => !!img)
-                            .map((url, index) => (
-                              <Image
-                                key={index}
-                                src={url}
-                                alt={`${color.name} side ${index + 1}`}
-                                className="w-16 h-16 object-cover rounded flex-shrink-0"
-                                width={64}
-                                height={64}
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={[...wheels]
+                            .filter((w) => (w.sold || 0) > 0)
+                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+                            .slice(0, 5)
+                            .map((w, i) => ({
+                              name: w.name,
+                              value: w.sold || 0,
+                              color: [
+                                "#0088FE",
+                                "#00C49F",
+                                "#FFBB28",
+                                "#FF8042",
+                                "#8884d8",
+                              ][i],
+                            }))}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={(entry) => `${entry.name}: ${entry.value}`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {[...wheels]
+                            .filter((w) => (w.sold || 0) > 0)
+                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+                            .slice(0, 5)
+                            .map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={
+                                  [
+                                    "#0088FE",
+                                    "#00C49F",
+                                    "#FFBB28",
+                                    "#FF8042",
+                                    "#8884d8",
+                                  ][index]
+                                }
                               />
-                            )) || (
-                            <div
-                              className="w-16 h-16 border border-gray-300 flex-shrink-0"
-                              style={{ backgroundColor: color.hex }}
-                            ></div>
-                          )}
-                        </div>
-                        <p>Stock: {color.inventory} (Low)</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {lowInventoryColors.length === 0 && (
-                    <p>No low inventory items.</p>
-                  )}
+                            ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {wheels.filter((w) => (w.sold || 0) > 0).length === 0 && (
+                      <p className="text-center text-sm text-muted-foreground">
+                        No sales data yet
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Interiors Sales */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Top Selling Interiors
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={[...interiors]
+                            .filter((i) => (i.sold || 0) > 0)
+                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+                            .slice(0, 5)
+                            .map((i, idx) => ({
+                              name: i.name,
+                              value: i.sold || 0,
+                              color:
+                                i.hex ||
+                                [
+                                  "#0088FE",
+                                  "#00C49F",
+                                  "#FFBB28",
+                                  "#FF8042",
+                                  "#8884d8",
+                                ][idx],
+                            }))}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={(entry) => `${entry.name}: ${entry.value}`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {[...interiors]
+                            .filter((i) => (i.sold || 0) > 0)
+                            .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+                            .slice(0, 5)
+                            .map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={
+                                  entry.hex ||
+                                  [
+                                    "#0088FE",
+                                    "#00C49F",
+                                    "#FFBB28",
+                                    "#FF8042",
+                                    "#8884d8",
+                                  ][index]
+                                }
+                              />
+                            ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {interiors.filter((i) => (i.sold || 0) > 0).length ===
+                      0 && (
+                      <p className="text-center text-sm text-muted-foreground">
+                        No sales data yet
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Inventory Levels Bar Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Current Inventory Levels</CardTitle>
+                  <CardDescription>Stock levels for all items</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart
+                      data={[
+                        ...paintColors.map((c) => ({
+                          name: c.name,
+                          stock: c.inventory,
+                          type: "Color",
+                        })),
+                        ...wheels.map((w) => ({
+                          name: w.name,
+                          stock: w.inventory,
+                          type: "Wheel",
+                        })),
+                        ...interiors.map((i) => ({
+                          name: i.name,
+                          stock: i.inventory,
+                          type: "Interior",
+                        })),
+                      ]
+                        .sort((a, b) => a.stock - b.stock)
+                        .slice(0, 15)}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="name"
+                        angle={-45}
+                        textAnchor="end"
+                        height={100}
+                      />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="stock" fill="#8884d8" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Low Inventory Alerts */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">
+                    Low Inventory Alerts
+                  </h3>
+                  <span className="text-sm text-muted-foreground">
+                    Threshold: 50 units
+                  </span>
                 </div>
+
+                <Tabs defaultValue="colors">
+                  <TabsList>
+                    <TabsTrigger value="colors">
+                      Paint Colors (
+                      {paintColors.filter((c) => c.inventory < 50).length})
+                    </TabsTrigger>
+                    <TabsTrigger value="wheels">
+                      Wheels ({wheels.filter((w) => w.inventory < 50).length})
+                    </TabsTrigger>
+                    <TabsTrigger value="interiors">
+                      Interiors (
+                      {interiors.filter((i) => i.inventory < 50).length})
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="colors">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {paintColors
+                        .filter((c) => c.inventory < 50)
+                        .map((color) => (
+                          <Card key={color.id} className="border-red-200">
+                            <CardHeader>
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <CardTitle className="text-base">
+                                    {color.name}
+                                  </CardTitle>
+                                  <CardDescription>
+                                    {getCarModelName(color.carModelId)}
+                                  </CardDescription>
+                                </div>
+                                <div
+                                  className="w-8 h-8 rounded border"
+                                  style={{ backgroundColor: color.hex }}
+                                />
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-1">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Stock:
+                                  </span>
+                                  <span className="font-bold text-red-600">
+                                    {color.inventory}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Sold:
+                                  </span>
+                                  <span>{color.sold || 0}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Price:
+                                  </span>
+                                  <span>₱{color.price.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </CardContent>
+                            <CardFooter>
+                              <Button
+                                size="sm"
+                                className="w-full"
+                                onClick={() => openPaintColorEdit(color)}
+                              >
+                                Restock
+                              </Button>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      {paintColors.filter((c) => c.inventory < 50).length ===
+                        0 && (
+                        <p className="col-span-full text-center text-muted-foreground py-8">
+                          All paint colors are well-stocked ✓
+                        </p>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="wheels">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {wheels
+                        .filter((w) => w.inventory < 50)
+                        .map((wheel) => (
+                          <Card key={wheel.id} className="border-red-200">
+                            <CardHeader>
+                              <CardTitle className="text-base">
+                                {wheel.name}
+                              </CardTitle>
+                              <CardDescription>
+                                {getCarModelName(wheel.carModelId)}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-1">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Stock:
+                                  </span>
+                                  <span className="font-bold text-red-600">
+                                    {wheel.inventory}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Sold:
+                                  </span>
+                                  <span>{wheel.sold || 0}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Price:
+                                  </span>
+                                  <span>₱{wheel.price.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </CardContent>
+                            <CardFooter>
+                              <Button
+                                size="sm"
+                                className="w-full"
+                                onClick={() => openWheelEdit(wheel)}
+                              >
+                                Restock
+                              </Button>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      {wheels.filter((w) => w.inventory < 50).length === 0 && (
+                        <p className="col-span-full text-center text-muted-foreground py-8">
+                          All wheels are well-stocked ✓
+                        </p>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="interiors">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {interiors
+                        .filter((i) => i.inventory < 50)
+                        .map((interior) => (
+                          <Card key={interior.id} className="border-red-200">
+                            <CardHeader>
+                              <CardTitle className="text-base">
+                                {interior.name}
+                              </CardTitle>
+                              <CardDescription>
+                                {getCarModelName(interior.carModelId)}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-1">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Stock:
+                                  </span>
+                                  <span className="font-bold text-red-600">
+                                    {interior.inventory}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Sold:
+                                  </span>
+                                  <span>{interior.sold || 0}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Price:
+                                  </span>
+                                  <span>
+                                    ₱{interior.price.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                            </CardContent>
+                            <CardFooter>
+                              <Button
+                                size="sm"
+                                className="w-full"
+                                onClick={() => openInteriorEdit(interior)}
+                              >
+                                Restock
+                              </Button>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      {interiors.filter((i) => i.inventory < 50).length ===
+                        0 && (
+                        <p className="col-span-full text-center text-muted-foreground py-8">
+                          All interiors are well-stocked ✓
+                        </p>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </div>
             </CardContent>
           </Card>
