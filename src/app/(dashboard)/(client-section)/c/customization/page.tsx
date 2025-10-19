@@ -275,6 +275,9 @@ const CustomizationPage: React.FC = () => {
   useEffect(() => {
     if (filteredColors.length > 0 && !selectedColorId) {
       setSelectedColorId(filteredColors[0].id);
+    } else if (filteredColors.length === 0 && selectedColorId) {
+      // Clear selection if no colors available for this model
+      setSelectedColorId("");
     }
   }, [selectedModelId, filteredColors, selectedColorId]);
 
@@ -287,6 +290,9 @@ const CustomizationPage: React.FC = () => {
   useEffect(() => {
     if (filteredWheels.length > 0 && !selectedWheelId) {
       setSelectedWheelId(filteredWheels[0].id);
+    } else if (filteredWheels.length === 0 && selectedWheelId) {
+      // Clear selection if no wheels available for this model
+      setSelectedWheelId("");
     }
   }, [selectedModelId, filteredWheels, selectedWheelId]);
 
@@ -299,6 +305,9 @@ const CustomizationPage: React.FC = () => {
   useEffect(() => {
     if (filteredInteriors.length > 0 && !selectedInteriorId) {
       setSelectedInteriorId(filteredInteriors[0].id);
+    } else if (filteredInteriors.length === 0 && selectedInteriorId) {
+      // Clear selection if no interiors available for this model
+      setSelectedInteriorId("");
     }
   }, [selectedModelId, filteredInteriors, selectedInteriorId]);
 
@@ -310,13 +319,7 @@ const CustomizationPage: React.FC = () => {
 
   // Update history on selection change
   useEffect(() => {
-    if (
-      selectedTypeId &&
-      selectedModelId &&
-      selectedColorId &&
-      selectedWheelId &&
-      selectedInteriorId
-    ) {
+    if (selectedTypeId && selectedModelId) {
       const newState: CustomizationState = {
         typeId: selectedTypeId,
         modelId: selectedModelId,
@@ -351,9 +354,12 @@ const CustomizationPage: React.FC = () => {
 
   // Calculate price
   const basePrice = selectedModel?.basePrice ?? 0;
-  const colorPrice = selectedColor?.price ?? 0;
-  const wheelPrice = selectedWheel?.price ?? 0;
-  const interiorPrice = selectedInterior?.price ?? 0;
+  const colorPrice =
+    selectedColorId && selectedColor ? (selectedColor.price ?? 0) : 0;
+  const wheelPrice =
+    selectedWheelId && selectedWheel ? (selectedWheel.price ?? 0) : 0;
+  const interiorPrice =
+    selectedInteriorId && selectedInterior ? (selectedInterior.price ?? 0) : 0;
   const calculatedPrice = basePrice + colorPrice + wheelPrice + interiorPrice;
 
   const handleUndo = () => {
@@ -394,7 +400,7 @@ const CustomizationPage: React.FC = () => {
       // Warn user if address is missing
       if (customerDetails.address === "N/A" || !customerDetails.address) {
         toast.warning(
-          "Please update your address in your profile for delivery purposes."
+          "Please please update your address in your profile for delivery purposes."
         );
       }
 
@@ -699,13 +705,40 @@ const CustomizationPage: React.FC = () => {
                 </div>
 
                 {/* Price */}
-                {calculatedPrice > 0 && (
-                  <div className="p-3 bg-muted rounded-md">
-                    <p className="text-lg font-bold">
-                      Total Price: ₱{calculatedPrice.toLocaleString()}
-                    </p>
-                  </div>
-                )}
+                {(selectedColorId || selectedWheelId || selectedInteriorId) &&
+                  calculatedPrice > 0 && (
+                    <div className="p-3 bg-muted rounded-md">
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">
+                          Price Breakdown:
+                        </p>
+                        {basePrice > 0 && (
+                          <p className="text-xs">
+                            Base: ₱{basePrice.toLocaleString()}
+                          </p>
+                        )}
+                        {colorPrice > 0 && selectedColor && (
+                          <p className="text-xs">
+                            Color: ₱{colorPrice.toLocaleString()}
+                          </p>
+                        )}
+                        {wheelPrice > 0 && selectedWheel && (
+                          <p className="text-xs">
+                            Wheels: ₱{wheelPrice.toLocaleString()}
+                          </p>
+                        )}
+                        {interiorPrice > 0 && selectedInterior && (
+                          <p className="text-xs">
+                            Interior: ₱{interiorPrice.toLocaleString()}
+                          </p>
+                        )}
+                        <hr className="my-2" />
+                        <p className="text-lg font-bold">
+                          Total: ₱{calculatedPrice.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  )}
               </CardContent>
               <CardFooter className="flex flex-col items-start space-y-2">
                 <Button
