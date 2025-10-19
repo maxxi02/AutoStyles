@@ -49,7 +49,7 @@ interface PaintColor {
   description: string;
   price: number;
   inventory: number;
-  imageUrl?: string;
+  images?: string[];
 }
 
 interface Wheel {
@@ -107,6 +107,8 @@ const CustomizationPage: React.FC = () => {
   const [snapshotCount, setSnapshotCount] = useState(0);
 
   const [isSaving, setIsSaving] = useState(false);
+
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   //to track authentication
   useEffect(() => {
@@ -342,6 +344,11 @@ const CustomizationPage: React.FC = () => {
     selectedInteriorId,
   ]);
 
+  // Reset image index when color changes
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [selectedColorId]);
+
   // Calculate price
   const basePrice = selectedModel?.basePrice ?? 0;
   const colorPrice = selectedColor?.price ?? 0;
@@ -422,11 +429,9 @@ const CustomizationPage: React.FC = () => {
     }
   };
 
-  // Get image for preview
+  // Get image for preview fallback
   const getPreviewImage = () =>
-    selectedColor?.imageUrl ||
-    selectedModel?.imageUrl ||
-    "/placeholder-car.png";
+    selectedModel?.imageUrl || "/placeholder-car.png";
 
   const handleCustomizeModel = (modelId: string, carTypeId: string) => {
     setActiveTab("customize");
@@ -551,9 +556,9 @@ const CustomizationPage: React.FC = () => {
                                   {color.finish}
                                 </span>
                               </div>
-                              {color.imageUrl && (
+                              {color.images?.[0] && (
                                 <Image
-                                  src={color.imageUrl}
+                                  src={color.images[0]}
                                   alt={color.name}
                                   className="w-12 h-12 rounded object-cover ml-auto"
                                   width={48}
@@ -742,13 +747,87 @@ const CustomizationPage: React.FC = () => {
                 {/* Main Car Preview */}
                 <div className="w-full">
                   <h3 className="text-sm font-medium mb-2">Exterior</h3>
-                  <Image
-                    src={getPreviewImage()}
-                    alt={`${selectedModel?.name || "Car"} Preview`}
-                    className="w-full h-auto rounded-lg"
-                    width={800}
-                    height={600}
-                  />
+                  <div className="relative">
+                    {selectedColor?.images &&
+                    selectedColor.images.length > 0 ? (
+                      <>
+                        <Image
+                          key={currentImageIndex}
+                          src={
+                            selectedColor.images[currentImageIndex] ||
+                            "/placeholder-car.png"
+                          }
+                          alt={`${selectedColor.name} - ${["Front", "Back", "Left", "Right"][currentImageIndex]} view`}
+                          className="w-full h-auto rounded-lg"
+                          width={800}
+                          height={600}
+                        />
+                        {/* Carousel Controls */}
+                        <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-4">
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="rounded-full shadow-lg"
+                            onClick={() =>
+                              setCurrentImageIndex((prev) =>
+                                prev > 0
+                                  ? prev - 1
+                                  : selectedColor.images!.length - 1
+                              )
+                            }
+                          >
+                            ←
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="rounded-full shadow-lg"
+                            onClick={() =>
+                              setCurrentImageIndex((prev) =>
+                                prev < selectedColor.images!.length - 1
+                                  ? prev + 1
+                                  : 0
+                              )
+                            }
+                          >
+                            →
+                          </Button>
+                        </div>
+                        {/* Indicators */}
+                        <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center space-x-2">
+                          {selectedColor.images.map((_, index) => (
+                            <button
+                              key={index}
+                              onClick={() => setCurrentImageIndex(index)}
+                              className={`w-2 h-2 rounded-full transition-all ${
+                                index === currentImageIndex
+                                  ? "bg-white w-8"
+                                  : "bg-white/50 hover:bg-white/75"
+                              }`}
+                              aria-label={`View ${["Front", "Back", "Left", "Right"][index]}`}
+                            />
+                          ))}
+                        </div>
+                        {/* Image Label */}
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                          {
+                            ["Front", "Back", "Left", "Right"][
+                              currentImageIndex
+                            ]
+                          }{" "}
+                          View
+                        </div>
+                      </>
+                    ) : (
+                      <Image
+                        src={getPreviewImage()}
+                        alt={`${selectedModel?.name || "Car"} Preview`}
+                        className="w-full h-auto rounded-lg"
+                        width={800}
+                        height={600}
+                      />
+                    )}
+                  </div>
                   {selectedColor && selectedColor.description && (
                     <div className="text-start mt-4">
                       <p className="text-sm text-muted-foreground mt-2 max-w-md">
@@ -757,7 +836,6 @@ const CustomizationPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-
                 {/* Wheels Preview */}
                 {selectedWheel?.imageUrl && (
                   <div className="w-full">
@@ -857,9 +935,9 @@ const CustomizationPage: React.FC = () => {
                                     key={color.id}
                                     className="flex items-start space-x-2"
                                   >
-                                    {color.imageUrl ? (
+                                    {color.images?.[0] ? (
                                       <Image
-                                        src={color.imageUrl}
+                                        src={color.images[0]}
                                         alt={color.name}
                                         className="w-8 h-8 rounded object-cover flex-shrink-0"
                                         width={500}

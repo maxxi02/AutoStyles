@@ -68,7 +68,7 @@ interface PaintColor {
   description: string;
   price: number;
   inventory: number;
-  imageUrl?: string;
+  images?: string[];
 }
 
 type PaintColorData = Omit<PaintColor, "id">;
@@ -346,18 +346,21 @@ const InventoryPage: React.FC = () => {
     }
   };
 
-  const handlePaintImageUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
+  const handleSideImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    index: number
   ) => {
     const file = e.target.files?.[0];
     if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
       try {
         const url = await uploadToCloudinary(file);
-        setNewPaintColor({
-          ...newPaintColor,
-          imageUrl: url,
+        setNewPaintColor((prev) => {
+          const images = [...(prev.images || new Array(4).fill(undefined))];
+          images[index] = url;
+          return { ...prev, images };
         });
-        toast.success("Image uploaded successfully");
+        const sides = ["Front", "Back", "Left", "Right"];
+        toast.success(`${sides[index]} image uploaded successfully`);
       } catch (error) {
         console.error("Upload error:", error);
         toast.error("Failed to upload image");
@@ -465,7 +468,9 @@ const InventoryPage: React.FC = () => {
         description: newPaintColor.description || "",
         price: newPaintColor.price ?? 0,
         inventory: newPaintColor.inventory ?? 0,
-        ...(newPaintColor.imageUrl && { imageUrl: newPaintColor.imageUrl }),
+        images: (newPaintColor.images || []).filter(
+          (img): img is string => img != null
+        ),
       };
       if (editingPaintColor) {
         const paintColorRef = doc(db, "paintColors", editingPaintColor.id);
@@ -648,7 +653,7 @@ const InventoryPage: React.FC = () => {
       description: color.description,
       price: color.price,
       inventory: color.inventory,
-      ...(color.imageUrl && { imageUrl: color.imageUrl }),
+      ...(color.images && { images: color.images }),
     });
     setIsPaintColorDialogOpen(true);
   };
@@ -687,6 +692,15 @@ const InventoryPage: React.FC = () => {
       multiplier: rule.multiplier,
     });
     setIsPricingRuleDialogOpen(true);
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setNewPaintColor((prev) => {
+      const images = [...(prev.images || new Array(4).fill(undefined))];
+      images[index] = undefined;
+      return { ...prev, images };
+    });
+    toast.success("Image removed");
   };
 
   const lowInventoryColors = paintColors.filter(
@@ -912,9 +926,9 @@ const InventoryPage: React.FC = () => {
                                   key={color.id}
                                   className="flex items-center space-x-2"
                                 >
-                                  {color.imageUrl ? (
+                                  {color.images?.[0] ? (
                                     <Image
-                                      src={color.imageUrl}
+                                      src={color.images[0]}
                                       alt={color.name}
                                       className="w-8 h-8 rounded object-cover"
                                       width={500}
@@ -937,21 +951,13 @@ const InventoryPage: React.FC = () => {
                               No colors assigned.
                             </p>
                           )}
-                          <Button
-                            variant="link"
-                            onClick={() => setActiveTab("customize")}
-                            className="p-0 h-auto text-blue-600 hover:text-blue-800 mt-2 text-sm"
-                            disabled={isDataLoading}
-                          >
-                            Add customizations in Customize tab
-                          </Button>
                         </div>
                         <div className="flex-1 md:w-1/2 flex flex-col items-center">
                           {model.imageUrl ? (
                             <Image
                               src={model.imageUrl}
                               alt={model.name}
-                              className="w-full h-h-auto max-w-sm rounded"
+                              className="w-full h-auto max-w-sm rounded"
                               width={500}
                               height={500}
                             />
@@ -980,6 +986,14 @@ const InventoryPage: React.FC = () => {
                   );
                 })}
               </div>
+              <Button
+                variant="link"
+                onClick={() => setActiveTab("customize")}
+                className="p-0 h-auto text-blue-600 hover:text-blue-800 text-sm text-left"
+                disabled={isDataLoading}
+              >
+                Add customizations in Customize tab
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1012,7 +1026,7 @@ const InventoryPage: React.FC = () => {
                         Add Paint Color
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="flex flex-col max-w-4xl">
+                    <DialogContent className="flex flex-col max-w-4xl overflow-y-auto max-h-[calc(100vh-12rem)]">
                       <DialogHeader>
                         <DialogTitle>
                           {editingPaintColor
@@ -1144,23 +1158,49 @@ const InventoryPage: React.FC = () => {
                           />
                         </div>
                         <div className="grid gap-2 col-span-2">
-                          <Label htmlFor="image">Color Image</Label>
-                          <Input
-                            id="image"
-                            type="file"
-                            accept="image/*"
-                            onChange={handlePaintImageUpload}
-                            disabled={paintColorPending}
-                          />
-                          {newPaintColor.imageUrl && (
-                            <Image
-                              src={newPaintColor.imageUrl}
-                              alt="Preview"
-                              className="w-32 h-auto mt-2"
-                              width={500}
-                              height={500}
-                            />
-                          )}
+                          <Label>Car Images (Front, Back, Left, Right)</Label>
+                          <div className="space-y-4">
+                            {["Front", "Back", "Left", "Right"].map(
+                              (side, index) => (
+                                <div
+                                  key={side}
+                                  className="border p-3 rounded-md space-y-2"
+                                >
+                                  <Label
+                                    htmlFor={`${side.toLowerCase()}-image`}
+                                  >{`${side} Side`}</Label>
+                                  <Input
+                                    id={`${side.toLowerCase()}-image`}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) =>
+                                      handleSideImageUpload(e, index)
+                                    }
+                                    disabled={paintColorPending}
+                                  />
+                                  {newPaintColor.images?.[index] && (
+                                    <div className="flex items-center space-x-2">
+                                      <Image
+                                        src={newPaintColor.images[index]!}
+                                        alt={`${side} Preview`}
+                                        className="w-16 h-auto rounded object-cover"
+                                        width={500}
+                                        height={500}
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => handleRemoveImage(index)}
+                                      >
+                                        Remove
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            )}
+                          </div>
                         </div>
                       </form>
                       <DialogFooter>
@@ -1198,20 +1238,25 @@ const InventoryPage: React.FC = () => {
                           </CardDescription>
                         </CardHeader>
                         <CardContent>
-                          {color.imageUrl ? (
-                            <Image
-                              src={color.imageUrl}
-                              alt={color.name}
-                              className="w-full h-auto object-cover rounded mb-2"
-                              width={500}
-                              height={500}
-                            />
-                          ) : (
-                            <div
-                              className="w-16 h-16 border border-gray-300 mb-2"
-                              style={{ backgroundColor: color.hex }}
-                            ></div>
-                          )}
+                          <div className="flex overflow-x-auto space-x-2 pb-2 mb-2">
+                            {color.images
+                              ?.filter((img): img is string => !!img)
+                              .map((url, index) => (
+                                <Image
+                                  key={index}
+                                  src={url}
+                                  alt={`${color.name} side ${index + 1}`}
+                                  className="w-20 h-20 object-cover rounded flex-shrink-0"
+                                  width={80}
+                                  height={80}
+                                />
+                              )) || (
+                              <div
+                                className="w-20 h-20 border border-gray-300 flex-shrink-0"
+                                style={{ backgroundColor: color.hex }}
+                              ></div>
+                            )}
+                          </div>
                           <p className="mb-1">{color.description}</p>
                           <p>Price: ₱{color.price}</p>
                           <p>Stock: {color.inventory}</p>
@@ -1884,20 +1929,25 @@ const InventoryPage: React.FC = () => {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        {color.imageUrl ? (
-                          <Image
-                            src={color.imageUrl}
-                            alt={color.name}
-                            className="w-full h-32 object-cover rounded mb-2"
-                            width={500}
-                            height={500}
-                          />
-                        ) : (
-                          <div
-                            className="w-16 h-16 border border-gray-300 mb-2 mx-auto"
-                            style={{ backgroundColor: color.hex }}
-                          ></div>
-                        )}
+                        <div className="flex overflow-x-auto space-x-2 pb-2 mb-2">
+                          {color.images
+                            ?.filter((img): img is string => !!img)
+                            .map((url, index) => (
+                              <Image
+                                key={index}
+                                src={url}
+                                alt={`${color.name} side ${index + 1}`}
+                                className="w-16 h-16 object-cover rounded flex-shrink-0"
+                                width={64}
+                                height={64}
+                              />
+                            )) || (
+                            <div
+                              className="w-16 h-16 border border-gray-300 flex-shrink-0"
+                              style={{ backgroundColor: color.hex }}
+                            ></div>
+                          )}
+                        </div>
                         <p>Stock: {color.inventory} (Low)</p>
                       </CardContent>
                     </Card>
