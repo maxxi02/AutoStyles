@@ -440,10 +440,10 @@ export default function Home() {
               <h2 className="text-4xl font-bold tracking-tight lg:text-5xl text-balance">
                 Get In Touch
               </h2>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              {/* <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
                 Ready to start your customization journey? Contact us today for
                 a free consultation.
-              </p>
+              </p> */}
             </div>
 
             <div className="grid gap-8 lg:grid-cols-2">
