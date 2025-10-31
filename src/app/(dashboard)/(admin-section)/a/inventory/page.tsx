@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -167,6 +168,14 @@ const InventoryPage: React.FC = () => {
 
   // Search state for colors
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePayload, setDeletePayload] = useState<{
+    type: "carModel" | "paintColor" | "wheel" | "interior";
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Initial data loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -522,7 +531,6 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleDeleteCarModel = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this car model?")) return;
     try {
       await deleteDoc(doc(db, "carModels", id));
       toast.success("Car model deleted successfully");
@@ -533,7 +541,6 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleDeletePaintColor = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this paint color?")) return;
     try {
       await deleteDoc(doc(db, "paintColors", id));
       toast.success("Paint color deleted successfully");
@@ -544,7 +551,6 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleDeleteWheel = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this wheel?")) return;
     try {
       await deleteDoc(doc(db, "wheels", id));
       toast.success("Wheel deleted successfully");
@@ -555,7 +561,6 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleDeleteInterior = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this interior?")) return;
     try {
       await deleteDoc(doc(db, "interiors", id));
       toast.success("Interior deleted successfully");
@@ -563,6 +568,33 @@ const InventoryPage: React.FC = () => {
       console.error("Error deleting interior:", error);
       toast.error("Failed to delete interior");
     }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletePayload) return;
+
+    switch (deletePayload.type) {
+      case "carModel":
+        await handleDeleteCarModel(deletePayload.id);
+        break;
+      case "paintColor":
+        await handleDeletePaintColor(deletePayload.id);
+        break;
+      case "wheel":
+        await handleDeleteWheel(deletePayload.id);
+        break;
+      case "interior":
+        await handleDeleteInterior(deletePayload.id);
+        break;
+    }
+
+    setShowDeleteModal(false);
+    setDeletePayload(null);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setDeletePayload(null);
   };
 
   const openCarModelEdit = (model: CarModel) => {
@@ -879,7 +911,14 @@ const InventoryPage: React.FC = () => {
                         </Button>
                         <Button
                           variant="destructive"
-                          onClick={() => handleDeleteCarModel(model.id)}
+                          onClick={() => {
+                            setDeletePayload({
+                              type: "carModel",
+                              id: model.id,
+                              name: model.name,
+                            });
+                            setShowDeleteModal(true);
+                          }}
                           disabled={isDataLoading}
                         >
                           Delete
@@ -1174,7 +1213,14 @@ const InventoryPage: React.FC = () => {
                           </Button>
                           <Button
                             variant="destructive"
-                            onClick={() => handleDeletePaintColor(color.id)}
+                            onClick={() => {
+                              setDeletePayload({
+                                type: "paintColor",
+                                id: color.id,
+                                name: color.name,
+                              });
+                              setShowDeleteModal(true);
+                            }}
                             disabled={isDataLoading}
                           >
                             Delete
@@ -1374,7 +1420,14 @@ const InventoryPage: React.FC = () => {
                           </Button>
                           <Button
                             variant="destructive"
-                            onClick={() => handleDeleteWheel(wheel.id)}
+                            onClick={() => {
+                              setDeletePayload({
+                                type: "wheel",
+                                id: wheel.id,
+                                name: wheel.name,
+                              });
+                              setShowDeleteModal(true);
+                            }}
                             disabled={isDataLoading}
                           >
                             Delete
@@ -1596,7 +1649,14 @@ const InventoryPage: React.FC = () => {
                           </Button>
                           <Button
                             variant="destructive"
-                            onClick={() => handleDeleteInterior(interior.id)}
+                            onClick={() => {
+                              setDeletePayload({
+                                type: "interior",
+                                id: interior.id,
+                                name: interior.name,
+                              });
+                              setShowDeleteModal(true);
+                            }}
                             disabled={isDataLoading}
                           >
                             Delete
@@ -1611,6 +1671,26 @@ const InventoryPage: React.FC = () => {
           </Tabs>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {deletePayload?.name}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleDeleteCancel}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
