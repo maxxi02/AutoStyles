@@ -10,25 +10,14 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
-  Plus,
-  Users,
-  DollarSign,
   Eye,
-  MoreHorizontal,
   ArrowUpRight,
   ArrowDownRight,
   Clock,
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -46,6 +35,46 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type React from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+// Firebase imports
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+// Dialog imports
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+// Interfaces
+interface Transaction {
+  id: string;
+  price: number;
+  status: "saved" | "purchased" | "cancelled";
+  timestamp: Date;
+  colorId: string;
+  customizationProgress?: {
+    overallStatus: string;
+  };
+  customerDetails?: {
+    fullName: string;
+    email: string;
+    contactNumber: string;
+    address: string;
+  };
+}
+
+interface PaintColor {
+  id: string;
+  name: string;
+  hex: string;
+}
 
 interface ColorData {
   name: string;
@@ -54,310 +83,7 @@ interface ColorData {
   color: string;
 }
 
-const colorData: ColorData[] = [
-  { name: "Midnight Black", count: 45, percentage: 35, color: "#1a1a1a" },
-  { name: "Pearl White", count: 38, percentage: 30, color: "#f8f8f8" },
-  { name: "Racing Red", count: 25, percentage: 20, color: "#dc2626" },
-  { name: "Ocean Blue", count: 19, percentage: 15, color: "#3b82f6" },
-];
-
-function PopularColors() {
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader>
-        <CardTitle className="text-foreground">Popular Colors</CardTitle>
-        <CardDescription className="text-muted-foreground">
-          Most requested paint colors this week
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {colorData.map((item) => (
-          <div key={item.name} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div
-                  className="h-4 w-4 rounded-full border border-border"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span className="text-sm font-medium text-foreground">
-                  {item.name}
-                </span>
-              </div>
-              <span className="text-sm font-medium text-muted-foreground">
-                {item.count}
-              </span>
-            </div>
-            <Progress value={item.percentage} className="h-2" />
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-function QuickActions() {
-  return (
-    <div className="flex items-center gap-3">
-      <Button variant="outline" size="sm">
-        <Users className="h-4 w-4 mr-2" />
-        Walk-in Customer
-      </Button>
-
-      <Button variant="outline" size="sm">
-        <DollarSign className="h-4 w-4 mr-2" />
-        Open Cashier
-      </Button>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            New Transaction
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Create Transaction</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>Online Order</DropdownMenuItem>
-          <DropdownMenuItem>Walk-in Customer</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>Quick Quote</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
-
-interface Transaction {
-  id: string;
-  customer: string;
-  carType: string;
-  color: string;
-  amount: string;
-  status: "pending" | "ongoing" | "completed";
-  date: string;
-}
-
-const transactions: Transaction[] = [
-  {
-    id: "TXN-001",
-    customer: "John Smith",
-    carType: "Sedan",
-    color: "Midnight Black",
-    amount: "$450",
-    status: "ongoing",
-    date: "2024-01-10",
-  },
-  {
-    id: "TXN-002",
-    customer: "Sarah Johnson",
-    carType: "SUV",
-    color: "Pearl White",
-    amount: "$580",
-    status: "pending",
-    date: "2024-01-10",
-  },
-  {
-    id: "TXN-003",
-    customer: "Mike Davis",
-    carType: "Pickup",
-    color: "Racing Red",
-    amount: "$620",
-    status: "completed",
-    date: "2024-01-09",
-  },
-  {
-    id: "TXN-004",
-    customer: "Emily Brown",
-    carType: "Hatchback",
-    color: "Ocean Blue",
-    amount: "$380",
-    status: "ongoing",
-    date: "2024-01-09",
-  },
-  {
-    id: "TXN-005",
-    customer: "David Wilson",
-    carType: "Sedan",
-    color: "Silver Metallic",
-    amount: "$490",
-    status: "completed",
-    date: "2024-01-08",
-  },
-];
-
-function getStatusBadge(status: Transaction["status"]) {
-  const variants = {
-    pending: "secondary",
-    ongoing: "default",
-    completed: "outline",
-  } as const;
-
-  const labels = {
-    pending: "Pending",
-    ongoing: "Ongoing",
-    completed: "Completed",
-  };
-
-  return (
-    <Badge variant={variants[status]} className="capitalize">
-      {labels[status]}
-    </Badge>
-  );
-}
-
-function RecentTransactions() {
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-foreground">
-              Recent Transactions
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Latest customer orders and walk-ins
-            </CardDescription>
-          </div>
-          <Button variant="outline" size="sm">
-            View All
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-muted-foreground">
-                Transaction ID
-              </TableHead>
-              <TableHead className="text-muted-foreground">Customer</TableHead>
-              <TableHead className="text-muted-foreground">Car Type</TableHead>
-              <TableHead className="text-muted-foreground">Color</TableHead>
-              <TableHead className="text-muted-foreground">Amount</TableHead>
-              <TableHead className="text-muted-foreground">Status</TableHead>
-              <TableHead className="text-muted-foreground">Date</TableHead>
-              <TableHead className="text-right text-muted-foreground">
-                Actions
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {transactions.map((transaction) => (
-              <TableRow key={transaction.id} className="border-border">
-                <TableCell className="font-mono text-sm text-foreground">
-                  {transaction.id}
-                </TableCell>
-                <TableCell className="font-medium text-foreground">
-                  {transaction.customer}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {transaction.carType}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {transaction.color}
-                </TableCell>
-                <TableCell className="font-medium text-foreground">
-                  {transaction.amount}
-                </TableCell>
-                <TableCell>{getStatusBadge(transaction.status)}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {transaction.date}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  );
-}
-
-const chartData = [
-  { date: "Mon", revenue: 2400, orders: 12 },
-  { date: "Tue", revenue: 3200, orders: 16 },
-  { date: "Wed", revenue: 2800, orders: 14 },
-  { date: "Thu", revenue: 4100, orders: 20 },
-  { date: "Fri", revenue: 3800, orders: 18 },
-  { date: "Sat", revenue: 4500, orders: 22 },
-  { date: "Sun", revenue: 3600, orders: 17 },
-];
-
-const chartConfig = {
-  revenue: {
-    label: "Revenue",
-    color: "hsl(var(--chart-1))",
-  },
-  orders: {
-    label: "Orders",
-    color: "hsl(var(--chart-2))",
-  },
-} satisfies ChartConfig;
-
-function SalesChart() {
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader>
-        <CardTitle className="text-foreground">Sales Overview</CardTitle>
-        <CardDescription className="text-muted-foreground">
-          Weekly revenue and order trends
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig} className="h-[300px] w-full">
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-revenue)"
-                  stopOpacity={0.3}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-revenue)"
-                  stopOpacity={0}
-                />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              className="text-muted-foreground"
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              className="text-muted-foreground"
-              tickFormatter={(value) => `$${value}`}
-            />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Area
-              type="monotone"
-              dataKey="revenue"
-              stroke="var(--color-revenue)"
-              fill="url(#fillRevenue)"
-              strokeWidth={2}
-            />
-          </AreaChart>
-        </ChartContainer>
-      </CardContent>
-    </Card>
-  );
-}
-
+// StatCard Component
 interface StatCardProps {
   title: string;
   value: string;
@@ -397,33 +123,44 @@ function StatCard({ title, value, change, trend, icon }: StatCardProps) {
   );
 }
 
-function StatsCards() {
+// StatsCards Component with real data
+function StatsCards({
+  pendingCount,
+  ongoingCount,
+  completedToday,
+  revenueToday,
+}: {
+  pendingCount: number;
+  ongoingCount: number;
+  completedToday: number;
+  revenueToday: number;
+}) {
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
       <StatCard
         title="Pending Orders"
-        value="12"
+        value={pendingCount.toString()}
         change="+8%"
         trend="up"
         icon={<Clock className="h-6 w-6" />}
       />
       <StatCard
         title="Ongoing Jobs"
-        value="8"
+        value={ongoingCount.toString()}
         change="+12%"
         trend="up"
         icon={<AlertCircle className="h-6 w-6" />}
       />
       <StatCard
         title="Completed Today"
-        value="24"
+        value={completedToday.toString()}
         change="+18%"
         trend="up"
         icon={<CheckCircle2 className="h-6 w-6" />}
       />
       <StatCard
         title="Revenue Today"
-        value="$4,280"
+        value={`₱${revenueToday.toLocaleString()}`}
         change="+24%"
         trend="up"
         icon={<ArrowUpRight className="h-6 w-6" />}
@@ -432,26 +169,531 @@ function StatsCards() {
   );
 }
 
-export default function DashboardPage() {
+// PopularColors Component with real data
+function PopularColors({
+  popularColors,
+  total,
+}: {
+  popularColors: (ColorData | null)[];
+  total: number;
+}) {
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto p-1 space-y-6">
+    <Card className="bg-card border-border">
+      <CardHeader>
+        <CardTitle className="text-foreground">Popular Colors</CardTitle>
+        <CardDescription className="text-muted-foreground">
+          Most requested paint colors this week
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {popularColors.map(
+          (item, index) =>
+            item && (
+              <div key={item.name} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-4 w-4 rounded-full border border-border"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-sm font-medium text-foreground">
+                      {item.name}
+                    </span>
+                  </div>
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {item.count}
+                  </span>
+                </div>
+                <Progress value={item.percentage} className="h-2" />
+              </div>
+            )
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// RecentTransactions Component with real data
+interface RecentTransactionsProps {
+  transactions: Transaction[];
+  paintColors: PaintColor[];
+  onViewDetails?: (transaction: Transaction) => void;
+}
+
+function RecentTransactions({
+  transactions,
+  paintColors,
+  onViewDetails,
+}: RecentTransactionsProps) {
+  const router = useRouter();
+
+  const getStatusBadge = (status: Transaction["status"]) => {
+    const variants = {
+      saved: "secondary",
+      purchased: "default",
+      cancelled: "destructive",
+    } as const;
+
+    const labels = {
+      saved: "Pending",
+      purchased: "Completed",
+      cancelled: "Cancelled",
+    };
+
+    return (
+      <Badge variant={variants[status]} className="capitalize">
+        {labels[status]}
+      </Badge>
+    );
+  };
+
+  const getColorName = (colorId: string) => {
+    const color = paintColors.find((c) => c.id === colorId);
+    return color ? color.name : "Unknown Color";
+  };
+
+  const getCustomerName = (transaction: Transaction) => {
+    return transaction.customerDetails?.fullName || "Anonymous Customer";
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  // Sort by timestamp descending and take last 5
+  const recentTransactions = [...transactions]
+    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    .slice(0, 5);
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader>
         <div className="flex items-center justify-between">
-          <QuickActions />
+          <div>
+            <CardTitle className="text-foreground">
+              Recent Transactions
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              Latest customer orders and walk-ins
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/a/transactions")}
+          >
+            View All
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className="text-muted-foreground">Customer</TableHead>
+              <TableHead className="text-muted-foreground">Color</TableHead>
+              <TableHead className="text-muted-foreground">Amount</TableHead>
+              <TableHead className="text-muted-foreground">Status</TableHead>
+              <TableHead className="text-muted-foreground">Date</TableHead>
+              <TableHead className="text-right text-muted-foreground">
+                Actions
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {recentTransactions.map((transaction) => (
+              <TableRow key={transaction.id} className="border-border">
+                <TableCell className="font-medium text-sm text-foreground">
+                  {getCustomerName(transaction)}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {getColorName(transaction.colorId)}
+                </TableCell>
+                <TableCell className="font-medium text-foreground">
+                  ₱{transaction.price.toLocaleString()}
+                </TableCell>
+                <TableCell>{getStatusBadge(transaction.status)}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatDate(transaction.timestamp)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onViewDetails?.(transaction)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+// SalesChart Component with real data
+function SalesChart({
+  chartData,
+}: {
+  chartData: Array<{ date: string; revenue: number; orders: number }>;
+}) {
+  const chartConfig = {
+    revenue: {
+      label: "Revenue",
+      color: "hsl(var(--chart-1))",
+    },
+    orders: {
+      label: "Orders",
+      color: "hsl(var(--chart-2))",
+    },
+  } satisfies ChartConfig;
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader>
+        <CardTitle className="text-foreground">Sales Overview</CardTitle>
+        <CardDescription className="text-muted-foreground">
+          Weekly revenue and order trends
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={chartConfig} className="h-[300px] w-full">
+          <AreaChart data={chartData}>
+            <defs>
+              <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="var(--color-revenue)"
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="var(--color-revenue)"
+                  stopOpacity={0}
+                />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              className="text-muted-foreground"
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              className="text-muted-foreground"
+              tickFormatter={(value) => `₱${value}`}
+            />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Area
+              type="monotone"
+              dataKey="revenue"
+              stroke="var(--color-revenue)"
+              fill="url(#fillRevenue)"
+              strokeWidth={2}
+            />
+          </AreaChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// DetailsModal Component
+interface DetailsModalProps {
+  transaction: Transaction | null;
+  paintColors: PaintColor[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function DetailsModal({
+  transaction,
+  paintColors,
+  open,
+  onOpenChange,
+}: DetailsModalProps) {
+  if (!transaction) return null;
+
+  const getColorName = (colorId: string) => {
+    const color = paintColors.find((c) => c.id === colorId);
+    return color ? color.name : "Unknown Color";
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const getStatusBadge = (status: Transaction["status"]) => {
+    const variants = {
+      saved: "secondary",
+      purchased: "default",
+      cancelled: "destructive",
+    } as const;
+
+    const labels = {
+      saved: "Pending",
+      purchased: "Completed",
+      cancelled: "Cancelled",
+    };
+
+    return (
+      <Badge variant={variants[status]} className="capitalize">
+        {labels[status]}
+      </Badge>
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Transaction Details</DialogTitle>
+          <DialogDescription>
+            View customer and transaction information
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Customer Information */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-lg">Customer Information</h3>
+            <div className="space-y-1 text-sm">
+              <p>
+                <span className="font-medium">Name:</span>{" "}
+                {transaction.customerDetails?.fullName || "N/A"}
+              </p>
+              <p>
+                <span className="font-medium">Email:</span>{" "}
+                {transaction.customerDetails?.email || "N/A"}
+              </p>
+              <p>
+                <span className="font-medium">Contact:</span>{" "}
+                {transaction.customerDetails?.contactNumber || "N/A"}
+              </p>
+              <p>
+                <span className="font-medium">Address:</span>{" "}
+                {transaction.customerDetails?.address || "N/A"}
+              </p>
+            </div>
+          </div>
+
+          {/* Transaction Summary */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-lg">Transaction Summary</h3>
+            <div className="space-y-1 text-sm">
+              <p>
+                <span className="font-medium">Color:</span>{" "}
+                {getColorName(transaction.colorId)}
+              </p>
+              <p>
+                <span className="font-medium">Amount:</span> ₱
+                {transaction.price.toLocaleString()}
+              </p>
+              <p>
+                <span className="font-medium">Status:</span>{" "}
+                {getStatusBadge(transaction.status)}
+              </p>
+              <p>
+                <span className="font-medium">Date:</span>{" "}
+                {formatDate(transaction.timestamp)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">ID:</span>{" "}
+                {transaction.id.slice(0, 8)}...
+              </p>
+            </div>
+          </div>
         </div>
 
-        <StatsCards />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Main DashboardPage Component
+export default function DashboardPage() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<Transaction | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+
+  const handleViewDetails = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setShowDetailsModal(true);
+  };
+
+  useEffect(() => {
+    const unsubTransactions = onSnapshot(
+      collection(db, "transactions"),
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          timestamp: doc.data().timestamp.toDate(),
+        })) as Transaction[];
+        setTransactions(data);
+      }
+    );
+
+    const unsubColors = onSnapshot(
+      collection(db, "paintColors"),
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as PaintColor[];
+        setPaintColors(data);
+        setIsLoading(false);
+      }
+    );
+
+    return () => {
+      unsubTransactions();
+      unsubColors();
+    };
+  }, []);
+
+  // Calculate real stats
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const paidTransactions = transactions.filter((t) => t.status === "purchased");
+  const todayTransactions = paidTransactions.filter(
+    (t) => t.timestamp >= today
+  );
+
+  const pendingCount = transactions.filter((t) => t.status === "saved").length;
+  const ongoingCount = transactions.filter(
+    (t) =>
+      t.status === "purchased" &&
+      t.customizationProgress?.overallStatus !== "completed"
+  ).length;
+  const completedToday = todayTransactions.length;
+  const revenueToday = todayTransactions.reduce((sum, t) => sum + t.price, 0);
+
+  // Calculate popular colors
+  const colorCounts = paidTransactions.reduce(
+    (acc, t) => {
+      acc[t.colorId] = (acc[t.colorId] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  const popularColorData = Object.entries(colorCounts)
+    .map(([colorId, count]) => {
+      const color = paintColors.find((c) => c.id === colorId);
+      return color
+        ? {
+            name: color.name,
+            count,
+            percentage: 0, // Will calculate below
+            color: color.hex,
+          }
+        : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b!.count - a!.count)
+    .slice(0, 4);
+
+  const total = popularColorData.reduce((sum, c) => sum + c!.count, 0);
+
+  // Calculate percentages
+  const popularColorsWithPercentage = popularColorData.map((item) =>
+    item ? { ...item, percentage: (item.count / total) * 100 } : null
+  );
+
+  // Calculate chart data - last 7 days
+  const chartData = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - i));
+    date.setHours(0, 0, 0, 0);
+
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const dayTransactions = paidTransactions.filter(
+      (t) => t.timestamp >= date && t.timestamp < nextDay
+    );
+
+    return {
+      date: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()],
+      revenue: dayTransactions.reduce((sum, t) => sum + t.price, 0),
+      orders: dayTransactions.length,
+    };
+  });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <main className="container mx-auto p-6 space-y-6">
+        <StatsCards
+          pendingCount={pendingCount}
+          ongoingCount={ongoingCount}
+          completedToday={completedToday}
+          revenueToday={revenueToday}
+        />
 
         <div className="grid gap-6 lg:grid-cols-7">
           <div className="lg:col-span-4">
-            <SalesChart />
+            <SalesChart chartData={chartData} />
           </div>
           <div className="lg:col-span-3">
-            <PopularColors />
+            <PopularColors
+              popularColors={popularColorsWithPercentage}
+              total={total}
+            />
           </div>
         </div>
 
-        <RecentTransactions />
+        <RecentTransactions
+          transactions={transactions}
+          paintColors={paintColors}
+          onViewDetails={handleViewDetails}
+        />
+
+        <DetailsModal
+          transaction={selectedTransaction}
+          paintColors={paintColors}
+          open={showDetailsModal}
+          onOpenChange={setShowDetailsModal}
+        />
       </main>
     </div>
   );

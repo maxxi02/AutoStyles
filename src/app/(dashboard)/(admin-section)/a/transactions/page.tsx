@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import {
   Plus,
   Eye,
-  MoreHorizontal,
   ArrowUpRight,
   ArrowDownRight,
   Clock,
@@ -936,9 +935,6 @@ const AdminTransactionPage = () => {
                           onClick={() => handleViewDetails(transaction)}
                         >
                           <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>

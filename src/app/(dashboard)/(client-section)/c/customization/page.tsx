@@ -377,13 +377,11 @@ const CustomizationPage: React.FC = () => {
     }
   }, [selectedModelId, filteredInteriors, selectedInteriorId]);
 
-  // Selected model and color
   const selectedModel = carModels.find((m) => m.id === selectedModelId);
   const selectedColor = paintColors.find((c) => c.id === selectedColorId);
   const selectedWheel = wheels.find((w) => w.id === selectedWheelId);
   const selectedInterior = interiors.find((i) => i.id === selectedInteriorId);
 
-  // Update history on selection change
   useEffect(() => {
     if (selectedTypeId && selectedModelId) {
       const newState: CustomizationState = {
@@ -393,16 +391,21 @@ const CustomizationPage: React.FC = () => {
         wheelId: selectedWheelId,
         interiorId: selectedInteriorId,
       };
-      if (
-        currentState &&
-        (currentState.typeId !== newState.typeId ||
-          currentState.modelId !== newState.modelId ||
-          currentState.colorId !== newState.colorId ||
-          currentState.wheelId !== newState.wheelId ||
-          currentState.interiorId !== newState.interiorId)
-      ) {
-        setHistory((prev) => [...prev, currentState]);
-      }
+
+      setHistory((prev) => {
+        if (
+          currentState &&
+          (currentState.typeId !== newState.typeId ||
+            currentState.modelId !== newState.modelId ||
+            currentState.colorId !== newState.colorId ||
+            currentState.wheelId !== newState.wheelId ||
+            currentState.interiorId !== newState.interiorId)
+        ) {
+          return [...prev, currentState];
+        }
+        return prev;
+      });
+
       setCurrentState(newState);
     }
   }, [
@@ -416,7 +419,7 @@ const CustomizationPage: React.FC = () => {
   // Reset image index when color changes
   useEffect(() => {
     setCurrentImageIndex(0);
-  }, [selectedColorId]);
+  }, [selectedColorId, selectedColor?.images?.length]);
 
   // Calculate price - only add prices for selected items
   const basePrice = selectedModel?.basePrice ?? 0;
@@ -458,79 +461,82 @@ const CustomizationPage: React.FC = () => {
       setSelectedInteriorId(previousState.interiorId);
     }
   };
-const handleSaveDesign = async () => {
-  if (
-    !selectedModelId ||
-    !selectedColorId ||
-    !selectedWheelId ||
-    !selectedInteriorId
-  ) {
-    toast.error("Please select all customizations first.");
-    return;
-  }
-
-  if (!currentUser) {
-    toast.error("You must be logged in to save a design.");
-    return;
-  }
-
-  setIsSaving(true);
-
-  try {
-    // Fetch customer details
-    const customerDetails = await getUserDetails(currentUser.uid);
-
-    // Warn user if address is missing
-    if (customerDetails.address === "N/A" || !customerDetails.address) {
-      toast.warning(
-        "Please update your address in your profile for delivery purposes."
-      );
+  const handleSaveDesign = async () => {
+    if (
+      !selectedModelId ||
+      !selectedColorId ||
+      !selectedWheelId ||
+      !selectedInteriorId
+    ) {
+      toast.error("Please select all customizations first.");
+      return;
     }
 
-    const transactionData: TransactionData = {
-      userId: currentUser.uid,
-      typeId: selectedTypeId,
-      modelId: selectedModelId,
-      colorId: selectedColorId,
-      wheelId: selectedWheelId,
-      interiorId: selectedInteriorId,
-      timestamp: new Date(),
-      subtotal: subtotal,
-      price: calculatedPrice,
-      status: "saved" as const,
-      customerDetails: customerDetails,
-      customizationProgress: {
-        paintCompleted: false,
-        paintCompletedAt: null,
-        wheelsCompleted: false,
-        wheelsCompletedAt: null,
-        interiorCompleted: false,
-        interiorCompletedAt: null,
-        overallStatus: "pending" as const,
-      },
-    };
+    if (!currentUser) {
+      toast.error("You must be logged in to save a design.");
+      return;
+    }
 
-    // Add pricing rule info if applied
-    if (selectedPricingRuleId && selectedPricingRule) {
-      transactionData.pricingRule = {
-        id: selectedPricingRuleId,
-        description: selectedPricingRule.description,
-        type: selectedPricingRule.type,
-        percentage: selectedPricingRule.percentage,
-        discountAmount: discountAmount,
+    setIsSaving(true);
+
+    try {
+      // Fetch customer details
+      const customerDetails = await getUserDetails(currentUser.uid);
+
+      // Warn user if address is missing
+      if (customerDetails.address === "N/A" || !customerDetails.address) {
+        toast.warning(
+          "Please update your address in your profile for delivery purposes."
+        );
+      }
+
+      const transactionData: TransactionData = {
+        userId: currentUser.uid,
+        typeId: selectedTypeId,
+        modelId: selectedModelId,
+        colorId: selectedColorId,
+        wheelId: selectedWheelId,
+        interiorId: selectedInteriorId,
+        timestamp: new Date(),
+        subtotal: subtotal,
+        price: calculatedPrice,
+        status: "saved" as const,
+        customerDetails: customerDetails,
+        customizationProgress: {
+          paintCompleted: false,
+          paintCompletedAt: null,
+          wheelsCompleted: false,
+          wheelsCompletedAt: null,
+          interiorCompleted: false,
+          interiorCompletedAt: null,
+          overallStatus: "pending" as const,
+        },
       };
+
+      // Add pricing rule info if applied
+      if (selectedPricingRuleId && selectedPricingRule) {
+        transactionData.pricingRule = {
+          id: selectedPricingRuleId,
+          description: selectedPricingRule.description,
+          type: selectedPricingRule.type,
+          percentage: selectedPricingRule.percentage,
+          discountAmount: discountAmount,
+        };
+      }
+
+      const transactionRef = await addDoc(
+        collection(db, "transactions"),
+        transactionData
+      );
+
+      toast.success(`Design saved to transaction! ID: ${transactionRef.id}`);
+    } catch (error) {
+      console.error("Error saving transaction:", error);
+      toast.error("Failed to save transaction");
+    } finally {
+      setIsSaving(false);
     }
-
-    const transactionRef = await addDoc(collection(db, "transactions"), transactionData);
-
-    toast.success(`Design saved to transaction! ID: ${transactionRef.id}`);
-  } catch (error) {
-    console.error("Error saving transaction:", error);
-    toast.error("Failed to save transaction");
-  } finally {
-    setIsSaving(false);
-  }
-};
+  };
   // Get image for preview fallback
   const getPreviewImage = () =>
     selectedModel?.imageUrl || "/placeholder-car.png";
@@ -917,151 +923,168 @@ const handleSaveDesign = async () => {
                 <CardDescription>Preview your customized car</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col items-start p-4 space-y-6">
-                {/* Main Car Preview */}
-                <div className="w-full">
-                  <h3 className="text-sm font-medium mb-2">Exterior</h3>
-                  <div className="relative">
-                    {selectedColor?.images &&
-                    selectedColor.images.length > 0 ? (
-                      <>
+                {/* Show message if no model is selected */}
+                {!selectedModelId ? (
+                  <div className="w-full flex items-center justify-center min-h-[400px]">
+                    <p className="text-muted-foreground text-center">
+                      Please select a car model to preview customizations
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Main Car Preview */}
+                    <div className="w-full">
+                      <h3 className="text-sm font-medium mb-2">Exterior</h3>
+                      <div className="relative">
+                        {selectedColor?.images &&
+                        selectedColor.images.length > 0 ? (
+                          <>
+                            <Image
+                              key={`${selectedColorId}-${currentImageIndex}`}
+                              src={
+                                selectedColor.images[
+                                  Math.min(
+                                    currentImageIndex,
+                                    selectedColor.images.length - 1
+                                  )
+                                ] || "/placeholder-car.png"
+                              }
+                              alt={`${selectedColor.name} - ${["Front", "Back", "Left", "Right"][currentImageIndex]} view`}
+                              className="w-full h-auto rounded-lg"
+                              width={800}
+                              height={600}
+                            />
+                            {/* Carousel Controls */}
+                            <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-4">
+                              <Button
+                                variant="secondary"
+                                size="icon"
+                                className="rounded-full shadow-lg"
+                                onClick={() =>
+                                  setCurrentImageIndex((prev) =>
+                                    prev > 0
+                                      ? prev - 1
+                                      : selectedColor.images!.length - 1
+                                  )
+                                }
+                              >
+                                ←
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="icon"
+                                className="rounded-full shadow-lg"
+                                onClick={() =>
+                                  setCurrentImageIndex((prev) =>
+                                    prev < selectedColor.images!.length - 1
+                                      ? prev + 1
+                                      : 0
+                                  )
+                                }
+                              >
+                                →
+                              </Button>
+                            </div>
+                            {/* Indicators */}
+                            <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center space-x-2">
+                              {selectedColor.images.map((_, index) => (
+                                <button
+                                  key={index}
+                                  onClick={() => setCurrentImageIndex(index)}
+                                  className={`w-2 h-2 rounded-full transition-all ${
+                                    index === currentImageIndex
+                                      ? "bg-white w-8"
+                                      : "bg-white/50 hover:bg-white/75"
+                                  }`}
+                                  aria-label={`View ${["Front", "Back", "Left", "Right"][index]}`}
+                                />
+                              ))}
+                            </div>
+                            {/* Image Label */}
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                              {
+                                ["Front", "Back", "Left", "Right"][
+                                  currentImageIndex
+                                ]
+                              }{" "}
+                              View
+                            </div>
+                          </>
+                        ) : (
+                          <Image
+                            src={getPreviewImage()}
+                            alt={`${selectedModel?.name || "Car"} Preview`}
+                            className="w-full h-auto rounded-lg"
+                            width={800}
+                            height={600}
+                          />
+                        )}
+                      </div>
+                      {selectedColor && selectedColor.description && (
+                        <div className="text-start mt-4">
+                          <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                            {selectedColor.description}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Wheels Preview */}
+                    {selectedWheel?.imageUrl && (
+                      <div className="w-full">
+                        <h3 className="text-sm font-medium mb-2">Wheels</h3>
                         <Image
-                          key={currentImageIndex}
-                          src={
-                            selectedColor.images[currentImageIndex] ||
-                            "/placeholder-car.png"
-                          }
-                          alt={`${selectedColor.name} - ${["Front", "Back", "Left", "Right"][currentImageIndex]} view`}
+                          src={selectedWheel.imageUrl}
+                          alt="Wheel Preview"
                           className="w-full h-auto rounded-lg"
                           width={800}
                           height={600}
                         />
-                        {/* Carousel Controls */}
-                        <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-4">
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            className="rounded-full shadow-lg"
-                            onClick={() =>
-                              setCurrentImageIndex((prev) =>
-                                prev > 0
-                                  ? prev - 1
-                                  : selectedColor.images!.length - 1
-                              )
-                            }
-                          >
-                            ←
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            className="rounded-full shadow-lg"
-                            onClick={() =>
-                              setCurrentImageIndex((prev) =>
-                                prev < selectedColor.images!.length - 1
-                                  ? prev + 1
-                                  : 0
-                              )
-                            }
-                          >
-                            →
-                          </Button>
-                        </div>
-                        {/* Indicators */}
-                        <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center space-x-2">
-                          {selectedColor.images.map((_, index) => (
-                            <button
-                              key={index}
-                              onClick={() => setCurrentImageIndex(index)}
-                              className={`w-2 h-2 rounded-full transition-all ${
-                                index === currentImageIndex
-                                  ? "bg-white w-8"
-                                  : "bg-white/50 hover:bg-white/75"
-                              }`}
-                              aria-label={`View ${["Front", "Back", "Left", "Right"][index]}`}
-                            />
-                          ))}
-                        </div>
-                        {/* Image Label */}
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-                          {
-                            ["Front", "Back", "Left", "Right"][
-                              currentImageIndex
-                            ]
-                          }{" "}
-                          View
-                        </div>
-                      </>
-                    ) : (
-                      <Image
-                        src={getPreviewImage()}
-                        alt={`${selectedModel?.name || "Car"} Preview`}
-                        className="w-full h-auto rounded-lg"
-                        width={800}
-                        height={600}
-                      />
-                    )}
-                  </div>
-                  {selectedColor && selectedColor.description && (
-                    <div className="text-start mt-4">
-                      <p className="text-sm text-muted-foreground mt-2 max-w-md">
-                        {selectedColor.description}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                {/* Wheels Preview */}
-                {selectedWheel?.imageUrl && (
-                  <div className="w-full">
-                    <h3 className="text-sm font-medium mb-2">Wheels</h3>
-                    <Image
-                      src={selectedWheel.imageUrl}
-                      alt="Wheel Preview"
-                      className="w-full h-auto rounded-lg"
-                      width={800}
-                      height={600}
-                    />
-                    {selectedWheel && selectedWheel.description && (
-                      <div className="text-start mt-4">
-                        <p className="text-sm text-muted-foreground mt-2 max-w-md">
-                          {selectedWheel.description}
-                        </p>
+                        {selectedWheel && selectedWheel.description && (
+                          <div className="text-start mt-4">
+                            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                              {selectedWheel.description}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* Interior Preview */}
-                {selectedInterior && (
-                  <div className="w-full">
-                    <h3 className="text-sm font-medium mb-2">Interior</h3>
-                    <Image
-                      src={
-                        selectedInterior.imageUrl || "/placeholder-interior.png"
-                      }
-                      alt="Interior Preview"
-                      className="w-full h-auto rounded-lg"
-                      width={800}
-                      height={600}
-                    />
-                    {selectedInterior && selectedInterior.description && (
-                      <div className="text-start mt-4">
-                        <p className="text-sm text-muted-foreground mt-2 max-w-md">
-                          {selectedInterior.description}
-                        </p>
-                      </div>
-                    )}
-                    {selectedInterior?.hex && (
-                      <div className="flex items-center space-x-2 mt-2">
-                        <div
-                          className="w-8 h-8 rounded border"
-                          style={{ backgroundColor: selectedInterior.hex }}
+                    {/* Interior Preview */}
+                    {selectedInterior && (
+                      <div className="w-full">
+                        <h3 className="text-sm font-medium mb-2">Interior</h3>
+                        <Image
+                          src={
+                            selectedInterior.imageUrl ||
+                            "/placeholder-interior.png"
+                          }
+                          alt="Interior Preview"
+                          className="w-full h-auto rounded-lg"
+                          width={800}
+                          height={600}
                         />
-                        <span className="text-sm text-muted-foreground">
-                          {selectedInterior.hex}
-                        </span>
+                        {selectedInterior && selectedInterior.description && (
+                          <div className="text-start mt-4">
+                            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                              {selectedInterior.description}
+                            </p>
+                          </div>
+                        )}
+                        {selectedInterior?.hex && (
+                          <div className="flex items-center space-x-2 mt-2">
+                            <div
+                              className="w-8 h-8 rounded border"
+                              style={{ backgroundColor: selectedInterior.hex }}
+                            />
+                            <span className="text-sm text-muted-foreground">
+                              {selectedInterior.hex}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
+                  </>
                 )}
               </CardContent>
             </Card>
