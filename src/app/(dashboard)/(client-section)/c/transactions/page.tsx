@@ -73,6 +73,11 @@ interface Transaction {
     interiorCompletedAt: Date | null;
     overallStatus: "pending" | "in-progress" | "completed";
   };
+  feedback?: {
+    rating: number;
+    comment: string;
+    submittedAt: Date;
+  };
 }
 
 interface Appointment {
@@ -137,7 +142,40 @@ interface Interior {
   hex?: string;
 }
 
+const StarRating: React.FC<{
+  rating: number;
+  onRatingChange: (rating: number) => void;
+  readonly?: boolean;
+}> = ({ rating, onRatingChange, readonly = false }) => {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => !readonly && onRatingChange(star)}
+          disabled={readonly}
+          className={`text-2xl transition-colors ${
+            star <= rating ? "text-yellow-400" : "text-gray-300"
+          } ${!readonly && "hover:text-yellow-300 cursor-pointer"}`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+};
+
 const ClientsTransactionPage: React.FC = () => {
+  // feedback functions
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackTransactionId, setFeedbackTransactionId] = useState<
+    string | null
+  >(null);
+  const [rating, setRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [carTypes, setCarTypes] = useState<CarType[]>([]);
@@ -201,6 +239,12 @@ const ClientsTransactionPage: React.FC = () => {
                 interiorCompletedAt:
                   docData.customizationProgress.interiorCompletedAt?.toDate() ||
                   null,
+              }
+            : undefined,
+          feedback: docData.feedback
+            ? {
+                ...docData.feedback,
+                submittedAt: docData.feedback.submittedAt?.toDate(),
               }
             : undefined,
         } as Transaction;
@@ -557,6 +601,34 @@ const ClientsTransactionPage: React.FC = () => {
 
   const getTransactionAppointments = (transactionId: string) => {
     return appointments.filter((apt) => apt.transactionId === transactionId);
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackTransactionId || rating === 0) {
+      toast.error("Please provide a rating");
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+    try {
+      await updateDoc(doc(db, "transactions", feedbackTransactionId), {
+        feedback: {
+          rating,
+          comment: feedbackComment,
+          submittedAt: new Date(),
+        },
+      });
+      toast.success("Thank you for your feedback!");
+      setShowFeedbackModal(false);
+      setFeedbackTransactionId(null);
+      setRating(0);
+      setFeedbackComment("");
+    } catch (error) {
+      toast.error("Failed to submit feedback");
+      console.error(error);
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
   };
 
   const handleViewDetails = (transaction: Transaction) => {
@@ -1012,6 +1084,61 @@ const ClientsTransactionPage: React.FC = () => {
                               </p>
                             )}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Feedback Section - Show when customization is complete */}
+                      {customizationProgress.overallStatus === "completed" && (
+                        <div className="space-y-3 pt-4 border-t">
+                          {!latestTransaction.feedback ? (
+                            <>
+                              <h4 className="font-medium">
+                                Share Your Experience
+                              </h4>
+                              <p className="text-sm text-muted-foreground">
+                                Your customization is complete! Please share
+                                your feedback.
+                              </p>
+                              <Button
+                                onClick={() => {
+                                  setFeedbackTransactionId(
+                                    latestTransaction.id
+                                  );
+                                  setShowFeedbackModal(true);
+                                }}
+                                variant="outline"
+                                className="w-full"
+                              >
+                                Provide Feedback
+                              </Button>
+                            </>
+                          ) : (
+                            <div className="space-y-2">
+                              <h4 className="font-medium flex items-center gap-2">
+                                Your Feedback
+                                <Badge variant="default">Submitted</Badge>
+                              </h4>
+                              <div className="p-3 bg-muted rounded-md space-y-2">
+                                <StarRating
+                                  rating={latestTransaction.feedback.rating}
+                                  onRatingChange={() => {}}
+                                  readonly
+                                />
+                                {latestTransaction.feedback.comment && (
+                                  <p className="text-sm">
+                                    {latestTransaction.feedback.comment}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  Submitted:{" "}
+                                  {format(
+                                    latestTransaction.feedback.submittedAt,
+                                    "MMM dd, yyyy HH:mm"
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1538,6 +1665,60 @@ const ClientsTransactionPage: React.FC = () => {
             </Button>
             <Button variant="destructive" onClick={handleRefundConfirm}>
               Proceed with Refund
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Feedback Modal */}
+      <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share Your Feedback</DialogTitle>
+            <DialogDescription>
+              How satisfied are you with your customization experience?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Rating *</Label>
+              <StarRating rating={rating} onRatingChange={setRating} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="feedback-comment">Comments (Optional)</Label>
+              <textarea
+                id="feedback-comment"
+                className="w-full min-h-[100px] p-2 border rounded-md"
+                placeholder="Tell us about your experience..."
+                value={feedbackComment}
+                onChange={(e) => setFeedbackComment(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowFeedbackModal(false);
+                setFeedbackTransactionId(null);
+                setRating(0);
+                setFeedbackComment("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitFeedback}
+              disabled={rating === 0 || isSubmittingFeedback}
+            >
+              {isSubmittingFeedback ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Submitting...
+                </>
+              ) : (
+                "Submit Feedback"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

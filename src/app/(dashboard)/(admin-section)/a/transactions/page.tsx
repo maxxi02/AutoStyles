@@ -84,6 +84,11 @@ interface Transaction {
     contactNumber: string;
     address: string;
   };
+  feedback?: {
+    rating: number;
+    comment: string;
+    submittedAt: Date;
+  };
 }
 
 interface Wheel {
@@ -131,6 +136,26 @@ interface PaintColor {
   imageUrl?: string;
 }
 
+const StarRating: React.FC<{
+  rating: number;
+  readonly?: boolean;
+}> = ({ rating, readonly = true }) => {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span
+          key={star}
+          className={`text-xl ${
+            star <= rating ? "text-yellow-400" : "text-gray-300"
+          }`}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  );
+};
+
 const AdminTransactionPage = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [carTypes, setCarTypes] = useState<CarType[]>([]);
@@ -170,6 +195,12 @@ const AdminTransactionPage = () => {
                   interiorCompletedAt:
                     docData.customizationProgress.interiorCompletedAt?.toDate() ||
                     null,
+                }
+              : undefined,
+            feedback: docData.feedback
+              ? {
+                  ...docData.feedback,
+                  submittedAt: docData.feedback.submittedAt?.toDate(),
                 }
               : undefined,
           } as Transaction;
@@ -379,6 +410,17 @@ const AdminTransactionPage = () => {
     (transaction) => transaction.status === "purchased"
   );
 
+  const getAverageFeedbackRating = () => {
+    const feedbacks = paidTransactions.filter((t) => t.feedback);
+    if (feedbacks.length === 0) return 0;
+
+    const sum = feedbacks.reduce(
+      (acc, t) => acc + (t.feedback?.rating || 0),
+      0
+    );
+    return (sum / feedbacks.length).toFixed(1);
+  };
+
   const getTransactionDetails = (transaction: Transaction) => {
     const type = carTypes.find((t) => t.id === transaction.typeId);
     const model = carModels.find((m) => m.id === transaction.modelId);
@@ -468,7 +510,7 @@ const AdminTransactionPage = () => {
     const completedCount = paidTransactions.length;
 
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
           title="Total Transactions"
           value={totalTransactions.toString()}
@@ -496,6 +538,13 @@ const AdminTransactionPage = () => {
           change="+28%"
           trend="up"
           icon={<DollarSign className="h-6 w-6" />}
+        />
+        <StatCard
+          title="Avg. Customer Rating"
+          value={`${getAverageFeedbackRating()} ★`}
+          change={`${paidTransactions.filter((t) => t.feedback).length} reviews`}
+          trend="up"
+          icon={<CheckCircle2 className="h-6 w-6" />}
         />
       </div>
     );
@@ -621,7 +670,7 @@ const AdminTransactionPage = () => {
               </div>
             </div>
 
-            {/* Progress Tracking - NEW ENHANCED SECTION */}
+            {/* Progress Tracking */}
             <div className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-lg">
@@ -805,6 +854,46 @@ const AdminTransactionPage = () => {
               </div>
             </div>
 
+            {/* Client Feedback Section - NEW */}
+            {selectedTransaction.feedback && (
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-lg">Client Feedback</h3>
+                  <Badge variant="default">Received</Badge>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">Rating</p>
+                    <StarRating rating={selectedTransaction.feedback.rating} />
+                  </div>
+
+                  {selectedTransaction.feedback.comment && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Comment
+                      </p>
+                      <div className="p-3 bg-muted rounded-md">
+                        <p className="text-sm">
+                          {selectedTransaction.feedback.comment}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Submitted:{" "}
+                      {format(
+                        selectedTransaction.feedback.submittedAt,
+                        "MMM dd, yyyy HH:mm"
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Payment Info */}
             <div className="border rounded-lg p-4">
               <h3 className="font-semibold mb-2">Total Amount</h3>
@@ -866,6 +955,9 @@ const AdminTransactionPage = () => {
                 <TableHead className="text-muted-foreground">Amount</TableHead>
                 <TableHead className="text-muted-foreground">
                   Progress
+                </TableHead>
+                <TableHead className="text-muted-foreground">
+                  Feedback
                 </TableHead>
                 <TableHead className="text-muted-foreground">Date</TableHead>
                 <TableHead className="text-right text-muted-foreground">
@@ -937,6 +1029,18 @@ const AdminTransactionPage = () => {
                           <Eye className="h-4 w-4" />
                         </Button>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {transaction.feedback ? (
+                        <div className="flex items-center gap-1">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium">
+                            {transaction.feedback.rating}/5
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
