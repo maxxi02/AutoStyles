@@ -329,15 +329,6 @@ export function LoginForm({
                 <Button type="submit" disabled={loading} className="w-full">
                   {loading ? "Logging In..." : "Login"}
                 </Button>
-                <Button
-                  variant="outline"
-                  type="button"
-                  onClick={handleGoogleLogin}
-                  disabled={loading}
-                  className="w-full mt-2"
-                >
-                  Login with Google
-                </Button>
                 <FieldDescription className="text-center">
                   Do not have an account?{" "}
                   <Link href="/register" className="underline">

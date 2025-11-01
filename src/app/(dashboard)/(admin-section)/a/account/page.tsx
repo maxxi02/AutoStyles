@@ -608,153 +608,155 @@ const AccountPage = () => {
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">
-                  Change Password
-                </CardTitle>
-                <CardDescription className="text-muted-foreground">
-                  Update your password securely.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Dialog
-                  open={showChangePasswordDialog}
-                  onOpenChange={setShowChangePasswordDialog}
-                >
-                  <DialogTrigger asChild>
-                    <Button className="w-full">Change Password</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Change Password</DialogTitle>
-                      <DialogDescription>
-                        Enter your new password.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <Field>
-                        <FieldLabel>New Password</FieldLabel>
-                        <Input
-                          type="password"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="New password"
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel>Confirm New Password</FieldLabel>
-                        <Input
-                          type="password"
-                          value={confirmNewPassword}
-                          onChange={(e) =>
-                            setConfirmNewPassword(e.target.value)
-                          }
-                          placeholder="Confirm new password"
-                        />
-                      </Field>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowChangePasswordDialog(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleInitiatePasswordChange}
-                        disabled={!newPassword || !confirmNewPassword}
-                      >
-                        Proceed to Confirm
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
-
-            {/* MFA Section */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle>Multi-Factor Authentication (MFA)</CardTitle>
-                <CardDescription>
-                  Secure your account with TOTP via an authenticator app.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isTotpEnrolled ? (
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      TOTP MFA is enabled.
-                    </p>
-                    <Button variant="destructive" onClick={handleUnenroll}>
-                      Disable TOTP MFA
-                    </Button>
-                  </div>
-                ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-foreground">
+                    Change Password
+                  </CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    Update your password securely.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <Dialog
-                    open={enrollmentStep !== "idle"}
-                    onOpenChange={() => setEnrollmentStep("idle")}
+                    open={showChangePasswordDialog}
+                    onOpenChange={setShowChangePasswordDialog}
                   >
                     <DialogTrigger asChild>
-                      <Button onClick={handleEnroll}>Enable TOTP MFA</Button>
+                      <Button className="w-full">Change Password</Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-md">
+                    <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>
-                          {enrollmentStep === "verifying"
-                            ? "Verify Enrollment"
-                            : "Enroll in TOTP MFA"}
-                        </DialogTitle>
+                        <DialogTitle>Change Password</DialogTitle>
                         <DialogDescription>
-                          {enrollmentStep === "verifying"
-                            ? "Enter the 6-digit code from your authenticator app."
-                            : "Follow the steps to set up TOTP."}
+                          Enter your new password.
                         </DialogDescription>
                       </DialogHeader>
-                      {enrollmentStep === "verifying" && totpSecret && (
-                        <div className="space-y-4">
-                          <div className="text-center bg-white p-5 rounded">
-                            <QRCodeSVG
-                              value={totpSecret.generateQrCodeUrl(
-                                user.email!,
-                                "AutoStyles"
-                              )}
-                              size={200}
-                              className="m-auto"
-                            />
-                            <p className="text-xs text-muted-foreground mt-2">
-                              Or use secret: {totpSecret.secretKey}
-                            </p>
-                          </div>
-                          <Field>
-                            <FieldLabel>Verification Code</FieldLabel>
-                            <Input
-                              type="text"
-                              maxLength={6}
-                              value={verificationCode}
-                              onChange={(e) =>
-                                setVerificationCode(
-                                  e.target.value.replace(/\D/g, "")
-                                )
-                              }
-                              placeholder="123456"
-                            />
-                          </Field>
-                          <Button
-                            onClick={handleVerifyEnrollment}
-                            className="w-full"
-                            disabled={verificationCode.length !== 6}
-                          >
-                            Verify and Enroll
-                          </Button>
-                        </div>
-                      )}
+                      <div className="space-y-4">
+                        <Field>
+                          <FieldLabel>New Password</FieldLabel>
+                          <Input
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="New password"
+                          />
+                        </Field>
+                        <Field>
+                          <FieldLabel>Confirm New Password</FieldLabel>
+                          <Input
+                            type="password"
+                            value={confirmNewPassword}
+                            onChange={(e) =>
+                              setConfirmNewPassword(e.target.value)
+                            }
+                            placeholder="Confirm new password"
+                          />
+                        </Field>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowChangePasswordDialog(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleInitiatePasswordChange}
+                          disabled={!newPassword || !confirmNewPassword}
+                        >
+                          Proceed to Confirm
+                        </Button>
+                      </DialogFooter>
                     </DialogContent>
                   </Dialog>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              {/* MFA Section */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle>Multi-Factor Authentication (MFA)</CardTitle>
+                  <CardDescription>
+                    Secure your account with TOTP via an authenticator app.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 w-full">
+                  {isTotpEnrolled ? (
+                    <div className="w-full">
+                      <p className="text-sm text-muted-foreground">
+                        TOTP MFA is enabled.
+                      </p>
+                      <Button variant="destructive" onClick={handleUnenroll} className="w-full">
+                        Disable TOTP MFA
+                      </Button>
+                    </div>
+                  ) : (
+                    <Dialog
+                      open={enrollmentStep !== "idle"}
+                      onOpenChange={() => setEnrollmentStep("idle")}
+                    >
+                      <DialogTrigger asChild>
+                        <Button onClick={handleEnroll} className="w-full">Enable TOTP MFA</Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>
+                            {enrollmentStep === "verifying"
+                              ? "Verify Enrollment"
+                              : "Enroll in TOTP MFA"}
+                          </DialogTitle>
+                          <DialogDescription>
+                            {enrollmentStep === "verifying"
+                              ? "Enter the 6-digit code from your authenticator app."
+                              : "Follow the steps to set up TOTP."}
+                          </DialogDescription>
+                        </DialogHeader>
+                        {enrollmentStep === "verifying" && totpSecret && (
+                          <div className="space-y-4">
+                            <div className="text-center bg-white p-5 rounded">
+                              <QRCodeSVG
+                                value={totpSecret.generateQrCodeUrl(
+                                  user.email!,
+                                  "AutoStyles"
+                                )}
+                                size={200}
+                                className="m-auto"
+                              />
+                              <p className="text-xs text-muted-foreground mt-2">
+                                Or use secret: {totpSecret.secretKey}
+                              </p>
+                            </div>
+                            <Field>
+                              <FieldLabel>Verification Code</FieldLabel>
+                              <Input
+                                type="text"
+                                maxLength={6}
+                                value={verificationCode}
+                                onChange={(e) =>
+                                  setVerificationCode(
+                                    e.target.value.replace(/\D/g, "")
+                                  )
+                                }
+                                placeholder="123456"
+                              />
+                            </Field>
+                            <Button
+                              onClick={handleVerifyEnrollment}
+                              className="w-full"
+                              disabled={verificationCode.length !== 6}
+                            >
+                              Verify and Enroll
+                            </Button>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
