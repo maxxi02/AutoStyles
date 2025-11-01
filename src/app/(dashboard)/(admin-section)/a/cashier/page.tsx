@@ -34,7 +34,7 @@ import {
   CardTitle,
   CardFooter,
 } from "@/components/ui/card";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -46,6 +46,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface PayMongoPayment {
   id: string;
@@ -80,6 +83,7 @@ type PricingRuleData = Omit<PricingRule, "id">;
 const CashierPage: React.FC = () => {
   const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
   const [payments, setPayments] = useState<PayMongoPayment[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
   const [activeTab, setActiveTab] = useState("pricing-rules");
 
@@ -129,6 +133,7 @@ const CashierPage: React.FC = () => {
 
       if (response.ok) {
         setPayments(data.data || []);
+        setCurrentPage(1);
         toast.success("Payments loaded successfully");
       } else {
         toast.error(data.error || "Failed to load payments");
@@ -195,6 +200,72 @@ const CashierPage: React.FC = () => {
       isActive: rule.isActive,
     });
     setIsPricingRuleDialogOpen(true);
+  };
+
+  const handleExportExcel = () => {
+    if (payments.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const exportData = payments.map((payment) => ({
+      "Payment ID": payment.id.substring(0, 20) + "...",
+      Customer: payment.attributes.billing?.name || "N/A",
+      Email: payment.attributes.billing?.email || "N/A",
+      Description: payment.attributes.description || "N/A",
+      Amount: `₱${(payment.attributes.amount / 100).toLocaleString()}`,
+      Status: payment.attributes.status.toUpperCase(),
+      Date: new Date(payment.attributes.paid_at * 1000).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Payments");
+    XLSX.writeFile(wb, "payments-history.xlsx");
+    toast.success("Payments exported to Excel successfully");
+  };
+
+  const handleExportPDF = () => {
+    if (payments.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.text("Payment History", 14, 20);
+
+    const tableData = payments.map((payment) => [
+      payment.id.substring(0, 20) + "...",
+      payment.attributes.billing?.name || "N/A",
+      payment.attributes.description || "N/A",
+      `₱${(payment.attributes.amount / 100).toLocaleString()}`,
+      payment.attributes.status.toUpperCase(),
+      new Date(payment.attributes.paid_at * 1000).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    ]);
+
+    autoTable(doc, {
+      head: [["Payment ID", "Customer", "Description", "Amount", "Status", "Date"]],
+      body: tableData,
+      startY: 30,
+      theme: "grid",
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [41, 128, 185] },
+    });
+
+    doc.save("payments-history.pdf");
+    toast.success("Payments exported to PDF successfully");
   };
 
   if (isDataLoading) {
@@ -410,19 +481,39 @@ const CashierPage: React.FC = () => {
                     All payments processed through PayMongo
                   </p>
                 </div>
-                <Button
-                  onClick={fetchPayments}
-                  disabled={isLoadingPayments}
-                  variant="outline"
-                  size="sm"
-                >
-                  {isLoadingPayments ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Refresh
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleExportExcel}
+                    disabled={isLoadingPayments || payments.length === 0}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Excel
+                  </Button>
+                  <Button
+                    onClick={handleExportPDF}
+                    disabled={isLoadingPayments || payments.length === 0}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    PDF
+                  </Button>
+                  <Button
+                    onClick={fetchPayments}
+                    disabled={isLoadingPayments}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {isLoadingPayments ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Refresh
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -438,68 +529,122 @@ const CashierPage: React.FC = () => {
                   <p className="text-muted-foreground">No payments found</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Payment ID</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {payments.map((payment) => (
-                        <TableRow key={payment.id}>
-                          <TableCell className="font-mono text-sm">
-                            {payment.id.substring(0, 20)}...
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">
-                                {payment.attributes.billing?.name || "N/A"}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {payment.attributes.billing?.email || "N/A"}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {payment.attributes.description || "N/A"}
-                          </TableCell>
-                          <TableCell className="font-semibold">
-                            ₱{(payment.attributes.amount / 100).toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                payment.attributes.status === "paid"
-                                  ? "default"
-                                  : payment.attributes.status === "failed"
-                                    ? "destructive"
-                                    : "secondary"
-                              }
-                            >
-                              {payment.attributes.status.toUpperCase()}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(
-                              payment.attributes.paid_at * 1000
-                            ).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </TableCell>
+                <div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Payment ID</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Date</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {payments
+                          .slice(
+                            (currentPage - 1) * 10,
+                            currentPage * 10
+                          )
+                          .map((payment) => (
+                            <TableRow key={payment.id}>
+                              <TableCell className="font-mono text-sm">
+                                {payment.id.substring(0, 20)}...
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <div className="font-medium">
+                                    {payment.attributes.billing?.name || "N/A"}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {payment.attributes.billing?.email || "N/A"}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {payment.attributes.description || "N/A"}
+                              </TableCell>
+                              <TableCell className="font-semibold">
+                                ₱{(payment.attributes.amount / 100).toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    payment.attributes.status === "paid"
+                                      ? "default"
+                                      : payment.attributes.status === "failed"
+                                        ? "destructive"
+                                        : "secondary"
+                                  }
+                                >
+                                  {payment.attributes.status.toUpperCase()}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {new Date(
+                                  payment.attributes.paid_at * 1000
+                                ).toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3 bg-background border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Showing{" "}
+                      {Math.min((currentPage - 1) * 10 + 1, payments.length)} to{" "}
+                      {Math.min(currentPage * 10, payments.length)} of{" "}
+                      {payments.length} entries
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <div className="flex items-center space-x-1">
+                        {Array.from(
+                          { length: Math.ceil(payments.length / 10) },
+                          (_, i) => i + 1
+                        ).map((page) => (
+                          <Button
+                            key={page}
+                            variant={currentPage === page ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(page)}
+                          >
+                            {page}
+                          </Button>
+                        ))}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setCurrentPage((p) =>
+                            Math.min(p + 1, Math.ceil(payments.length / 10))
+                          )
+                        }
+                        disabled={
+                          currentPage === Math.ceil(payments.length / 10)
+                        }
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>

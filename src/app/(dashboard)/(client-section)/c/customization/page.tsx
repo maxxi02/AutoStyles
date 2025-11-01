@@ -338,14 +338,14 @@ const CustomizationPage: React.FC = () => {
   );
 
   // Auto-select first color if none selected and available
-  useEffect(() => {
-    if (filteredColors.length > 0 && !selectedColorId) {
-      setSelectedColorId(filteredColors[0].id);
-    } else if (filteredColors.length === 0 && selectedColorId) {
-      // Clear selection if no colors available for this model
-      setSelectedColorId("");
-    }
-  }, [selectedModelId, filteredColors, selectedColorId]);
+  // useEffect(() => {
+  //   if (filteredColors.length > 0 && !selectedColorId) {
+  //     setSelectedColorId(filteredColors[0].id);
+  //   } else if (filteredColors.length === 0 && selectedColorId) {
+  //     // Clear selection if no colors available for this model
+  //     setSelectedColorId("");
+  //   }
+  // }, [selectedModelId, filteredColors, selectedColorId]);
 
   // Filtered wheels by selected model
   const filteredWheels = wheels.filter(
@@ -353,14 +353,14 @@ const CustomizationPage: React.FC = () => {
   );
 
   // Auto-select first wheel if none selected and available
-  useEffect(() => {
-    if (filteredWheels.length > 0 && !selectedWheelId) {
-      setSelectedWheelId(filteredWheels[0].id);
-    } else if (filteredWheels.length === 0 && selectedWheelId) {
-      // Clear selection if no wheels available for this model
-      setSelectedWheelId("");
-    }
-  }, [selectedModelId, filteredWheels, selectedWheelId]);
+  // useEffect(() => {
+  //   if (filteredWheels.length > 0 && !selectedWheelId) {
+  //     setSelectedWheelId(filteredWheels[0].id);
+  //   } else if (filteredWheels.length === 0 && selectedWheelId) {
+  //     // Clear selection if no wheels available for this model
+  //     setSelectedWheelId("");
+  //   }
+  // }, [selectedModelId, filteredWheels, selectedWheelId]);
 
   // Filtered interiors by selected model
   const filteredInteriors = interiors.filter(
@@ -368,14 +368,14 @@ const CustomizationPage: React.FC = () => {
   );
 
   // Auto-select first interior if none selected and available
-  useEffect(() => {
-    if (filteredInteriors.length > 0 && !selectedInteriorId) {
-      setSelectedInteriorId(filteredInteriors[0].id);
-    } else if (filteredInteriors.length === 0 && selectedInteriorId) {
-      // Clear selection if no interiors available for this model
-      setSelectedInteriorId("");
-    }
-  }, [selectedModelId, filteredInteriors, selectedInteriorId]);
+  // useEffect(() => {
+  //   if (filteredInteriors.length > 0 && !selectedInteriorId) {
+  //     setSelectedInteriorId(filteredInteriors[0].id);
+  //   } else if (filteredInteriors.length === 0 && selectedInteriorId) {
+  //     // Clear selection if no interiors available for this model
+  //     setSelectedInteriorId("");
+  //   }
+  // }, [selectedModelId, filteredInteriors, selectedInteriorId]);
 
   const selectedModel = carModels.find((m) => m.id === selectedModelId);
   const selectedColor = paintColors.find((c) => c.id === selectedColorId);
@@ -462,13 +462,24 @@ const CustomizationPage: React.FC = () => {
     }
   };
   const handleSaveDesign = async () => {
-    if (
-      !selectedModelId ||
-      !selectedColorId ||
-      !selectedWheelId ||
-      !selectedInteriorId
-    ) {
-      toast.error("Please select all customizations first.");
+    if (!selectedModelId) {
+      toast.error("Please select a model first.");
+      return;
+    }
+
+    // Check if all required customization parts are selected
+    if (!selectedColorId) {
+      toast.error("Please select an exterior color before saving.");
+      return;
+    }
+
+    if (!selectedWheelId) {
+      toast.error("Please select wheels before saving.");
+      return;
+    }
+
+    if (!selectedInteriorId) {
+      toast.error("Please select an interior before saving.");
       return;
     }
 
@@ -537,6 +548,7 @@ const CustomizationPage: React.FC = () => {
       setIsSaving(false);
     }
   };
+
   // Get image for preview fallback
   const getPreviewImage = () =>
     selectedModel?.imageUrl || "/placeholder-car.png";
@@ -639,10 +651,29 @@ const CustomizationPage: React.FC = () => {
                   </label>
                   {filteredColors.length > 0 ? (
                     <RadioGroup
-                      value={selectedColorId}
-                      onValueChange={setSelectedColorId}
+                      value={selectedColorId || "none"}
+                      onValueChange={(value) =>
+                        setSelectedColorId(value === "none" ? "" : value)
+                      }
                     >
                       <div className="space-y-2 max-h-60 overflow-y-auto">
+                        <div className="flex items-center p-2 border rounded-md hover:bg-muted">
+                          <RadioGroupItem value="none" id="color-none" />
+                          <label
+                            htmlFor="color-none"
+                            className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                          >
+                            <div className="w-8 h-8 rounded border bg-muted" />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">
+                                No selection
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                Default color
+                              </span>
+                            </div>
+                          </label>
+                        </div>
                         {filteredColors.map((color) => (
                           <div
                             key={color.id}
@@ -687,6 +718,11 @@ const CustomizationPage: React.FC = () => {
                       No colors available for this model.
                     </p>
                   )}
+                  <p className="text-xs text-muted-foreground">
+                    {selectedColorId
+                      ? `Selected: ${selectedColor?.name || "Unknown"}`
+                      : "No color selected"}
+                  </p>
                   {selectedColor && (
                     <div className="flex items-center space-x-2 mt-2">
                       <div
@@ -705,10 +741,26 @@ const CustomizationPage: React.FC = () => {
                   <label className="text-sm font-medium">Wheels</label>
                   {filteredWheels.length > 0 ? (
                     <RadioGroup
-                      value={selectedWheelId}
-                      onValueChange={setSelectedWheelId}
+                      value={selectedWheelId || "none"}
+                      onValueChange={(value) =>
+                        setSelectedWheelId(value === "none" ? "" : value)
+                      }
                     >
                       <div className="space-y-2 max-h-60 overflow-y-auto">
+                        <div className="flex items-center p-2 border rounded-md hover:bg-muted">
+                          <RadioGroupItem value="none" id="wheel-none" />
+                          <label
+                            htmlFor="wheel-none"
+                            className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                          >
+                            <div className="w-12 h-12 rounded bg-muted" />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">
+                                No selection
+                              </span>
+                            </div>
+                          </label>
+                        </div>
                         {filteredWheels.map((wheel) => (
                           <div
                             key={wheel.id}
@@ -748,6 +800,11 @@ const CustomizationPage: React.FC = () => {
                       No wheels available for this model.
                     </p>
                   )}
+                  <p className="text-xs text-muted-foreground">
+                    {selectedWheelId
+                      ? `Selected: ${selectedWheel?.name || "Unknown"}`
+                      : "No wheels selected"}
+                  </p>
                 </div>
 
                 {/* Interior Selection */}
@@ -755,10 +812,26 @@ const CustomizationPage: React.FC = () => {
                   <label className="text-sm font-medium">Interior</label>
                   {filteredInteriors.length > 0 ? (
                     <RadioGroup
-                      value={selectedInteriorId}
-                      onValueChange={setSelectedInteriorId}
+                      value={selectedInteriorId || "none"}
+                      onValueChange={(value) =>
+                        setSelectedInteriorId(value === "none" ? "" : value)
+                      }
                     >
                       <div className="space-y-2 max-h-60 overflow-y-auto">
+                        <div className="flex items-center p-2 border rounded-md hover:bg-muted">
+                          <RadioGroupItem value="none" id="interior-none" />
+                          <label
+                            htmlFor="interior-none"
+                            className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                          >
+                            <div className="w-8 h-8 rounded border bg-muted" />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">
+                                No selection
+                              </span>
+                            </div>
+                          </label>
+                        </div>
                         {filteredInteriors.map((interior) => (
                           <div
                             key={interior.id}
@@ -807,6 +880,22 @@ const CustomizationPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground mt-1">
                       No interiors available for this model.
                     </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {selectedInteriorId
+                      ? `Selected: ${selectedInterior?.name || "Unknown"}`
+                      : "No interior selected"}
+                  </p>
+                  {selectedInterior?.hex && selectedInteriorId && (
+                    <div className="flex items-center space-x-2 mt-2">
+                      <div
+                        className="w-8 h-8 rounded border"
+                        style={{ backgroundColor: selectedInterior.hex }}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {selectedInterior.hex}
+                      </span>
+                    </div>
                   )}
                 </div>
                 {/* Pricing Rule Selection */}
@@ -913,6 +1002,13 @@ const CustomizationPage: React.FC = () => {
                     "Save Design"
                   )}
                 </Button>
+                {(!selectedColorId ||
+                  !selectedWheelId ||
+                  !selectedInteriorId) && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Please select all customization options to save your design
+                  </p>
+                )}
               </CardFooter>
             </Card>
 
@@ -936,7 +1032,8 @@ const CustomizationPage: React.FC = () => {
                     <div className="w-full">
                       <h3 className="text-sm font-medium mb-2">Exterior</h3>
                       <div className="relative">
-                        {selectedColor?.images &&
+                        {selectedColorId &&
+                        selectedColor?.images &&
                         selectedColor.images.length > 0 ? (
                           <>
                             <Image
@@ -1020,17 +1117,24 @@ const CustomizationPage: React.FC = () => {
                           />
                         )}
                       </div>
-                      {selectedColor && selectedColor.description && (
-                        <div className="text-start mt-4">
-                          <p className="text-sm text-muted-foreground mt-2 max-w-md">
-                            {selectedColor.description}
-                          </p>
-                        </div>
+                      {selectedColorId ? (
+                        selectedColor &&
+                        selectedColor.description && (
+                          <div className="text-start mt-4">
+                            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                              {selectedColor.description}
+                            </p>
+                          </div>
+                        )
+                      ) : (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          No color selected - using default exterior
+                        </p>
                       )}
                     </div>
 
                     {/* Wheels Preview */}
-                    {selectedWheel?.imageUrl && (
+                    {selectedWheelId && selectedWheel?.imageUrl && (
                       <div className="w-full">
                         <h3 className="text-sm font-medium mb-2">Wheels</h3>
                         <Image
@@ -1049,9 +1153,17 @@ const CustomizationPage: React.FC = () => {
                         )}
                       </div>
                     )}
+                    {!selectedWheelId && (
+                      <div className="w-full">
+                        <h3 className="text-sm font-medium mb-2">Wheels</h3>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          No wheels selected - using default wheels
+                        </p>
+                      </div>
+                    )}
 
                     {/* Interior Preview */}
-                    {selectedInterior && (
+                    {selectedInteriorId && selectedInterior && (
                       <div className="w-full">
                         <h3 className="text-sm font-medium mb-2">Interior</h3>
                         <Image
@@ -1082,6 +1194,14 @@ const CustomizationPage: React.FC = () => {
                             </span>
                           </div>
                         )}
+                      </div>
+                    )}
+                    {!selectedInteriorId && (
+                      <div className="w-full">
+                        <h3 className="text-sm font-medium mb-2">Interior</h3>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          No interior selected - using default interior
+                        </p>
                       </div>
                     )}
                   </>
