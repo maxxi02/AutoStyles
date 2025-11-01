@@ -22,8 +22,6 @@ import { toast } from "sonner";
 import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  GoogleAuthProvider,
-  signInWithPopup,
   signOut,
   getMultiFactorResolver,
   TotpMultiFactorGenerator,
@@ -215,33 +213,6 @@ export function LoginForm({
       toast.error("Reset Failed", {
         description,
       });
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      setLoading(true);
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      // For Google login, email is typically verified by default, but check anyway
-      if (!user.emailVerified) {
-        await signOut(auth);
-        toast.error("Verification Required", {
-          description: "Please verify your email before logging in.",
-        });
-        return;
-      }
-
-      await handleSuccessLogin(user);
-    } catch (error: unknown) {
-      const firebaseError = error as FirebaseError;
-      toast.error("Google Login Failed", {
-        description: firebaseError.message ?? "An unexpected error occurred.",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 

@@ -85,6 +85,11 @@ interface Appointment {
   paymentStatus?: "pending" | "paid";
   paidAt?: Date;
   paymentId?: string;
+  cancelledAt?: Date;
+  refundStatus?: "processed" | "failed";
+  refundAmount?: number;
+  refundId?: string;
+  deductionAmount?: number;
 }
 interface CarType {
   id: string;
@@ -161,6 +166,11 @@ const ClientsTransactionPage: React.FC = () => {
   const [editTime, setEditTime] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Refund modal state
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [appointmentToRefund, setAppointmentToRefund] =
+    useState<Appointment | null>(null);
 
   // Load data from Firestore
   useEffect(() => {
@@ -700,15 +710,76 @@ const ClientsTransactionPage: React.FC = () => {
   };
 
   const handleCancelAppointment = async (appointmentId: string) => {
-    try {
-      await updateDoc(doc(db, "appointments", appointmentId), {
-        status: "cancelled",
-      });
-      toast.success("Appointment cancelled successfully!");
-    } catch (error) {
-      toast.error("Failed to cancel appointment");
-      console.error(error);
+    const appointment = appointments.find((apt) => apt.id === appointmentId);
+    if (!appointment) return;
+
+    // Check if it's a paid appointment
+    if (appointment.paymentStatus === "paid") {
+      // Check 24-hour restriction
+      const appointmentDateTime = new Date(
+        `${appointment.date}T${appointment.time}`
+      );
+      const now = new Date();
+      const hoursDifference =
+        (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      if (hoursDifference < 24 && appointmentDateTime > now) {
+        toast.error("Cannot cancel within 24 hours of appointment time");
+        return;
+      }
+
+      const loadingToast = toast.loading("Processing refund...");
+
+      try {
+        const response = await fetch("/api/appointments/cancel-with-refund", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            appointmentId,
+            transactionId: appointment.transactionId,
+          }),
+        });
+
+        const data = await response.json();
+        toast.dismiss(loadingToast);
+
+        if (response.ok) {
+          toast.success(
+            `Appointment cancelled. Refund of ₱${data.refundAmount.toLocaleString()} processed (₱${data.deductionAmount.toLocaleString()} processing fee deducted).`
+          );
+        } else {
+          toast.error(data.error || "Failed to process refund");
+        }
+      } catch (error) {
+        toast.dismiss(loadingToast);
+        toast.error("Network error during refund processing");
+        console.error(error);
+      }
+    } else {
+      // Unpaid appointment - simple cancellation
+      try {
+        await updateDoc(doc(db, "appointments", appointmentId), {
+          status: "cancelled",
+          cancelledAt: new Date(),
+        });
+        toast.success("Appointment cancelled successfully!");
+      } catch (error) {
+        toast.error("Failed to cancel appointment");
+        console.error(error);
+      }
     }
+  };
+
+  const handleRefundConfirm = async () => {
+    if (!appointmentToRefund) return;
+    await handleCancelAppointment(appointmentToRefund.id);
+    setShowRefundModal(false);
+    setAppointmentToRefund(null);
+  };
+
+  const handleRefundCancel = () => {
+    setShowRefundModal(false);
+    setAppointmentToRefund(null);
   };
 
   const handleDeleteAppointment = async (
@@ -1232,59 +1303,130 @@ const ClientsTransactionPage: React.FC = () => {
                                       </Badge>
                                     </div>
 
-                                    {apt.status !== "cancelled" &&
-                                      apt.paymentStatus !== "paid" && (
-                                        <div className="flex gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                              handleEditAppointment(apt)
+                                    {apt.status !== "cancelled" && (
+                                      <div className="flex gap-2">
+                                        {apt.paymentStatus !== "paid" && (
+                                          <>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() =>
+                                                handleEditAppointment(apt)
+                                              }
+                                              className="flex-1"
+                                            >
+                                              Edit
+                                            </Button>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() =>
+                                                handleDeleteAppointment(
+                                                  apt.id,
+                                                  apt.paymentStatus
+                                                )
+                                              }
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                          </>
+                                        )}
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          onClick={() => {
+                                            if (apt.paymentStatus === "paid") {
+                                              // Check 24-hour restriction before opening modal
+                                              const appointmentDateTime =
+                                                new Date(
+                                                  `${apt.date}T${apt.time}`
+                                                );
+                                              const now = new Date();
+                                              const hoursDifference =
+                                                (appointmentDateTime.getTime() -
+                                                  now.getTime()) /
+                                                (1000 * 60 * 60);
+
+                                              if (
+                                                hoursDifference < 24 &&
+                                                appointmentDateTime > now
+                                              ) {
+                                                toast.error(
+                                                  "Cannot cancel within 24 hours of appointment time"
+                                                );
+                                                return;
+                                              }
+
+                                              setAppointmentToRefund(apt);
+                                              setShowRefundModal(true);
+                                            } else {
+                                              handleCancelAppointment(apt.id);
                                             }
-                                            className="flex-1"
-                                          >
-                                            Edit
-                                          </Button>
-                                          <Button
-                                            variant="destructive"
-                                            size="sm"
-                                            onClick={() =>
-                                              handleCancelAppointment(apt.id)
-                                            }
-                                            className="flex-1"
-                                          >
-                                            Cancel
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                              handleDeleteAppointment(
-                                                apt.id,
-                                                apt.paymentStatus
-                                              )
-                                            }
-                                          >
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      )}
+                                          }}
+                                          disabled={
+                                            apt.paymentStatus === "paid" &&
+                                            (() => {
+                                              const appointmentDateTime =
+                                                new Date(
+                                                  `${apt.date}T${apt.time}`
+                                                );
+                                              const now = new Date();
+                                              const hoursDifference =
+                                                (appointmentDateTime.getTime() -
+                                                  now.getTime()) /
+                                                (1000 * 60 * 60);
+                                              return (
+                                                hoursDifference < 24 &&
+                                                appointmentDateTime > now
+                                              );
+                                            })()
+                                          }
+                                          className={
+                                            apt.paymentStatus === "paid"
+                                              ? "w-full"
+                                              : "flex-1"
+                                          }
+                                        >
+                                          Cancel{" "}
+                                          {apt.paymentStatus === "paid" &&
+                                            "(with Refund)"}
+                                        </Button>
+                                      </div>
+                                    )}
 
                                     {apt.status === "cancelled" && (
-                                      <Badge
-                                        variant="secondary"
-                                        className="w-full justify-center"
-                                      >
-                                        Cancelled
-                                      </Badge>
+                                      <div className="space-y-2">
+                                        <Badge
+                                          variant="secondary"
+                                          className="w-full justify-center"
+                                        >
+                                          Cancelled
+                                        </Badge>
+                                        {apt.refundAmount && (
+                                          <div className="text-xs text-center space-y-1 p-2 bg-muted rounded">
+                                            <p className="text-green-600 font-medium">
+                                              Refunded: ₱
+                                              {apt.refundAmount.toLocaleString()}
+                                            </p>
+                                            {apt.deductionAmount && (
+                                              <p className="text-muted-foreground">
+                                                Processing Fee: ₱
+                                                {apt.deductionAmount.toLocaleString()}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
                                     )}
 
-                                    {apt.paymentStatus === "paid" && (
-                                      <p className="text-xs text-muted-foreground text-center">
-                                        Paid appointments cannot be edited or
-                                        cancelled
-                                      </p>
-                                    )}
+                                    {apt.paymentStatus === "paid" &&
+                                      apt.status !== "cancelled" && (
+                                        <p className="text-xs text-muted-foreground text-center">
+                                          Paid appointments cannot be edited.
+                                          Cancelling will process a refund with
+                                          2% fee.
+                                        </p>
+                                      )}
                                   </>
                                 )}
                               </div>
@@ -1343,6 +1485,59 @@ const ClientsTransactionPage: React.FC = () => {
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseModal}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Refund Confirmation Modal */}
+      <Dialog open={showRefundModal} onOpenChange={setShowRefundModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Cancellation with Refund</DialogTitle>
+            <DialogDescription>
+              {appointmentToRefund &&
+                (() => {
+                  const transaction = transactions.find(
+                    (t) => t.id === appointmentToRefund.transactionId
+                  );
+                  if (!transaction) return <p>Transaction not found.</p>;
+                  const refundAmount = transaction.price * 0.98;
+                  const deductionAmount = transaction.price * 0.02;
+                  const appointmentDateTime = new Date(
+                    `${appointmentToRefund.date}T${appointmentToRefund.time}`
+                  );
+                  const now = new Date();
+                  const hoursDifference =
+                    (appointmentDateTime.getTime() - now.getTime()) /
+                    (1000 * 60 * 60);
+                  if (hoursDifference < 24 && appointmentDateTime > now) {
+                    return (
+                      <p>Cannot cancel within 24 hours of appointment time.</p>
+                    );
+                  }
+                  return (
+                    <>
+                      <p>
+                        This appointment is paid. Cancelling will process a
+                        refund of {refundAmount.toLocaleString()} (98% of the
+                        payment) with a 2% processing fee (
+                        {deductionAmount.toLocaleString()}).
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Do you want to proceed?
+                      </p>
+                    </>
+                  );
+                })()}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleRefundCancel}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleRefundConfirm}>
+              Proceed with Refund
             </Button>
           </DialogFooter>
         </DialogContent>
