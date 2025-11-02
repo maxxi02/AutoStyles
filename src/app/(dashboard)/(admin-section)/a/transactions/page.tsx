@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Plus,
   Eye,
   ArrowUpRight,
   ArrowDownRight,
@@ -30,14 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type React from "react";
 import {
   Dialog,
@@ -56,6 +47,7 @@ import {
   doc,
   updateDoc,
   Timestamp,
+  getDoc,
 } from "firebase/firestore";
 import {
   Select,
@@ -189,6 +181,26 @@ const AdminTransactionPage = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [isUpdatingProgress, setIsUpdatingProgress] = useState(false);
   const [autoworkers, setAutoworkers] = useState<UserData[]>([]);
+  const [processedTransactions, setProcessedTransactions] = useState<
+    Set<string>
+  >(new Set());
+
+  const paidTransactions = transactions.filter(
+    (transaction) => transaction.status === "purchased"
+  );
+
+  useEffect(() => {
+    paidTransactions.forEach(async (transaction) => {
+      // Only process if it hasn't been processed yet
+      if (
+        !processedTransactions.has(transaction.id) &&
+        transaction.status === "purchased"
+      ) {
+        await updateInventorySoldCounts(transaction);
+        setProcessedTransactions((prev) => new Set(prev).add(transaction.id));
+      }
+    });
+  }, [paidTransactions, processedTransactions]);
 
   useEffect(() => {
     const expectedSnapshots = 6;
@@ -343,6 +355,55 @@ const AdminTransactionPage = () => {
     };
   }, []);
 
+  // Add this function to your admin transaction page
+  const updateInventorySoldCounts = async (transaction: Transaction) => {
+    try {
+      // Update paint color sold count
+      if (transaction.colorId) {
+        const colorRef = doc(db, "paintColors", transaction.colorId);
+        const colorDoc = await getDoc(colorRef);
+        if (colorDoc.exists()) {
+          const currentSold = colorDoc.data().sold || 0;
+          await updateDoc(colorRef, {
+            sold: currentSold + 1,
+            inventory: (colorDoc.data().inventory || 0) - 1,
+          });
+        }
+      }
+
+      // Update wheel sold count
+      if (transaction.wheelId) {
+        const wheelRef = doc(db, "wheels", transaction.wheelId);
+        const wheelDoc = await getDoc(wheelRef);
+        if (wheelDoc.exists()) {
+          const currentSold = wheelDoc.data().sold || 0;
+          await updateDoc(wheelRef, {
+            sold: currentSold + 1,
+            inventory: (wheelDoc.data().inventory || 0) - 1,
+          });
+        }
+      }
+
+      // Update interior sold count
+      if (transaction.interiorId) {
+        const interiorRef = doc(db, "interiors", transaction.interiorId);
+        const interiorDoc = await getDoc(interiorRef);
+        if (interiorDoc.exists()) {
+          const currentSold = interiorDoc.data().sold || 0;
+          await updateDoc(interiorRef, {
+            sold: currentSold + 1,
+            inventory: (interiorDoc.data().inventory || 0) - 1,
+          });
+        }
+      }
+
+      toast.success("Inventory updated successfully!");
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      toast.error("Failed to update inventory");
+    }
+  };
+
   useEffect(() => {
     if (selectedTransaction && showDetailsModal) {
       const updatedTransaction = transactions.find(
@@ -475,10 +536,6 @@ const AdminTransactionPage = () => {
     );
   }
 
-  const paidTransactions = transactions.filter(
-    (transaction) => transaction.status === "purchased"
-  );
-
   const getAverageFeedbackRating = () => {
     const feedbacks = paidTransactions.filter((t) => t.feedback);
     if (feedbacks.length === 0) return 0;
@@ -504,30 +561,6 @@ const AdminTransactionPage = () => {
     (sum, transaction) => sum + transaction.price,
     0
   );
-
-  function QuickActions() {
-    return (
-      <div className="flex items-center gap-3">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              New Transaction
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Create Transaction</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Online Order</DropdownMenuItem>
-            <DropdownMenuItem>Walk-in Customer</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Quick Quote</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    );
-  }
-
   interface StatCardProps {
     title: string;
     value: string;
@@ -1195,14 +1228,8 @@ const AdminTransactionPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <QuickActions />
-        </div>
-
         <StatsCards />
-
         <TransactionsTable />
-
         <DetailsModal />
       </main>
     </div>

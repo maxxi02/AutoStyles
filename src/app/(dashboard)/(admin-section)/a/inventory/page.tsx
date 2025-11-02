@@ -181,6 +181,7 @@ const InventoryPage: React.FC = () => {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
 
+  const [revenuePeriod, setRevenuePeriod] = useState<"weekly" | "monthly" | "yearly">("monthly");
   // Load data from Firestore
   useEffect(() => {
     const unsubscribeCarTypes = onSnapshot(

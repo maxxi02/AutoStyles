@@ -22,12 +22,20 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
-import {
-  collection,
-  onSnapshot,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase"; 
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface Transaction {
+  id: string;
+  colorId: string;
+  wheelId: string;
+  interiorId: string;
+  timestamp: Date;
+  price: number;
+  status: "saved" | "purchased" | "cancelled";
+}
 
 interface CarModel {
   id: string;
@@ -81,6 +89,10 @@ const AnalyticsPage: React.FC = () => {
   // Initial data loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [revenuePeriod, setRevenuePeriod] = useState<
+    "weekly" | "monthly" | "yearly"
+  >("monthly");
 
   // Load data from Firestore
   useEffect(() => {
@@ -151,12 +163,34 @@ const AnalyticsPage: React.FC = () => {
         });
       }
     );
-
+    const unsubscribeTransactions = onSnapshot(
+      collection(db, "transactions"),
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => {
+          const docData = doc.data();
+          return {
+            id: doc.id,
+            ...docData,
+            timestamp: docData.timestamp?.toDate(),
+          } as Transaction;
+        });
+        setTransactions(data.filter((t) => t.status === "purchased"));
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === 5) {
+            // Update to 5 snapshots
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    );
     return () => {
       unsubscribeCarModels();
       unsubscribePaintColors();
       unsubscribeWheels();
       unsubscribeInteriors();
+      unsubscribeTransactions();
     };
   }, []);
 
@@ -165,6 +199,47 @@ const AnalyticsPage: React.FC = () => {
       carModels.find((model) => model.id === carModelId)?.name || "Unknown"
     );
   };
+
+  const getFilteredTransactions = () => {
+    const now = new Date();
+    let startDate: Date;
+
+    switch (revenuePeriod) {
+      case "weekly":
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case "monthly":
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case "yearly":
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+    }
+
+    return transactions.filter((t) => t.timestamp >= startDate);
+  };
+
+  const filteredTransactions = getFilteredTransactions();
+
+  const totalRevenue =
+    paintColors.reduce((sum, c) => {
+      const sold = filteredTransactions.filter(
+        (t) => t.colorId === c.id
+      ).length;
+      return sum + sold * c.price;
+    }, 0) +
+    wheels.reduce((sum, w) => {
+      const sold = filteredTransactions.filter(
+        (t) => t.wheelId === w.id
+      ).length;
+      return sum + sold * w.price;
+    }, 0) +
+    interiors.reduce((sum, i) => {
+      const sold = filteredTransactions.filter(
+        (t) => t.interiorId === i.id
+      ).length;
+      return sum + sold * i.price;
+    }, 0);
 
   if (isDataLoading) {
     return (
@@ -220,14 +295,8 @@ const AnalyticsPage: React.FC = () => {
                       (sum, c) => sum + c.price * c.inventory,
                       0
                     ) +
-                    wheels.reduce(
-                      (sum, w) => sum + w.price * w.inventory,
-                      0
-                    ) +
-                    interiors.reduce(
-                      (sum, i) => sum + i.price * i.inventory,
-                      0
-                    )
+                    wheels.reduce((sum, w) => sum + w.price * w.inventory, 0) +
+                    interiors.reduce((sum, i) => sum + i.price * i.inventory, 0)
                   ).toLocaleString()}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -238,30 +307,33 @@ const AnalyticsPage: React.FC = () => {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Revenue
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Revenue
+                  </CardTitle>
+                  <Select
+                    value={revenuePeriod}
+                    onValueChange={(value) =>
+                      setRevenuePeriod(value as "weekly" | "monthly" | "yearly")
+                    }
+                  >
+                    <SelectTrigger className="w-[120px] h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold">
-                  ₱
-                  {(
-                    paintColors.reduce(
-                      (sum, c) => sum + c.price * (c.sold || 0),
-                      0
-                    ) +
-                    wheels.reduce(
-                      (sum, w) => sum + w.price * (w.sold || 0),
-                      0
-                    ) +
-                    interiors.reduce(
-                      (sum, i) => sum + i.price * (i.sold || 0),
-                      0
-                    )
-                  ).toLocaleString()}
+                  ₱{totalRevenue.toLocaleString()}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  From sold items
+                <p className="text-xs text-muted-foreground mt-1 capitalize">
+                  {revenuePeriod} revenue
                 </p>
               </CardContent>
             </Card>
@@ -326,8 +398,7 @@ const AnalyticsPage: React.FC = () => {
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
-                {paintColors.filter((c) => (c.sold || 0) > 0).length ===
-                  0 && (
+                {paintColors.filter((c) => (c.sold || 0) > 0).length === 0 && (
                   <p className="text-center text-sm text-muted-foreground">
                     No sales data yet
                   </p>
@@ -338,9 +409,7 @@ const AnalyticsPage: React.FC = () => {
             {/* Wheels Sales */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">
-                  Top Selling Wheels
-                </CardTitle>
+                <CardTitle className="text-base">Top Selling Wheels</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={250}>
@@ -458,8 +527,7 @@ const AnalyticsPage: React.FC = () => {
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
-                {interiors.filter((i) => (i.sold || 0) > 0).length ===
-                  0 && (
+                {interiors.filter((i) => (i.sold || 0) > 0).length === 0 && (
                   <p className="text-center text-sm text-muted-foreground">
                     No sales data yet
                   </p>
@@ -515,9 +583,7 @@ const AnalyticsPage: React.FC = () => {
           {/* Low Inventory Alerts */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">
-                Low Inventory Alerts
-              </h3>
+              <h3 className="text-lg font-semibold">Low Inventory Alerts</h3>
               <span className="text-sm text-muted-foreground">
                 Threshold: 50 units
               </span>
@@ -533,8 +599,7 @@ const AnalyticsPage: React.FC = () => {
                   Wheels ({wheels.filter((w) => w.inventory < 50).length})
                 </TabsTrigger>
                 <TabsTrigger value="interiors">
-                  Interiors (
-                  {interiors.filter((i) => i.inventory < 50).length})
+                  Interiors ({interiors.filter((i) => i.inventory < 50).length})
                 </TabsTrigger>
               </TabsList>
 
@@ -595,8 +660,7 @@ const AnalyticsPage: React.FC = () => {
                         </CardFooter>
                       </Card>
                     ))}
-                  {paintColors.filter((c) => c.inventory < 50).length ===
-                    0 && (
+                  {paintColors.filter((c) => c.inventory < 50).length === 0 && (
                     <p className="col-span-full text-center text-muted-foreground py-8">
                       All paint colors are well-stocked ✓
                     </p>
@@ -695,9 +759,7 @@ const AnalyticsPage: React.FC = () => {
                               <span className="text-muted-foreground">
                                 Price:
                               </span>
-                              <span>
-                                ₱{interior.price.toLocaleString()}
-                              </span>
+                              <span>₱{interior.price.toLocaleString()}</span>
                             </div>
                           </div>
                         </CardContent>
@@ -712,8 +774,7 @@ const AnalyticsPage: React.FC = () => {
                         </CardFooter>
                       </Card>
                     ))}
-                  {interiors.filter((i) => i.inventory < 50).length ===
-                    0 && (
+                  {interiors.filter((i) => i.inventory < 50).length === 0 && (
                     <p className="col-span-full text-center text-muted-foreground py-8">
                       All interiors are well-stocked ✓
                     </p>
