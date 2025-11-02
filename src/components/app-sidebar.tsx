@@ -46,7 +46,9 @@ interface UserData {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [userRole, setUserRole] = React.useState<"user" | "admin">("user");
+  const [userRole, setUserRole] = React.useState<
+    "user" | "admin" | "autoworker"
+  >("user");
   const [user, setUser] = React.useState<UserData | null>(null);
   const [navMain, setNavMain] = React.useState<NavItem[]>([]);
 
@@ -67,7 +69,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               photoURL?: string;
             };
             const role = data?.role || "user";
-            setUserRole(role as "user" | "admin");
+            setUserRole(role as "user" | "admin" | "autoworker");
             // Update user with Firestore data, including photoURL for avatar
             setUser({
               name: data.name || currentUser.displayName || "AutoStyles User",
@@ -169,6 +171,51 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Contact",
           url: "/c/contact",
           icon: Users,
+        },
+      ]);
+    } else if (userRole === "autoworker") {
+      // Autoworker role
+      setNavMain([
+        {
+          title: "Dashboard",
+          url: "/w/dashboard",
+          icon: Frame,
+          isActive: true,
+        },
+        {
+          title: "My Assignments",
+          url: "/w/assignments",
+          icon: Car,
+          items: [
+            {
+              title: "Active Jobs",
+              url: "/w/assignments/active",
+            },
+            {
+              title: "Completed",
+              url: "/w/assignments/completed",
+            },
+          ],
+        },
+        {
+          title: "Account",
+          url: "/w/account",
+          icon: Settings2,
+          items: [
+            {
+              title: "Profile",
+              url: "/w/account/profile",
+            },
+            {
+              title: "Security",
+              url: "/w/account/security",
+            },
+            {
+              title: "Logout",
+              url: "#",
+              onClick: () => {}, // Handle logout here if needed
+            },
+          ],
         },
       ]);
     } else {
@@ -281,6 +328,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
           ],
         },
+        {
+          title: "Users",
+          url: "/a/users",
+          icon: Users,
+          items: [
+            {
+              title: "Manage Users",
+              url: "/a/users/manage",
+            },
+            {
+              title: "Roles & Permissions",
+              url: "/a/users/roles",
+            },
+          ],
+        },
       ]);
     }
   }, [userRole]);
@@ -296,7 +358,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {
         name: "AutoStyles",
         logo: GalleryVerticalEnd,
-        plan: userRole === "admin" ? "Enterprise" : "Customer",
+        plan:
+          userRole === "admin"
+            ? "Enterprise"
+            : userRole === "autoworker"
+              ? "Worker"
+              : "Customer",
       },
     ],
     projects: [

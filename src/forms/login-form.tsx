@@ -81,11 +81,16 @@ export function LoginForm({
   const handleSuccessLogin = async (user: User) => {
     const role = await fetchUserRole(user.uid);
     setRoleCookie(role);
-    const dashboardPath = role === "admin" ? "/a/dashboard" : "/c/dashboard";
+    if (role === "admin") {
+      router.push("/a/dashboard");
+    } else if (role === "autoworker") {
+      router.push("/w/dashboard");
+    } else {
+      router.push("/c/dashboard");
+    }
     toast.success("Success", {
       description: "Logged in successfully!",
     });
-    router.push(dashboardPath);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

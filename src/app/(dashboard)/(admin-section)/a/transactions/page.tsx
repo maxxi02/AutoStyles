@@ -57,6 +57,13 @@ import {
   updateDoc,
   Timestamp,
 } from "firebase/firestore";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 interface Transaction {
   id: string;
   typeId: string;
@@ -69,6 +76,8 @@ interface Transaction {
   status: "saved" | "purchased" | "cancelled";
   paymentVerifiedAt?: Date;
   paymentId?: string;
+  assignedAutoworkerId?: string; // NEW
+  estimatedCompletionDate?: Date; // NEW
   customizationProgress?: {
     paintCompleted: boolean;
     paintCompletedAt: Date | null;
@@ -90,7 +99,6 @@ interface Transaction {
     submittedAt: Date;
   };
 }
-
 interface Wheel {
   id: string;
   carModelId: string;
@@ -136,6 +144,17 @@ interface PaintColor {
   imageUrl?: string;
 }
 
+interface UserData {
+  id: string;
+  name?: string;
+  email?: string;
+  username?: string;
+  phone?: string;
+  address?: string;
+  role?: string;
+  photoURL?: string;
+}
+
 const StarRating: React.FC<{
   rating: number;
   readonly?: boolean;
@@ -169,6 +188,7 @@ const AdminTransactionPage = () => {
     useState<Transaction | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [isUpdatingProgress, setIsUpdatingProgress] = useState(false);
+  const [autoworkers, setAutoworkers] = useState<UserData[]>([]);
 
   useEffect(() => {
     const expectedSnapshots = 6;
@@ -183,6 +203,7 @@ const AdminTransactionPage = () => {
             ...docData,
             timestamp: docData.timestamp.toDate(),
             paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
+            estimatedCompletionDate: docData.estimatedCompletionDate?.toDate(),
             customizationProgress: docData.customizationProgress
               ? {
                   ...docData.customizationProgress,
@@ -206,7 +227,6 @@ const AdminTransactionPage = () => {
           } as Transaction;
         });
         setTransactions(data);
-
         setSnapshotCount((prev) => {
           const next = prev + 1;
           if (next === expectedSnapshots) {
@@ -302,6 +322,16 @@ const AdminTransactionPage = () => {
       }
     );
 
+    const unsubscribeAutoworkers = onSnapshot(
+      collection(db, "users"),
+      (snapshot) => {
+        const data = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }) as UserData)
+          .filter((user) => user.role === "autoworker");
+        setAutoworkers(data);
+      }
+    );
+
     return () => {
       unsubscribeTransactions();
       unsubscribeCarTypes();
@@ -309,10 +339,20 @@ const AdminTransactionPage = () => {
       unsubscribePaintColors();
       unsubscribeWheels();
       unsubscribeInteriors();
+      unsubscribeAutoworkers();
     };
   }, []);
 
-  //helper functions
+  useEffect(() => {
+    if (selectedTransaction && showDetailsModal) {
+      const updatedTransaction = transactions.find(
+        (t) => t.id === selectedTransaction.id
+      );
+      if (updatedTransaction) {
+        setSelectedTransaction(updatedTransaction);
+      }
+    }
+  }, [transactions, selectedTransaction, showDetailsModal]);
 
   const calculateProgress = (transaction: Transaction): number => {
     if (!transaction.customizationProgress) return 0;
@@ -392,6 +432,35 @@ const AdminTransactionPage = () => {
       toast.error("Failed to update progress");
     } finally {
       setIsUpdatingProgress(false);
+    }
+  };
+  const handleAssignAutoworker = async (
+    transactionId: string,
+    autoworkerId: string
+  ) => {
+    try {
+      await updateDoc(doc(db, "transactions", transactionId), {
+        assignedAutoworkerId: autoworkerId,
+      });
+      toast.success("Autoworker assigned successfully!");
+    } catch (error) {
+      console.error("Error assigning autoworker:", error);
+      toast.error("Failed to assign autoworker");
+    }
+  };
+
+  const handleSetEstimatedCompletion = async (
+    transactionId: string,
+    date: Date
+  ) => {
+    try {
+      await updateDoc(doc(db, "transactions", transactionId), {
+        estimatedCompletionDate: Timestamp.fromDate(date),
+      });
+      toast.success("Estimated completion date set!");
+    } catch (error) {
+      console.error("Error setting completion date:", error);
+      toast.error("Failed to set completion date");
     }
   };
 
@@ -612,6 +681,77 @@ const AdminTransactionPage = () => {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Autoworker Assignment - NEW */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <h3 className="font-semibold text-lg">Work Assignment</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-muted-foreground block mb-2">
+                    Assigned Autoworker
+                  </label>
+                  <Select
+                    value={selectedTransaction.assignedAutoworkerId || ""}
+                    onValueChange={(value) =>
+                      handleAssignAutoworker(selectedTransaction.id, value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select autoworker" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {autoworkers.map((worker) => (
+                        <SelectItem key={worker.id} value={worker.id}>
+                          {worker.name || worker.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground block mb-2">
+                    Estimated Completion
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="w-full px-3 py-2 border rounded-md"
+                    value={
+                      selectedTransaction.estimatedCompletionDate
+                        ? format(
+                            selectedTransaction.estimatedCompletionDate,
+                            "yyyy-MM-dd'T'HH:mm"
+                          )
+                        : ""
+                    }
+                    onChange={(e) =>
+                      handleSetEstimatedCompletion(
+                        selectedTransaction.id,
+                        new Date(e.target.value)
+                      )
+                    }
+                  />
+                </div>
+              </div>
+              {selectedTransaction.assignedAutoworkerId && (
+                <div className="mt-2 p-2 bg-muted rounded-md">
+                  <p className="text-sm">
+                    <span className="font-medium">Assigned to:</span>{" "}
+                    {autoworkers.find(
+                      (w) => w.id === selectedTransaction.assignedAutoworkerId
+                    )?.name || "Unknown"}
+                  </p>
+                  {selectedTransaction.estimatedCompletionDate && (
+                    <p className="text-sm text-muted-foreground">
+                      Expected by:{" "}
+                      {format(
+                        selectedTransaction.estimatedCompletionDate,
+                        "MMM dd, yyyy HH:mm"
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Vehicle Preview */}
