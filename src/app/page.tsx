@@ -1,81 +1,34 @@
 "use client";
-
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Car,
   ChevronLeft,
   ChevronRight,
-  ArrowRight,
-  Heart,
   DollarSign,
-  Shield,
-  Zap,
-  Users,
-  HelpCircle,
   Facebook,
+  HelpCircle,
   Instagram,
-  Twitter,
-  Youtube,
   Mail,
-  Phone,
   MapPin,
+  Phone,
+  Shield,
+  Twitter,
+  Users,
+  Youtube,
+  Zap,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-const cars = [
-  {
-    name: "Mazda Protégé X4",
-    price: "$550.00",
-    image:
-      "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-    type: "SUV",
-  },
-  {
-    name: "Mustang Sport Car",
-    price: "$825.00",
-    image:
-      "https://images.unsplash.com/photo-1549317661-bd8e8e7b1d1f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-    type: "Sports",
-  },
-  {
-    name: "Ampera Halo GT",
-    price: "$650.00",
-    image:
-      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-    type: "Sedan",
-  },
-  {
-    name: "Audi e-tron B8",
-    price: "$700.00",
-    image:
-      "https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-    type: "Sedan",
-  },
-  {
-    name: "Harbour Aurora",
-    price: "$925.00",
-    image:
-      "https://images.unsplash.com/photo-1547753495-2e4d3b3f3b7a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-    type: "SUV",
-  },
-  {
-    name: "Veloce Stellaris",
-    price: "$875.00",
-    image:
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-    type: "SUV",
-  },
-];
+import { useCallback, useEffect, useState } from "react";
 
 const services = [
   {
@@ -143,6 +96,50 @@ const faqs = [
 
 export default function Home() {
   const { push } = useRouter();
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  const heroSlides = [
+    {
+      image:
+        "https://scontent.fmnl30-3.fna.fbcdn.net/v/t39.30808-6/464151342_27551660981115826_2519574407233915309_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=86c6b0&_nc_eui2=AeGVnZUr13y-hofMTvo0jNCnnIQZhn9V5lychBmGf1XmXPCrvrL4p-FLcOumzYnPPRDKmmuiBZiAqsfVAq0WdYKf&_nc_ohc=F63sAcwFxqIQ7kNvwG7RdOQ&_nc_oc=AdmaSI3dg38EqsCB6LFNB5VpuI-vgkzFTCHtQHUVY41Egb5rxL629tuY8LoR9GrPo8s&_nc_zt=23&_nc_ht=scontent.fmnl30-3.fna&_nc_gid=4jumwGb5gMnFg0zAoqGLEQ&oh=00_AfjZSWCwu3CqlvCD-MU9MpX6NLaRqxmkmpI2oocjj_wpdw&oe=691A031D",
+      alt: "AutoStyles customized car 1",
+    },
+    {
+      image:
+        "https://scontent.fmnl30-1.fna.fbcdn.net/v/t39.30808-6/482000458_28975415192073724_2252981353448231833_n.jpg?_nc_cat=107&ccb=1-7&_nc_sid=cc71e4&_nc_eui2=AeFXzAxmC7btyEqL0CO6xgiNHuGhflA1Czce4aF-UDULN3srE33NsEtta-ICLg7yvTCKHo-9OUsto-CTwa11eA1z&_nc_ohc=OP_ldnrZ2PYQ7kNvwHvYNp1&_nc_oc=AdnMvDNohhwZZDIPSyjDmcN2l6KZaxLHsaxqZ-yE4R_wvbAOZOqGTGKS__-yqm1qcyw&_nc_zt=23&_nc_ht=scontent.fmnl30-1.fna&_nc_gid=xx1R8W_7__DC0lEwWWZZwA&oh=00_AfgDe2IYFHCP55Lwg50AyViqYmIrFKd54Ru1ljQOzVZNkg&oe=6919DFA0",
+      alt: "AutoStyles customized car 2",
+    },
+    {
+      image:
+        "https://scontent.fmnl30-1.fna.fbcdn.net/v/t39.30808-6/465438652_27687328930882363_724556434674650557_n.jpg?_nc_cat=103&ccb=1-7&_nc_sid=cc71e4&_nc_eui2=AeGMYFG-xLyJGXAPdcBxLfr8JdMlSLAtSgUl0yVIsC1KBaPOoEVhuU2scqsjh2Mxly8h0b5awsS8SkyAjqUMmViY&_nc_ohc=4z-FVwvSASIQ7kNvwHn3YPn&_nc_oc=AdkV4yyiS-RZ6mSFYcaC9kIbnqG6OmPMT8SZ5eb8OKHxcmRDmu1u-eCM7xMD5_jDGxE&_nc_zt=23&_nc_ht=scontent.fmnl30-1.fna&_nc_gid=UIRXU26hUGhAtRSETQI1cQ&oh=00_Afiijz2MJC7XjYgt0MI_yJa9oSJjL5xCeU5BPzbRKDgHHA&oe=6919FFF2",
+      alt: "AutoStyles customized car 3",
+    },
+    {
+      image:
+        "https://scontent.fmnl30-3.fna.fbcdn.net/v/t39.30808-6/465023409_27655031144112142_3665967185021494388_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=86c6b0&_nc_eui2=AeEwbavyAMLECCXPo6ot_uxSmNrdVDSG0FCY2t1UNIbQUHycStCouvOs1_PbPReqOugfDGxDyUfpBpDhe--G0QCS&_nc_ohc=77LsiMZR4BoQ7kNvwHdzA-n&_nc_oc=AdkyEO4m3w0FbB0dLsMkR2BkeQTu1Ie8uJAhKAnviBPT2nLngNisgFllhwHd9HkcBno&_nc_zt=23&_nc_ht=scontent.fmnl30-3.fna&_nc_gid=3xkZ_XR29Qubg8YFqrLBTw&oh=00_Afhwrb8E2hny11b2EIejM7QS6GgwwMa8R6jiX2ytXhfvpA&oe=691A06AB",
+      alt: "AutoStyles customized car 4",
+    },
+    {
+      image:
+        "https://scontent.fmnl30-1.fna.fbcdn.net/v/t39.30808-6/464155834_27563311703284087_7897004082253006181_n.jpg?_nc_cat=106&ccb=1-7&_nc_sid=86c6b0&_nc_eui2=AeH9o21uxEUh_VzzsIqPFiVbusXXNZNe0ja6xdc1k17SNnV5j3vjfHxMemK-5BmcrjfVNgzTVzTdLhIgys0JOYHU&_nc_ohc=QbpZHTKjzg8Q7kNvwEdE0OS&_nc_oc=AdlDa7fuO_LU8I3b9iRiVsTpCly0VVJx4lPS_wNxSk5iYIVpIMrmL1A5WYzcKH0v2Mc&_nc_zt=23&_nc_ht=scontent.fmnl30-1.fna&_nc_gid=owBUA5BFcjUpXRR2WCEGvA&oh=00_Afh_ypU2WzkIKepeXur4aQQbYQn-DqbV8DFLzDi1MmkPmw&oe=6919E022",
+      alt: "AutoStyles customized car 5",
+    },
+  ];
+
+  const nextSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+  }, [heroSlides.length]);
+
+  const prevSlide = useCallback(() => {
+    setCurrentSlide(
+      (prev) => (prev - 1 + heroSlides.length) % heroSlides.length
+    );
+  }, [heroSlides.length]);
+
+  useEffect(() => {
+    const slideInterval = setInterval(nextSlide, 5000);
+    return () => clearInterval(slideInterval);
+  }, [nextSlide]);
 
   return (
     <div className="flex min-h-screen flex-col items-center">
@@ -219,71 +216,73 @@ export default function Home() {
 
                 <div className="flex flex-wrap justify-center lg:justify-start gap-4">
                   <Button size="lg" className="text-base font-semibold px-8">
-                    Explore Collection
+                    Get Started
                   </Button>
                   <Button
                     size="lg"
                     variant="outline"
                     className="text-base font-semibold px-8 bg-transparent"
                   >
-                    View Pricing
+                    Learn More
                   </Button>
-                </div>
-
-                <div className="flex items-center justify-center lg:justify-start gap-8 pt-4">
-                  <div>
-                    <div className="text-3xl font-bold">500+</div>
-                    <div className="text-sm text-muted-foreground">
-                      Happy Customers
-                    </div>
-                  </div>
-                  <div className="h-12 w-px bg-border" />
-                  <div>
-                    <div className="text-3xl font-bold">50+</div>
-                    <div className="text-sm text-muted-foreground">
-                      Color Options
-                    </div>
-                  </div>
-                  <div className="h-12 w-px bg-border" />
-                  <div>
-                    <div className="text-3xl font-bold">4.9</div>
-                    <div className="text-sm text-muted-foreground">Rating</div>
-                  </div>
                 </div>
               </div>
 
               <div className="relative mx-auto lg:mx-0">
                 <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 p-8 max-w-md lg:max-w-none">
-                  <Image
-                    src="https://images.unsplash.com/photo-1571171638497-a3e3c5e0c1e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80"
-                    alt="Luxury customized orange sports car"
-                    className="h-full w-full object-contain"
-                    width={500}
-                    height={375}
-                    priority
-                  />
-                  <div className="absolute top-4 right-4 bg-background/95 backdrop-blur px-4 py-2 rounded-full border border-border">
+                  {heroSlides.map((slide, index) => (
+                    <div
+                      key={index}
+                      className={`absolute inset-0 transition-opacity duration-700 ${
+                        index === currentSlide ? "opacity-100" : "opacity-0"
+                      }`}
+                    >
+                      <Image
+                        src={slide.image}
+                        alt={slide.alt}
+                        className="h-full w-full object-contain transform transition-transform duration-700 hover:scale-105"
+                        width={500}
+                        height={375}
+                        priority={index === 0}
+                      />
+                    </div>
+                  ))}
+                  <div className="absolute top-4 right-4 bg-background/95 backdrop-blur px-4 py-2 rounded-full border border-border animate-fade-in">
                     <span className="text-sm font-semibold">Latest Model</span>
                   </div>
                 </div>
 
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4">
+                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 animate-fade-up">
                   <Button
                     size="icon"
                     variant="outline"
-                    className="h-12 w-12 rounded-full bg-background shadow-lg"
+                    className="h-12 w-12 rounded-full bg-background shadow-lg transition-transform duration-300 hover:scale-110 hover:bg-primary hover:text-primary-foreground"
+                    onClick={prevSlide}
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </Button>
                   <div className="flex gap-2">
-                    <div className="h-2 w-8 rounded-full bg-primary" />
-                    <div className="h-2 w-2 rounded-full bg-muted" />
-                    <div className="h-2 w-2 rounded-full bg-muted" />
+                    {heroSlides.map((_, index) => (
+                      <div
+                        key={index}
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          index === currentSlide
+                            ? "w-8 bg-primary"
+                            : "w-2 bg-muted hover:w-8"
+                        }`}
+                        onClick={() => setCurrentSlide(index)}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Go to slide ${index + 1}`}
+                        title={`Slide ${index + 1}`}
+                      />
+                    ))}
                   </div>
                   <Button
                     size="icon"
                     variant="outline"
-                    className="h-12 w-12 rounded-full bg-background shadow-lg"
+                    className="h-12 w-12 rounded-full bg-background shadow-lg transition-transform duration-300 hover:scale-110 hover:bg-primary hover:text-primary-foreground"
+                    onClick={nextSlide}
                   >
                     <ChevronRight className="h-5 w-5" />
                   </Button>
@@ -293,106 +292,11 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Collection Section */}
-        <section id="collection" className="py-20 lg:py-32">
-          <div className="container mx-auto px-4">
-            <div className="text-center space-y-4 mb-16">
-              <h2 className="text-4xl font-bold tracking-tight lg:text-5xl text-balance">
-                Explore Your Dream Cars
-              </h2>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                Browse our extensive collection of premium vehicles ready for
-                customization. Each model can be tailored to your exact
-                specifications.
-              </p>
-            </div>
-
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 justify-items-center">
-              {cars.map((car, index) => (
-                <Card
-                  key={index}
-                  className="group overflow-hidden border-2 hover:border-primary transition-all duration-300 max-w-sm"
-                >
-                  <CardContent className="p-0">
-                    <div className="relative aspect-[4/3] overflow-hidden bg-secondary/30">
-                      <Image
-                        src={car.image}
-                        alt={car.name}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        width={400}
-                        height={300}
-                      />
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="absolute top-4 right-4 h-10 w-10 rounded-full bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Heart className="h-5 w-5" />
-                      </Button>
-                    </div>
-                    <div className="p-6 space-y-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-bold text-xl">{car.name}</h3>
-                          <span className="text-xs font-medium px-3 py-1 rounded-full bg-secondary">
-                            {car.type}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Premium customization package with multiple color
-                          options and finishes available.
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between pt-2">
-                        <span className="text-2xl font-bold text-primary">
-                          {car.price}
-                        </span>
-                        <Button className="gap-2">
-                          Choose More
-                          <ArrowRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            <div className="text-center mt-12">
-              <Button
-                size="lg"
-                variant="outline"
-                className="gap-2 bg-transparent"
-              >
-                View Full Collection
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </section>
-
         {/* Services Section */}
         <section id="services" className="py-20 lg:py-32 bg-secondary/30">
           <div className="container mx-auto px-4">
-            <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 items-center">
-              <div className="relative order-2 lg:order-1 mx-auto lg:mx-0">
-                <div className="relative aspect-[3/4] overflow-hidden rounded-2xl max-w-md lg:max-w-none">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5" />
-                  <Image
-                    src="https://images.unsplash.com/photo-1502877338535-766e3a6052c0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80"
-                    alt="Red classic customized car"
-                    className="h-full w-full object-cover"
-                    width={500}
-                    height={667}
-                  />
-                  <div className="absolute top-8 left-8 bg-primary text-primary-foreground px-6 py-3 rounded-lg">
-                    <div className="text-3xl font-bold">15+</div>
-                    <div className="text-sm">Years Experience</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-8 order-1 lg:order-2 text-center lg:text-left">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center space-y-12">
                 <div className="space-y-4">
                   <h2 className="text-4xl font-bold tracking-tight lg:text-5xl text-balance">
                     We Have Creative Services For You
@@ -404,7 +308,7 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="grid gap-6 sm:grid-cols-2 justify-items-center lg:justify-items-start">
+                <div className="grid gap-6 sm:grid-cols-2 justify-items-center">
                   {services.map((service, index) => (
                     <Card
                       key={index}
@@ -438,15 +342,14 @@ export default function Home() {
           <div className="container mx-auto px-4">
             <div className="text-center space-y-4 mb-16">
               <h2 className="text-4xl font-bold tracking-tight lg:text-5xl text-balance">
-                Get In Touch
+                CONTACT US
               </h2>
               {/* <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                Ready to start your customization journey? Contact us today for
-                a free consultation.
-              </p> */}
+        Ready to start your customization journey? Contact us today for
+        a free consultation.
+      </p> */}
             </div>
-
-            <div className="grid gap-8 lg:grid-cols-2">
+            <div className="max-w-md mx-auto">
               <div className="space-y-6">
                 <div className="flex items-center gap-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -455,7 +358,7 @@ export default function Home() {
                   <div>
                     <h3 className="font-bold">Our Location</h3>
                     <p className="text-sm text-muted-foreground">
-                      123 Auto Street, Car City, CC 12345
+                      Callejon St., Brgy. Sambat, Tanauan, Philippines
                     </p>
                   </div>
                 </div>
@@ -466,7 +369,7 @@ export default function Home() {
                   <div>
                     <h3 className="font-bold">Phone</h3>
                     <p className="text-sm text-muted-foreground">
-                      +1 (555) 123-4567
+                      0917 725 0985
                     </p>
                   </div>
                 </div>
@@ -477,18 +380,10 @@ export default function Home() {
                   <div>
                     <h3 className="font-bold">Email</h3>
                     <p className="text-sm text-muted-foreground">
-                      hello@autostyles.com
+                      autowerkesph@gmail.com
                     </p>
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-4">
-                <Input placeholder="Your Name" />
-                <Input placeholder="Your Email" type="email" />
-                <Input placeholder="Subject" />
-                <Input placeholder="Message" className="h-32" />
-                <Button className="w-full">Send Message</Button>
               </div>
             </div>
           </div>
