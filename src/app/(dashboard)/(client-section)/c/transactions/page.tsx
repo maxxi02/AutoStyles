@@ -649,24 +649,33 @@ const ClientsTransactionPage: React.FC = () => {
       return;
     }
 
-    const color = paintColors.find((c) => c.id === latestTransaction.colorId);
-    const wheel = wheels.find((w) => w.id === latestTransaction.wheelId);
-    const interior = interiors.find(
-      (i) => i.id === latestTransaction.interiorId
-    );
+    // Only check inventory for selected items
+    if (latestTransaction.colorId) {
+      const color = paintColors.find((c) => c.id === latestTransaction.colorId);
+      if (!color || color.inventory < 1) {
+        toast.error("Sorry, the selected paint color is out of stock.");
+        return;
+      }
+    }
 
-    if (!color || color.inventory < 1) {
-      toast.error("Sorry, the selected paint color is out of stock.");
-      return;
+    if (latestTransaction.wheelId) {
+      const wheel = wheels.find((w) => w.id === latestTransaction.wheelId);
+      if (!wheel || wheel.inventory < 1) {
+        toast.error("Sorry, the selected wheels are out of stock.");
+        return;
+      }
     }
-    if (!wheel || wheel.inventory < 1) {
-      toast.error("Sorry, the selected wheels are out of stock.");
-      return;
+
+    if (latestTransaction.interiorId) {
+      const interior = interiors.find(
+        (i) => i.id === latestTransaction.interiorId
+      );
+      if (!interior || interior.inventory < 1) {
+        toast.error("Sorry, the selected interior is out of stock.");
+        return;
+      }
     }
-    if (!interior || interior.inventory < 1) {
-      toast.error("Sorry, the selected interior is out of stock.");
-      return;
-    }
+
     const { model } = getTransactionDetails(latestTransaction);
 
     try {
@@ -675,7 +684,7 @@ const ClientsTransactionPage: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           transactionId: latestTransaction.id,
-          amount: Math.round(latestTransaction.price * 100), // Ensure integer centavos
+          amount: Math.round(latestTransaction.price * 100),
           description: `Payment for ${model?.name || "Custom Design"} customization`,
         }),
       });
@@ -685,7 +694,6 @@ const ClientsTransactionPage: React.FC = () => {
       if (response.ok && data.checkout_url) {
         window.location.href = data.checkout_url;
       } else {
-        // Improved error handling
         const errorMsg = data.error
           ? Array.isArray(data.error)
             ? data.error
@@ -958,22 +966,25 @@ const ClientsTransactionPage: React.FC = () => {
                   {/* Quick Details */}
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
-                      <div
-                        className="w-4 h-4 rounded"
-                        style={{ backgroundColor: color?.hex || "#000000" }}
-                      />
+                      {color && (
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: color.hex || "#000000" }}
+                        />
+                      )}
                       <span className="text-sm font-medium">
-                        Exterior: {color?.name} ({color?.finish})
+                        Exterior:{" "}
+                        {color ? `${color.name} (${color.finish})` : "N/A"}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-sm font-medium">
-                        Wheels: {wheel?.name}
+                        Wheels: {wheel?.name || "N/A"}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-sm font-medium">
-                        Interior: {interior?.name}
+                        Interior: {interior?.name || "N/A"}
                       </span>
                       {interior?.hex && (
                         <div
@@ -1048,19 +1059,26 @@ const ClientsTransactionPage: React.FC = () => {
                   <>
                     <div className="space-y-4">
                       <div>
-                        <h3 className="font-medium">Model: {model?.name}</h3>
-                      </div>
-                      <div>
                         <h3 className="font-medium">
-                          Exterior: {color?.name} ({color?.finish})
+                          Model: {model?.name || "N/A"}
                         </h3>
                       </div>
                       <div>
-                        <h3 className="font-medium">Wheels: {wheel?.name}</h3>
+                        <h3 className="font-medium">
+                          Exterior:{" "}
+                          {color?.name
+                            ? `${color.name} (${color.finish})`
+                            : "N/A"}
+                        </h3>
                       </div>
                       <div>
                         <h3 className="font-medium">
-                          Interior: {interior?.name}
+                          Wheels: {wheel?.name || "N/A"}
+                        </h3>
+                      </div>
+                      <div>
+                        <h3 className="font-medium">
+                          Interior: {interior?.name || "N/A"}
                         </h3>
                       </div>
                       <div className="text-2xl font-bold">
@@ -1187,85 +1205,124 @@ const ClientsTransactionPage: React.FC = () => {
                         {/* Timeline */}
                         <div className="space-y-3">
                           {/* Paint Progress */}
-                          <div className="flex items-start gap-3 p-3 border rounded-md">
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-2">
-                                <label className="font-medium flex items-center gap-2">
-                                  Exterior Paint/Color
-                                  {customizationProgress.paintCompleted && (
-                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                  )}
-                                </label>
-                              </div>
-                              {customizationProgress.paintCompleted &&
-                                customizationProgress.paintCompletedAt && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Completed:{" "}
-                                    {format(
-                                      customizationProgress.paintCompletedAt,
-                                      "MMM dd, yyyy HH:mm"
+                          {latestTransaction.colorId && color ? (
+                            <div className="flex items-start gap-3 p-3 border rounded-md">
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="font-medium flex items-center gap-2">
+                                    Exterior Paint/Color
+                                    {customizationProgress.paintCompleted && (
+                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
                                     )}
-                                  </p>
-                                )}
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {color?.name} ({color?.finish})
-                              </p>
+                                  </label>
+                                </div>
+                                {customizationProgress.paintCompleted &&
+                                  customizationProgress.paintCompletedAt && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Completed:{" "}
+                                      {format(
+                                        customizationProgress.paintCompletedAt,
+                                        "MMM dd, yyyy HH:mm"
+                                      )}
+                                    </p>
+                                  )}
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {color.name} ({color.finish})
+                                </p>
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <div className="flex items-start gap-3 p-3 border rounded-md bg-muted/30">
+                              <div className="flex-1">
+                                <label className="font-medium">
+                                  Exterior Paint/Color
+                                </label>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  N/A - Not selected
+                                </p>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Wheels Progress */}
-                          <div className="flex items-start gap-3 p-3 border rounded-md">
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-2">
-                                <label className="font-medium flex items-center gap-2">
-                                  Wheels Installation
-                                  {customizationProgress.wheelsCompleted && (
-                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                  )}
-                                </label>
-                              </div>
-                              {customizationProgress.wheelsCompleted &&
-                                customizationProgress.wheelsCompletedAt && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Completed:{" "}
-                                    {format(
-                                      customizationProgress.wheelsCompletedAt,
-                                      "MMM dd, yyyy HH:mm"
+                          {latestTransaction.wheelId && wheel ? (
+                            <div className="flex items-start gap-3 p-3 border rounded-md">
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="font-medium flex items-center gap-2">
+                                    Wheels Installation
+                                    {customizationProgress.wheelsCompleted && (
+                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
                                     )}
-                                  </p>
-                                )}
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {wheel?.name}
-                              </p>
+                                  </label>
+                                </div>
+                                {customizationProgress.wheelsCompleted &&
+                                  customizationProgress.wheelsCompletedAt && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Completed:{" "}
+                                      {format(
+                                        customizationProgress.wheelsCompletedAt,
+                                        "MMM dd, yyyy HH:mm"
+                                      )}
+                                    </p>
+                                  )}
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {wheel.name}
+                                </p>
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <div className="flex items-start gap-3 p-3 border rounded-md bg-muted/30">
+                              <div className="flex-1">
+                                <label className="font-medium">
+                                  Wheels Installation
+                                </label>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  N/A - Not selected
+                                </p>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Interior Progress */}
-                          <div className="flex items-start gap-3 p-3 border rounded-md">
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-2">
-                                <label className="font-medium flex items-center gap-2">
-                                  Interior Customization
-                                  {customizationProgress.interiorCompleted && (
-                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                  )}
-                                </label>
-                              </div>
-                              {customizationProgress.interiorCompleted &&
-                                customizationProgress.interiorCompletedAt && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Completed:{" "}
-                                    {format(
-                                      customizationProgress.interiorCompletedAt,
-                                      "MMM dd, yyyy HH:mm"
+                          {latestTransaction.interiorId && interior ? (
+                            <div className="flex items-start gap-3 p-3 border rounded-md">
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="font-medium flex items-center gap-2">
+                                    Interior Customization
+                                    {customizationProgress.interiorCompleted && (
+                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
                                     )}
-                                  </p>
-                                )}
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {interior?.name}
-                              </p>
+                                  </label>
+                                </div>
+                                {customizationProgress.interiorCompleted &&
+                                  customizationProgress.interiorCompletedAt && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Completed:{" "}
+                                      {format(
+                                        customizationProgress.interiorCompletedAt,
+                                        "MMM dd, yyyy HH:mm"
+                                      )}
+                                    </p>
+                                  )}
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {interior.name}
+                                </p>
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <div className="flex items-start gap-3 p-3 border rounded-md bg-muted/30">
+                              <div className="flex-1">
+                                <label className="font-medium">
+                                  Interior Customization
+                                </label>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  N/A - Not selected
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

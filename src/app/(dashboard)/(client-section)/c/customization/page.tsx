@@ -20,7 +20,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { collection, addDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageCircleWarning } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { auth } from "@/lib/firebase";
@@ -467,19 +467,11 @@ const CustomizationPage: React.FC = () => {
       return;
     }
 
-    // Check if all required customization parts are selected
-    if (!selectedColorId) {
-      toast.error("Please select an exterior color before saving.");
-      return;
-    }
-
-    if (!selectedWheelId) {
-      toast.error("Please select wheels before saving.");
-      return;
-    }
-
-    if (!selectedInteriorId) {
-      toast.error("Please select an interior before saving.");
+    // Check if at least one customization option is selected
+    if (!selectedColorId && !selectedWheelId && !selectedInteriorId) {
+      toast.error(
+        "Please select at least one customization option (color, wheels, or interior) before saving."
+      );
       return;
     }
 
@@ -988,9 +980,9 @@ const CustomizationPage: React.FC = () => {
                   disabled={
                     isSaving ||
                     !selectedModelId ||
-                    !selectedColorId ||
-                    !selectedWheelId ||
-                    !selectedInteriorId
+                    (!selectedColorId &&
+                      !selectedWheelId &&
+                      !selectedInteriorId)
                   }
                 >
                   {isSaving ? (
@@ -1002,13 +994,6 @@ const CustomizationPage: React.FC = () => {
                     "Save Design"
                   )}
                 </Button>
-                {(!selectedColorId ||
-                  !selectedWheelId ||
-                  !selectedInteriorId) && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Please select all customization options to save your design
-                  </p>
-                )}
               </CardFooter>
             </Card>
 
@@ -1204,6 +1189,15 @@ const CustomizationPage: React.FC = () => {
                         </p>
                       </div>
                     )}
+                    {!selectedColorId &&
+                      !selectedWheelId &&
+                      !selectedInteriorId && (
+                        <p className="text-xs mt-2 text-red-500 flex items-center gap-2">
+                          <MessageCircleWarning />
+                          Please select at least one customization option to
+                          save your design
+                        </p>
+                      )}
                   </>
                 )}
               </CardContent>

@@ -190,17 +190,29 @@ const AdminTransactionPage = () => {
   );
 
   useEffect(() => {
-    paidTransactions.forEach(async (transaction) => {
-      // Only process if it hasn't been processed yet
-      if (
-        !processedTransactions.has(transaction.id) &&
-        transaction.status === "purchased"
-      ) {
-        await updateInventorySoldCounts(transaction);
-        setProcessedTransactions((prev) => new Set(prev).add(transaction.id));
+    const updateInventories = async () => {
+      let updatedCount = 0;
+
+      for (const transaction of paidTransactions) {
+        if (
+          !processedTransactions.has(transaction.id) &&
+          transaction.status === "purchased"
+        ) {
+          await updateInventorySoldCounts(transaction);
+          setProcessedTransactions((prev) => new Set(prev).add(transaction.id));
+          updatedCount++;
+        }
       }
-    });
-  }, [paidTransactions, processedTransactions]);
+
+      if (updatedCount > 0) {
+        toast.success(
+          `Inventory updated for ${updatedCount} transaction${updatedCount > 1 ? "s" : ""}!`
+        );
+      }
+    };
+
+    updateInventories();
+  }, [transactions]);
 
   useEffect(() => {
     const expectedSnapshots = 6;
@@ -397,7 +409,7 @@ const AdminTransactionPage = () => {
         }
       }
 
-      toast.success("Inventory updated successfully!");
+      // toast.success("Inventory updated successfully!");
     } catch (error) {
       console.error("Error updating inventory:", error);
       toast.error("Failed to update inventory");
