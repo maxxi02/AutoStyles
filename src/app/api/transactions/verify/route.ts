@@ -17,7 +17,6 @@ interface PayMongoPayment {
 export async function POST(req: NextRequest) {
   try {
     const { transactionId } = await req.json();
-
     if (!transactionId) {
       return NextResponse.json(
         { error: "Transaction ID required" },
@@ -29,7 +28,6 @@ export async function POST(req: NextRequest) {
       .collection("transactions")
       .doc(transactionId);
     const transactionSnap = await transactionRef.get();
-
     if (!transactionSnap.exists) {
       return NextResponse.json(
         { error: "Transaction not found" },
@@ -48,6 +46,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Validate base requirement: At least a model must be selected
+    if (!transaction?.modelId) {
+      return NextResponse.json(
+        { error: "No car model selected for this transaction" },
+        { status: 400 }
+      );
+    }
+
     // Fetch payment details from PayMongo to get payment ID
     let paymentId = null;
     try {
@@ -62,18 +68,15 @@ export async function POST(req: NextRequest) {
           },
         }
       );
-
       if (paymentsResponse.ok) {
         const paymentsData = await paymentsResponse.json();
         const payments = paymentsData.data || [];
-
         // Find payment matching this transaction
         const matchingPayment = payments.find(
           (payment: PayMongoPayment) =>
             payment.attributes.metadata?.transactionId === transactionId &&
             payment.attributes.status === "paid"
         );
-
         if (matchingPayment) {
           paymentId = matchingPayment.id;
           console.log("Found payment ID:", paymentId);
@@ -89,61 +92,79 @@ export async function POST(req: NextRequest) {
       // Continue without payment ID - it's not critical for verification
     }
 
-    // START: INVENTORY DEDUCTION
+    // START: CONDITIONAL INVENTORY DEDUCTION
     const batch = adminDb.batch();
 
-    // Check inventory availability first
-    const colorRef = adminDb
-      .collection("paintColors")
-      .doc(transaction?.colorId);
-    const wheelRef = adminDb.collection("wheels").doc(transaction?.wheelId);
-    const interiorRef = adminDb
-      .collection("interiors")
-      .doc(transaction?.interiorId);
+    // Color: Conditional check and update
+    if (transaction.colorId) {
+      const colorRef = adminDb
+        .collection("paintColors")
+        .doc(transaction.colorId);
+      const colorSnap = await colorRef.get();
+      const colorData = colorSnap.data();
+      if (!colorSnap.exists || !colorData || colorData.inventory < 1) {
+        return NextResponse.json(
+          { error: "Selected paint color is out of stock or not found" },
+          { status: 400 }
+        );
+      }
+      batch.update(colorRef, {
+        inventory: FieldValue.increment(-1),
+        sold: FieldValue.increment(1),
+      });
+    }
 
-    const [colorSnap, wheelSnap, interiorSnap] = await Promise.all([
-      colorRef.get(),
-      wheelRef.get(),
-      interiorRef.get(),
-    ]);
+    // Wheels: Conditional check and update
+    if (transaction.wheelId) {
+      const wheelRef = adminDb.collection("wheels").doc(transaction.wheelId);
+      const wheelSnap = await wheelRef.get();
+      const wheelData = wheelSnap.data();
+      if (!wheelSnap.exists || !wheelData || wheelData.inventory < 1) {
+        return NextResponse.json(
+          { error: "Selected wheels are out of stock or not found" },
+          { status: 400 }
+        );
+      }
+      batch.update(wheelRef, {
+        inventory: FieldValue.increment(-1),
+        sold: FieldValue.increment(1),
+      });
+    }
 
-    const colorData = colorSnap.data();
-    const wheelData = wheelSnap.data();
-    const interiorData = interiorSnap.data();
+    // Interior: Conditional check and update
+    if (transaction.interiorId) {
+      const interiorRef = adminDb
+        .collection("interiors")
+        .doc(transaction.interiorId);
+      const interiorSnap = await interiorRef.get();
+      const interiorData = interiorSnap.data();
+      if (!interiorSnap.exists || !interiorData || interiorData.inventory < 1) {
+        return NextResponse.json(
+          { error: "Selected interior is out of stock or not found" },
+          { status: 400 }
+        );
+      }
+      batch.update(interiorRef, {
+        inventory: FieldValue.increment(-1),
+        sold: FieldValue.increment(1),
+      });
+    }
 
-    // Validate inventory
-    if (!colorData || colorData.inventory < 1) {
+    // If no customizations at all, block payment
+    if (
+      !transaction.colorId &&
+      !transaction.wheelId &&
+      !transaction.interiorId
+    ) {
       return NextResponse.json(
-        { error: "Selected paint color is out of stock" },
+        {
+          error:
+            "No customizations (color, wheels, or interior) selected. Please complete your design.",
+        },
         { status: 400 }
       );
     }
-    if (!wheelData || wheelData.inventory < 1) {
-      return NextResponse.json(
-        { error: "Selected wheels are out of stock" },
-        { status: 400 }
-      );
-    }
-    if (!interiorData || interiorData.inventory < 1) {
-      return NextResponse.json(
-        { error: "Selected interior is out of stock" },
-        { status: 400 }
-      );
-    }
 
-    // Deduct inventory and increment sold count
-    batch.update(colorRef, {
-      inventory: FieldValue.increment(-1),
-      sold: FieldValue.increment(1),
-    });
-    batch.update(wheelRef, {
-      inventory: FieldValue.increment(-1),
-      sold: FieldValue.increment(1),
-    });
-    batch.update(interiorRef, {
-      inventory: FieldValue.increment(-1),
-      sold: FieldValue.increment(1),
-    });
     // END: INVENTORY DEDUCTION
 
     // Update transaction with payment ID
@@ -151,11 +172,9 @@ export async function POST(req: NextRequest) {
       status: "purchased",
       paymentVerifiedAt: new Date(),
     };
-
     if (paymentId) {
       transactionUpdate.paymentId = paymentId;
     }
-
     batch.update(transactionRef, transactionUpdate);
 
     // Update all appointments for this transaction
@@ -163,7 +182,6 @@ export async function POST(req: NextRequest) {
       .collection("appointments")
       .where("transactionId", "==", transactionId)
       .get();
-
     appointmentsSnapshot.docs.forEach((doc) => {
       batch.update(doc.ref, {
         paymentStatus: "paid",

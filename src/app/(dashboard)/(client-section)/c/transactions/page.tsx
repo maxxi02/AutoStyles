@@ -44,15 +44,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
-
 interface Transaction {
   id: string;
   userId?: string;
   typeId: string;
   modelId: string;
-  colorId: string;
-  wheelId: string;
-  interiorId: string;
+  colorId?: string;
+  wheelId?: string;
+  interiorId?: string;
   timestamp: Date;
   price: number;
   status: "saved" | "purchased" | "cancelled";
@@ -79,7 +78,6 @@ interface Transaction {
     submittedAt: Date;
   };
 }
-
 interface Appointment {
   id: string;
   transactionId: string;
@@ -100,7 +98,6 @@ interface CarType {
   id: string;
   name: string;
 }
-
 interface CarModel {
   id: string;
   name: string;
@@ -108,7 +105,6 @@ interface CarModel {
   imageUrl?: string;
   basePrice?: number;
 }
-
 interface PaintColor {
   id: string;
   carModelId: string;
@@ -120,7 +116,6 @@ interface PaintColor {
   inventory: number;
   imageUrl?: string;
 }
-
 interface Wheel {
   id: string;
   carModelId: string;
@@ -130,7 +125,6 @@ interface Wheel {
   inventory: number;
   imageUrl?: string;
 }
-
 interface Interior {
   id: string;
   carModelId: string;
@@ -141,7 +135,6 @@ interface Interior {
   imageUrl?: string;
   hex?: string;
 }
-
 const StarRating: React.FC<{
   rating: number;
   onRatingChange: (rating: number) => void;
@@ -165,7 +158,6 @@ const StarRating: React.FC<{
     </div>
   );
 };
-
 const ClientsTransactionPage: React.FC = () => {
   // feedback functions
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -175,7 +167,6 @@ const ClientsTransactionPage: React.FC = () => {
   const [rating, setRating] = useState(0);
   const [feedbackComment, setFeedbackComment] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
-
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [carTypes, setCarTypes] = useState<CarType[]>([]);
@@ -196,24 +187,19 @@ const ClientsTransactionPage: React.FC = () => {
   >(null);
   const searchParams = useSearchParams();
   const verificationAttempted = useRef<Set<string>>(new Set());
-
   const [editingAppointmentId, setEditingAppointmentId] = useState<
     string | null
   >(null);
   const [editDate, setEditDate] = useState("");
   const [editTime, setEditTime] = useState("");
-
   const [searchQuery, setSearchQuery] = useState("");
-
   // Refund modal state
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [appointmentToRefund, setAppointmentToRefund] =
     useState<Appointment | null>(null);
-
   // Load data from Firestore
   useEffect(() => {
     const expectedSnapshots = 7; // transactions + appointments + 5 others
-
     // Load transactions
     const q = query(
       collection(db, "transactions"),
@@ -251,7 +237,6 @@ const ClientsTransactionPage: React.FC = () => {
       });
       setTransactions(data);
       console.log("Transactions updated, count:", data.length);
-
       setSnapshotCount((prev) => {
         const next = prev + 1;
         if (next === expectedSnapshots) {
@@ -260,7 +245,6 @@ const ClientsTransactionPage: React.FC = () => {
         return next;
       });
     });
-
     // Load appointments
     const unsubscribeAppointments = onSnapshot(
       collection(db, "appointments"),
@@ -284,7 +268,6 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
-
     // Load supporting data (same as CustomizationPage)
     const unsubscribeCarTypes = onSnapshot(
       collection(db, "carTypes"),
@@ -302,7 +285,6 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribeCarModels = onSnapshot(
       collection(db, "carModels"),
       (snapshot) => {
@@ -319,7 +301,6 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribePaintColors = onSnapshot(
       collection(db, "paintColors"),
       (snapshot) => {
@@ -336,7 +317,6 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribeWheels = onSnapshot(
       collection(db, "wheels"),
       (snapshot) => {
@@ -353,7 +333,6 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribeInteriors = onSnapshot(
       collection(db, "interiors"),
       (snapshot) => {
@@ -370,7 +349,6 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
-
     return () => {
       unsubscribeTransactions();
       unsubscribeAppointments();
@@ -381,17 +359,14 @@ const ClientsTransactionPage: React.FC = () => {
       unsubscribeInteriors();
     };
   }, []);
-
   useEffect(() => {
     const success = searchParams.get("success");
     const cancelled = searchParams.get("cancelled");
     const tid = searchParams.get("tid");
-
     // Only process if we have valid params and haven't attempted verification
     if (!tid || verificationAttempted.current.has(tid)) {
       return;
     }
-
     if (cancelled === "true") {
       verificationAttempted.current.add(tid);
       toast.error("Payment was cancelled. Please try again.");
@@ -400,17 +375,13 @@ const ClientsTransactionPage: React.FC = () => {
       }, 3000);
       return;
     }
-
     if (success === "true") {
       console.log("Payment success detected for transaction:", tid);
-
       // Wait for transactions to be loaded before attempting verification
       if (!isDataLoading && transactions.length > 0) {
         const transaction = transactions.find((t) => t.id === tid);
-
         if (transaction) {
           verificationAttempted.current.add(tid);
-
           // Check if already verified
           if (transaction.status === "purchased") {
             console.log("Transaction already verified");
@@ -429,21 +400,18 @@ const ClientsTransactionPage: React.FC = () => {
       }
     }
   }, [searchParams, transactions, isDataLoading]);
-
   const handleVerifyPayment = async (tid: string) => {
     // Prevent duplicate calls
     if (verifyingTransactionId === tid) {
       console.log("Already verifying this transaction, skipping...");
       return;
     }
-
     const transaction = transactions.find((t) => t.id === tid);
     if (!transaction) {
       console.error("Transaction not found:", tid);
       toast.error("Transaction not found. Please refresh the page.");
       return;
     }
-
     if (transaction.status === "purchased") {
       console.log("Transaction already purchased, skipping verification");
       toast.success("Payment already verified!");
@@ -455,34 +423,27 @@ const ClientsTransactionPage: React.FC = () => {
       }, 2000);
       return;
     }
-
     console.log("Starting verification for transaction:", tid);
     setVerifyingTransactionId(tid);
     const loadingToast = toast.loading("Verifying payment...");
-
     try {
       const response = await fetch("/api/transactions/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transactionId: tid }),
       });
-
       const data = await response.json();
       toast.dismiss(loadingToast);
-
       if (response.ok) {
         console.log("Verification successful:", data);
-
         if (data.alreadyPaid) {
           toast.success("Payment already verified!");
         } else {
           toast.success("Payment verified! Your appointment is now confirmed.");
         }
-
         // Show modal with details
         setSelectedTransactionId(tid);
         setShowModal(true);
-
         // Clean URL after showing success
         setTimeout(() => {
           window.history.replaceState({}, "", "/c/transactions");
@@ -501,44 +462,55 @@ const ClientsTransactionPage: React.FC = () => {
       setVerifyingTransactionId(null);
     }
   };
-
   const getFilteredAndSortedAppointments = (transactionId: string) => {
     const filtered = appointments.filter(
       (apt) => apt.transactionId === transactionId
     );
-
     // Sort by date and time (nearest first), but keep cancelled at the end
     return filtered.sort((a, b) => {
       // Put cancelled appointments at the end
       if (a.status === "cancelled" && b.status !== "cancelled") return 1;
       if (b.status === "cancelled" && a.status !== "cancelled") return -1;
-
       // Sort by date and time (ascending - nearest first)
       const dateA = new Date(`${a.date}T${a.time}`);
       const dateB = new Date(`${b.date}T${b.time}`);
       return dateA.getTime() - dateB.getTime();
     });
   };
-
   const calculateProgress = (transaction: Transaction): number => {
     if (!transaction.customizationProgress) return 0;
-
     const progress = transaction.customizationProgress;
     let completedStages = 0;
-
-    if (progress.paintCompleted) completedStages++;
-    if (progress.wheelsCompleted) completedStages++;
-    if (progress.interiorCompleted) completedStages++;
-
-    return Math.round((completedStages / 3) * 100);
+    let totalStages = 0;
+    if (transaction.colorId) {
+      totalStages++;
+      if (progress.paintCompleted) completedStages++;
+    }
+    if (transaction.wheelId) {
+      totalStages++;
+      if (progress.wheelsCompleted) completedStages++;
+    }
+    if (transaction.interiorId) {
+      totalStages++;
+      if (progress.interiorCompleted) completedStages++;
+    }
+    return totalStages > 0
+      ? Math.round((completedStages / totalStages) * 100)
+      : 0;
   };
-
+  const getOverallStatus = (
+    transaction: Transaction
+  ): "pending" | "in-progress" | "completed" => {
+    const progress = calculateProgress(transaction);
+    if (progress === 100) return "completed";
+    if (progress > 0) return "in-progress";
+    return "pending";
+  };
   const getProgressColor = (percentage: number): string => {
     if (percentage === 0) return "text-gray-500";
     if (percentage < 100) return "text-orange-500";
     return "text-green-600";
   };
-
   if (isDataLoading) {
     return (
       <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
@@ -549,15 +521,12 @@ const ClientsTransactionPage: React.FC = () => {
       </div>
     );
   }
-
   const getFilteredTransactions = () => {
     if (!searchQuery) return transactions;
-
     return transactions.filter((transaction) => {
       const searchLower = searchQuery.toLowerCase();
       const { type, model, color, wheel, interior } =
         getTransactionDetails(transaction);
-
       const modelName = model?.name?.toLowerCase() || "";
       const typeName = type?.name?.toLowerCase() || "";
       const colorName = color?.name?.toLowerCase() || "";
@@ -569,7 +538,6 @@ const ClientsTransactionPage: React.FC = () => {
         "MMM dd, yyyy HH:mm"
       ).toLowerCase();
       const priceStr = transaction.price.toString();
-
       return (
         modelName.includes(searchLower) ||
         typeName.includes(searchLower) ||
@@ -582,33 +550,29 @@ const ClientsTransactionPage: React.FC = () => {
       );
     });
   };
-
   const getLatestTransaction = () => {
     return selectedTransactionId
       ? transactions.find((t) => t.id === selectedTransactionId)
       : null;
   };
-
   const getTransactionDetails = (transaction: Transaction) => {
     const type = carTypes.find((t) => t.id === transaction.typeId);
     const model = carModels.find((m) => m.id === transaction.modelId);
-    const color = paintColors.find((c) => c.id === transaction.colorId);
-    const wheel = wheels.find((w) => w.id === transaction.wheelId);
-    const interior = interiors.find((i) => i.id === transaction.interiorId);
-
+    const color = paintColors.find((c) => c.id === transaction.colorId || "");
+    const wheel = wheels.find((w) => w.id === transaction.wheelId || "");
+    const interior = interiors.find(
+      (i) => i.id === transaction.interiorId || ""
+    );
     return { type, model, color, wheel, interior };
   };
-
   const getTransactionAppointments = (transactionId: string) => {
     return appointments.filter((apt) => apt.transactionId === transactionId);
   };
-
   const handleSubmitFeedback = async () => {
     if (!feedbackTransactionId || rating === 0) {
       toast.error("Please provide a rating");
       return;
     }
-
     setIsSubmittingFeedback(true);
     try {
       await updateDoc(doc(db, "transactions", feedbackTransactionId), {
@@ -630,25 +594,20 @@ const ClientsTransactionPage: React.FC = () => {
       setIsSubmittingFeedback(false);
     }
   };
-
   const handleViewDetails = (transaction: Transaction) => {
     setSelectedTransactionId(transaction.id);
     setShowModal(true);
   };
-
   const handlePay = async () => {
     const latestTransaction = getLatestTransaction();
     if (!latestTransaction) return;
-
     const hasActiveAppointment = getTransactionAppointments(
       latestTransaction.id
     ).some((apt) => apt.status !== "cancelled");
-
     if (!hasActiveAppointment) {
       toast.error("Please book an appointment first.");
       return;
     }
-
     // Only check inventory for selected items
     if (latestTransaction.colorId) {
       const color = paintColors.find((c) => c.id === latestTransaction.colorId);
@@ -657,7 +616,6 @@ const ClientsTransactionPage: React.FC = () => {
         return;
       }
     }
-
     if (latestTransaction.wheelId) {
       const wheel = wheels.find((w) => w.id === latestTransaction.wheelId);
       if (!wheel || wheel.inventory < 1) {
@@ -665,7 +623,6 @@ const ClientsTransactionPage: React.FC = () => {
         return;
       }
     }
-
     if (latestTransaction.interiorId) {
       const interior = interiors.find(
         (i) => i.id === latestTransaction.interiorId
@@ -675,9 +632,7 @@ const ClientsTransactionPage: React.FC = () => {
         return;
       }
     }
-
     const { model } = getTransactionDetails(latestTransaction);
-
     try {
       const response = await fetch("/api/create-checkout", {
         method: "POST",
@@ -688,9 +643,7 @@ const ClientsTransactionPage: React.FC = () => {
           description: `Payment for ${model?.name || "Custom Design"} customization`,
         }),
       });
-
       const data = await response.json();
-
       if (response.ok && data.checkout_url) {
         window.location.href = data.checkout_url;
       } else {
@@ -714,14 +667,12 @@ const ClientsTransactionPage: React.FC = () => {
       console.error(error);
     }
   };
-
   const handleBookAppointment = async () => {
     const latestTransaction = getLatestTransaction();
     if (!latestTransaction || !appointmentDate || !appointmentTime) {
       toast.error("Please select date and time.");
       return;
     }
-
     // Check if there's already an active appointment
     const existingAppointments = getTransactionAppointments(
       latestTransaction.id
@@ -729,14 +680,12 @@ const ClientsTransactionPage: React.FC = () => {
     const hasActiveAppointment = existingAppointments.some(
       (apt) => apt.status !== "cancelled"
     );
-
     if (hasActiveAppointment) {
       toast.error(
         "You already have an active appointment for this customization. Please cancel or edit the existing one."
       );
       return;
     }
-
     try {
       await addDoc(collection(db, "appointments"), {
         transactionId: latestTransaction.id,
@@ -755,19 +704,16 @@ const ClientsTransactionPage: React.FC = () => {
       console.error(error);
     }
   };
-
   const handleEditAppointment = (appointment: Appointment) => {
     setEditingAppointmentId(appointment.id);
     setEditDate(appointment.date);
     setEditTime(appointment.time);
   };
-
   const handleSaveEdit = async () => {
     if (!editingAppointmentId || !editDate || !editTime) {
       toast.error("Please select date and time.");
       return;
     }
-
     try {
       await updateDoc(doc(db, "appointments", editingAppointmentId), {
         date: editDate,
@@ -782,17 +728,14 @@ const ClientsTransactionPage: React.FC = () => {
       console.error(error);
     }
   };
-
   const handleCancelEdit = () => {
     setEditingAppointmentId(null);
     setEditDate("");
     setEditTime("");
   };
-
   const handleCancelAppointment = async (appointmentId: string) => {
     const appointment = appointments.find((apt) => apt.id === appointmentId);
     if (!appointment) return;
-
     // Check if it's a paid appointment
     if (appointment.paymentStatus === "paid") {
       // Check 24-hour restriction
@@ -802,14 +745,11 @@ const ClientsTransactionPage: React.FC = () => {
       const now = new Date();
       const hoursDifference =
         (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-
       if (hoursDifference < 24 && appointmentDateTime > now) {
         toast.error("Cannot cancel within 24 hours of appointment time");
         return;
       }
-
       const loadingToast = toast.loading("Processing refund...");
-
       try {
         const response = await fetch("/api/appointments/cancel-with-refund", {
           method: "POST",
@@ -819,10 +759,8 @@ const ClientsTransactionPage: React.FC = () => {
             transactionId: appointment.transactionId,
           }),
         });
-
         const data = await response.json();
         toast.dismiss(loadingToast);
-
         if (response.ok) {
           toast.success(
             `Appointment cancelled. Refund of ₱${data.refundAmount.toLocaleString()} processed (₱${data.deductionAmount.toLocaleString()} processing fee deducted).`
@@ -849,19 +787,16 @@ const ClientsTransactionPage: React.FC = () => {
       }
     }
   };
-
   const handleRefundConfirm = async () => {
     if (!appointmentToRefund) return;
     await handleCancelAppointment(appointmentToRefund.id);
     setShowRefundModal(false);
     setAppointmentToRefund(null);
   };
-
   const handleRefundCancel = () => {
     setShowRefundModal(false);
     setAppointmentToRefund(null);
   };
-
   const handleDeleteAppointment = async (
     appointmentId: string,
     paymentStatus: string | undefined
@@ -870,7 +805,6 @@ const ClientsTransactionPage: React.FC = () => {
       toast.error("Cannot delete a paid appointment.");
       return;
     }
-
     try {
       await deleteDoc(doc(db, "appointments", appointmentId));
       toast.success("Appointment deleted successfully!");
@@ -879,7 +813,6 @@ const ClientsTransactionPage: React.FC = () => {
       console.error(error);
     }
   };
-
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedTransactionId(null);
@@ -890,9 +823,7 @@ const ClientsTransactionPage: React.FC = () => {
     setEditDate("");
     setEditTime("");
   };
-
   const latestTransaction = getLatestTransaction();
-
   return (
     <div className="flex flex-col gap-4 mb-6">
       <div className="flex justify-between items-center">
@@ -902,7 +833,6 @@ const ClientsTransactionPage: React.FC = () => {
           {transactions.length !== 1 ? "s" : ""}
         </Badge>
       </div>
-
       {/* Global Search Bar */}
       {transactions.length > 0 && (
         <div className="relative">
@@ -916,7 +846,6 @@ const ClientsTransactionPage: React.FC = () => {
           />
         </div>
       )}
-
       {transactions.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
@@ -932,7 +861,6 @@ const ClientsTransactionPage: React.FC = () => {
               getTransactionDetails(transaction);
             const previewImage =
               color?.imageUrl || model?.imageUrl || "/placeholder-car.png";
-
             return (
               <Card key={transaction.id}>
                 <CardHeader>
@@ -962,7 +890,6 @@ const ClientsTransactionPage: React.FC = () => {
                       height={300}
                     />
                   </div>
-
                   {/* Quick Details */}
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
@@ -994,7 +921,6 @@ const ClientsTransactionPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-
                   {/* Price */}
                   <div className="flex items-center justify-between p-2 bg-muted rounded-md">
                     <DollarSign className="h-4 w-4" />
@@ -1028,7 +954,6 @@ const ClientsTransactionPage: React.FC = () => {
           })}
         </div>
       )}
-
       {/* Details Modal */}
       <Dialog open={showModal} onOpenChange={handleCloseModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1043,6 +968,7 @@ const ClientsTransactionPage: React.FC = () => {
                   latestTransaction.id
                 ).some((apt) => apt.status !== "cancelled");
                 const progress = calculateProgress(latestTransaction);
+                const overallStatus = getOverallStatus(latestTransaction);
                 const customizationProgress =
                   latestTransaction.customizationProgress || {
                     paintCompleted: false,
@@ -1084,7 +1010,6 @@ const ClientsTransactionPage: React.FC = () => {
                       <div className="text-2xl font-bold">
                         Total: ₱{latestTransaction.price.toLocaleString()}
                       </div>
-
                       {/* Payment Status */}
                       {latestTransaction.status === "purchased" && (
                         <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
@@ -1104,9 +1029,8 @@ const ClientsTransactionPage: React.FC = () => {
                           </div>
                         </div>
                       )}
-
                       {/* Feedback Section - Show when customization is complete */}
-                      {customizationProgress.overallStatus === "completed" && (
+                      {overallStatus === "completed" && (
                         <div className="space-y-3 pt-4 border-t">
                           {!latestTransaction.feedback ? (
                             <>
@@ -1159,7 +1083,6 @@ const ClientsTransactionPage: React.FC = () => {
                           )}
                         </div>
                       )}
-
                       {/* Customization Progress Timeline */}
                       <div className="space-y-4 pt-4 border-t">
                         <div className="flex items-center justify-between">
@@ -1168,19 +1091,16 @@ const ClientsTransactionPage: React.FC = () => {
                           </h4>
                           <Badge
                             variant={
-                              customizationProgress.overallStatus ===
-                              "completed"
+                              overallStatus === "completed"
                                 ? "default"
-                                : customizationProgress.overallStatus ===
-                                    "in-progress"
+                                : overallStatus === "in-progress"
                                   ? "secondary"
                                   : "outline"
                             }
                           >
-                            {customizationProgress.overallStatus.toUpperCase()}
+                            {overallStatus.toUpperCase()}
                           </Badge>
                         </div>
-
                         {/* Progress Bar */}
                         <div className="flex items-center gap-3">
                           <span
@@ -1201,7 +1121,6 @@ const ClientsTransactionPage: React.FC = () => {
                             />
                           </div>
                         </div>
-
                         {/* Timeline */}
                         <div className="space-y-3">
                           {/* Paint Progress */}
@@ -1243,7 +1162,6 @@ const ClientsTransactionPage: React.FC = () => {
                               </div>
                             </div>
                           )}
-
                           {/* Wheels Progress */}
                           {latestTransaction.wheelId && wheel ? (
                             <div className="flex items-start gap-3 p-3 border rounded-md">
@@ -1283,7 +1201,6 @@ const ClientsTransactionPage: React.FC = () => {
                               </div>
                             </div>
                           )}
-
                           {/* Interior Progress */}
                           {latestTransaction.interiorId && interior ? (
                             <div className="flex items-start gap-3 p-3 border rounded-md">
@@ -1326,25 +1243,25 @@ const ClientsTransactionPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-
                     {/* Payment Button */}
-                    {latestTransaction.status !== "purchased" && (
-                      <div className="space-y-2 pt-4">
-                        <Button
-                          onClick={handlePay}
-                          className="w-full"
-                          disabled={!hasActiveAppointment}
-                        >
-                          Pay Now with PayMongo
-                        </Button>
-                        {!hasActiveAppointment && (
-                          <p className="text-sm text-muted-foreground text-center">
-                            Please book an appointment before proceeding to
-                            payment.
-                          </p>
-                        )}
-                      </div>
-                    )}
+                    {latestTransaction.status !== "purchased" &&
+                      overallStatus !== "completed" && (
+                        <div className="space-y-2 pt-4">
+                          <Button
+                            onClick={handlePay}
+                            className="w-full"
+                            disabled={!hasActiveAppointment}
+                          >
+                            Pay Now with PayMongo
+                          </Button>
+                          {!hasActiveAppointment && (
+                            <p className="text-sm text-muted-foreground text-center">
+                              Please book an appointment before proceeding to
+                              payment.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     {/* Existing Appointments */}
                     {getTransactionAppointments(latestTransaction.id).length >
                       0 && (
@@ -1372,7 +1289,6 @@ const ClientsTransactionPage: React.FC = () => {
                             const isPast =
                               appointmentDateTime < new Date() &&
                               apt.status !== "cancelled";
-
                             return (
                               <div
                                 key={apt.id}
@@ -1486,7 +1402,6 @@ const ClientsTransactionPage: React.FC = () => {
                                         )}
                                       </Badge>
                                     </div>
-
                                     {apt.status !== "cancelled" && (
                                       <div className="flex gap-2">
                                         {apt.paymentStatus !== "paid" && (
@@ -1530,7 +1445,6 @@ const ClientsTransactionPage: React.FC = () => {
                                                 (appointmentDateTime.getTime() -
                                                   now.getTime()) /
                                                 (1000 * 60 * 60);
-
                                               if (
                                                 hoursDifference < 24 &&
                                                 appointmentDateTime > now
@@ -1540,7 +1454,6 @@ const ClientsTransactionPage: React.FC = () => {
                                                 );
                                                 return;
                                               }
-
                                               setAppointmentToRefund(apt);
                                               setShowRefundModal(true);
                                             } else {
@@ -1577,7 +1490,6 @@ const ClientsTransactionPage: React.FC = () => {
                                         </Button>
                                       </div>
                                     )}
-
                                     {apt.status === "cancelled" && (
                                       <div className="space-y-2">
                                         <Badge
@@ -1602,7 +1514,6 @@ const ClientsTransactionPage: React.FC = () => {
                                         )}
                                       </div>
                                     )}
-
                                     {apt.paymentStatus === "paid" &&
                                       apt.status !== "cancelled" && (
                                         <p className="text-xs text-muted-foreground text-center">
@@ -1619,9 +1530,9 @@ const ClientsTransactionPage: React.FC = () => {
                         </div>
                       </div>
                     )}
-
                     {/* Book New Appointment */}
                     {latestTransaction.status !== "purchased" &&
+                      overallStatus !== "completed" &&
                       !getTransactionAppointments(latestTransaction.id).some(
                         (apt) => apt.status !== "cancelled"
                       ) && (
@@ -1673,7 +1584,6 @@ const ClientsTransactionPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Refund Confirmation Modal */}
       <Dialog open={showRefundModal} onOpenChange={setShowRefundModal}>
         <DialogContent>
@@ -1726,7 +1636,6 @@ const ClientsTransactionPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Feedback Modal */}
       <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
         <DialogContent>
@@ -1783,7 +1692,6 @@ const ClientsTransactionPage: React.FC = () => {
     </div>
   );
 };
-
 const TransactionsPageWrapper: React.FC = () => {
   return (
     <Suspense
@@ -1800,5 +1708,4 @@ const TransactionsPageWrapper: React.FC = () => {
     </Suspense>
   );
 };
-
 export default TransactionsPageWrapper;
