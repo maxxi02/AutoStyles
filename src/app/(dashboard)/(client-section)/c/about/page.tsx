@@ -32,7 +32,7 @@ const AboutPage = () => {
                 At AutoStyles, we believe every car tells a story. Our mission
                 is to empower car enthusiasts to bring their visions to life
                 through innovative customization tools, high-quality materials,
-                and expert craftsmanship. Founded in 2020, we&apos;ve helped
+                and expert craftsmanship. Founded in 2025, we&apos;ve helped
                 thousands of customers transform ordinary vehicles into
                 extraordinary expressions of style.
               </p>
@@ -49,21 +49,6 @@ const AboutPage = () => {
                 <li>• Real-time pricing and discount options</li>
                 <li>• Eco-friendly and durable materials</li>
               </ul>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Badge variant="secondary">10K+</Badge>
-                <p className="text-sm text-muted-foreground">Happy Customers</p>
-              </div>
-              <div className="space-y-2">
-                <Badge variant="secondary">500+</Badge>
-                <p className="text-sm text-muted-foreground">Custom Designs</p>
-              </div>
-              <div className="space-y-2">
-                <Badge variant="secondary">5★</Badge>
-                <p className="text-sm text-muted-foreground">Average Rating</p>
-              </div>
             </div>
 
             <div className="text-center">

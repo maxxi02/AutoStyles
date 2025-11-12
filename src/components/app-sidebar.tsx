@@ -167,11 +167,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           url: "/c/about",
           icon: BookOpen,
         },
-        {
-          title: "Contact",
-          url: "/c/contact",
-          icon: Users,
-        },
       ]);
     } else if (userRole === "autoworker") {
       // Autoworker role
