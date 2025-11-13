@@ -416,44 +416,6 @@ export default function Home() {
             </div>
           </div>
         </section>
-
-        {/* Newsletter Section */}
-        <section className="py-20 lg:py-32 bg-secondary/30">
-          <div className="container mx-auto px-4">
-            <div className="max-w-2xl mx-auto text-center space-y-8">
-              <div className="space-y-4">
-                <h2 className="text-4xl font-bold tracking-tight lg:text-5xl text-balance">
-                  Subscribe to Our Newsletter
-                </h2>
-                <p className="text-lg text-muted-foreground leading-relaxed">
-                  Stay updated with the latest customization trends, exclusive
-                  offers, and new color collections. Join our community of car
-                  enthusiasts.
-                </p>
-              </div>
-
-              <form className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
-                <Input
-                  type="email"
-                  placeholder="Enter your email address"
-                  className="h-12 text-base"
-                />
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="h-12 px-8 font-semibold whitespace-nowrap"
-                >
-                  Subscribe
-                </Button>
-              </form>
-
-              <p className="text-sm text-muted-foreground">
-                By subscribing, you agree to our Privacy Policy and consent to
-                receive updates from our company.
-              </p>
-            </div>
-          </div>
-        </section>
       </main>
 
       {/* Footer */}
