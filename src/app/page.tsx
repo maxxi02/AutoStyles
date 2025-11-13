@@ -20,7 +20,6 @@ import {
   MapPin,
   Phone,
   Shield,
-  Twitter,
   Users,
   Youtube,
   Zap,
@@ -152,39 +151,6 @@ export default function Home() {
             </div>
             <span className="text-xl font-bold">AutoStyles</span>
           </Link>
-
-          <nav className="hidden md:flex items-center gap-8">
-            <Link
-              href="#features"
-              className="text-sm font-medium hover:text-primary transition-colors"
-            >
-              Features
-            </Link>
-            <Link
-              href="#collection"
-              className="text-sm font-medium hover:text-primary transition-colors"
-            >
-              Collection
-            </Link>
-            <Link
-              href="#services"
-              className="text-sm font-medium hover:text-primary transition-colors"
-            >
-              Services
-            </Link>
-            <Link
-              href="#faq"
-              className="text-sm font-medium hover:text-primary transition-colors"
-            >
-              FAQ
-            </Link>
-            <Link
-              href="#contact"
-              className="text-sm font-medium hover:text-primary transition-colors"
-            >
-              Contact
-            </Link>
-          </nav>
 
           <Button
             onClick={() => push("/login")}
@@ -493,11 +459,11 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t bg-background w-full">
         <div className="container mx-auto py-12 lg:py-16 px-4">
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4 justify-items-center lg:justify-items-start">
+          <div className="grid gap-8 sm:grid-cols-1 lg:grid-cols-1 justify-items-center lg:justify-items-center">
             <div className="space-y-4 text-center lg:text-left">
               <Link
                 href="/"
-                className="flex items-center gap-2 justify-center lg:justify-start"
+                className="flex items-center gap-2 justify-center lg:justify-center"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
                   <Car className="h-6 w-6 text-primary-foreground" />
@@ -508,146 +474,20 @@ export default function Home() {
                 Transform your vehicle with premium customization services.
                 Quality, creativity, and excellence in every detail.
               </p>
-              <div className="flex gap-4 justify-center lg:justify-start">
+              <div className="flex gap-4 justify-center lg:justify-center">
                 <Link
-                  href="#"
+                  href="https://www.facebook.com/AutowerkesPH/"
                   className="text-muted-foreground hover:text-primary transition-colors"
                 >
                   <Facebook className="h-5 w-5" />
                 </Link>
                 <Link
-                  href="#"
+                  href="https://www.instagram.com/autowerkes1/reels/?hl=en"
                   className="text-muted-foreground hover:text-primary transition-colors"
                 >
                   <Instagram className="h-5 w-5" />
                 </Link>
-                <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                >
-                  <Twitter className="h-5 w-5" />
-                </Link>
-                <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                >
-                  <Youtube className="h-5 w-5" />
-                </Link>
               </div>
-            </div>
-
-            <div className="space-y-4 text-center lg:text-left">
-              <h3 className="font-bold text-lg">Features</h3>
-              <ul className="space-y-3 text-sm">
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Color Customization
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    2D Preview
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Real-time Pricing
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Save & Share
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div className="space-y-4 text-center lg:text-left">
-              <h3 className="font-bold text-lg">Help Center</h3>
-              <ul className="space-y-3 text-sm">
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    About Us
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Contact Support
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Terms of Service
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div className="space-y-4 text-center lg:text-left">
-              <h3 className="font-bold text-lg">Testimonials</h3>
-              <ul className="space-y-3 text-sm">
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Customer Reviews
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Success Stories
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Gallery
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#"
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Pricing
-                  </Link>
-                </li>
-              </ul>
             </div>
           </div>
 
