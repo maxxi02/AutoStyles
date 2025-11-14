@@ -287,20 +287,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Inventory",
           url: "/a/inventory",
           icon: Package,
-          items: [
-            {
-              title: "Car Models",
-              url: "/a/inventory/models",
-            },
-            {
-              title: "Paint Colors",
-              url: "/a/inventory/colors",
-            },
-            {
-              title: "Stock Levels",
-              url: "/a/inventory/stock",
-            },
-          ],
+          isActive: true,
         },
 
         {
