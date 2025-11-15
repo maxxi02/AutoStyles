@@ -85,7 +85,6 @@ const AnalyticsPage: React.FC = () => {
   const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
   const [wheels, setWheels] = useState<Wheel[]>([]);
   const [interiors, setInteriors] = useState<Interior[]>([]);
-
   // Initial data loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
@@ -112,7 +111,6 @@ const AnalyticsPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribePaintColors = onSnapshot(
       collection(db, "paintColors"),
       (snapshot) => {
@@ -129,7 +127,6 @@ const AnalyticsPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribeWheels = onSnapshot(
       collection(db, "wheels"),
       (snapshot) => {
@@ -146,7 +143,6 @@ const AnalyticsPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribeInteriors = onSnapshot(
       collection(db, "interiors"),
       (snapshot) => {
@@ -203,7 +199,6 @@ const AnalyticsPage: React.FC = () => {
   const getFilteredTransactions = () => {
     const now = new Date();
     let startDate: Date;
-
     switch (revenuePeriod) {
       case "weekly":
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -215,7 +210,6 @@ const AnalyticsPage: React.FC = () => {
         startDate = new Date(now.getFullYear(), 0, 1);
         break;
     }
-
     return transactions.filter((t) => t.timestamp >= startDate);
   };
 
@@ -280,7 +274,6 @@ const AnalyticsPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -304,7 +297,6 @@ const AnalyticsPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -337,7 +329,6 @@ const AnalyticsPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -386,6 +377,8 @@ const AnalyticsPage: React.FC = () => {
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
+                      stroke="#000"
+                      strokeWidth={1}
                     >
                       {[...paintColors]
                         .filter((c) => (c.sold || 0) > 0)
@@ -405,7 +398,6 @@ const AnalyticsPage: React.FC = () => {
                 )}
               </CardContent>
             </Card>
-
             {/* Wheels Sales */}
             <Card>
               <CardHeader>
@@ -437,6 +429,8 @@ const AnalyticsPage: React.FC = () => {
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
+                      stroke="#000"
+                      strokeWidth={1}
                     >
                       {[...wheels]
                         .filter((w) => (w.sold || 0) > 0)
@@ -467,7 +461,6 @@ const AnalyticsPage: React.FC = () => {
                 )}
               </CardContent>
             </Card>
-
             {/* Interiors Sales */}
             <Card>
               <CardHeader>
@@ -503,6 +496,8 @@ const AnalyticsPage: React.FC = () => {
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
+                      stroke="#000"
+                      strokeWidth={1}
                     >
                       {[...interiors]
                         .filter((i) => (i.sold || 0) > 0)
@@ -570,7 +565,27 @@ const AnalyticsPage: React.FC = () => {
                     dataKey="name"
                     angle={-45}
                     textAnchor="end"
-                    height={100}
+                    height={120}
+                    interval={0}
+                    tick={({ x, y, payload }) => (
+                      <g transform={`translate(${x},${y})`}>
+                        <text
+                          x={0}
+                          y={0}
+                          dy={16}
+                          textAnchor="end"
+                          fill="#666"
+                          transform="rotate(-45)"
+                          style={{
+                            fontSize: '12px',
+                            backgroundColor: 'white',
+                            padding: '2px'
+                          }}
+                        >
+                          {payload.value}
+                        </text>
+                      </g>
+                    )}
                   />
                   <YAxis />
                   <Tooltip />
@@ -588,7 +603,6 @@ const AnalyticsPage: React.FC = () => {
                 Threshold: 50 units
               </span>
             </div>
-
             <Tabs defaultValue="colors">
               <TabsList>
                 <TabsTrigger value="colors">
@@ -602,7 +616,6 @@ const AnalyticsPage: React.FC = () => {
                   Interiors ({interiors.filter((i) => i.inventory < 50).length})
                 </TabsTrigger>
               </TabsList>
-
               <TabsContent value="colors">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {paintColors
@@ -667,7 +680,6 @@ const AnalyticsPage: React.FC = () => {
                   )}
                 </div>
               </TabsContent>
-
               <TabsContent value="wheels">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {wheels
@@ -724,7 +736,6 @@ const AnalyticsPage: React.FC = () => {
                   )}
                 </div>
               </TabsContent>
-
               <TabsContent value="interiors">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {interiors

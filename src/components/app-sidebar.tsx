@@ -29,7 +29,15 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { TeamSwitcher } from "./team-switcher";
-
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 interface NavItem {
   title: string;
   url: string;
@@ -43,6 +51,33 @@ interface UserData {
   email: string;
   avatar: string;
   photoURL?: string;
+}
+
+function ModeToggle() {
+  const { setTheme } = useTheme();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">Toggle theme</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setTheme("light")}>
+          Light
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
+          Dark
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          System
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -220,7 +255,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Dashboard",
           url: "/a/dashboard",
           icon: Frame,
-          isActive: true,
+          isActive: false, // Changed from true
         },
         {
           title: "Transactions",
@@ -251,16 +286,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           icon: Zap,
           items: [
             {
-              title: "New Sale",
-              url: "/a/cashier/new",
+              title: "Pricing Rules",
+              url: "/a/cashier", // Changed from /a/cashier/new
             },
             {
               title: "Payments",
               url: "/a/cashier/payments",
-            },
-            {
-              title: "Receipts",
-              url: "/a/cashier/receipts",
             },
           ],
         },
@@ -287,9 +318,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Inventory",
           url: "/a/inventory",
           icon: Package,
-          isActive: true,
+          isActive: false, // Changed from true
         },
-
         {
           title: "Account",
           url: "/a/account",
@@ -297,11 +327,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           items: [
             {
               title: "Profile",
-              url: "/a/account/profile",
-            },
-            {
-              title: "Security",
-              url: "/a/account/security",
+              url: "/a/account", // This should match your account page route
             },
             {
               title: "Logout",
@@ -360,7 +386,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+        <div className="flex items-center justify-between px-2">
+          <TeamSwitcher teams={data.teams} />
+          <ModeToggle />
+        </div>
       </SidebarHeader>
       <SidebarContent className="p-1">
         <NavMain items={navMain} />
