@@ -70,17 +70,25 @@ export function LoginForm({
     }
   };
 
-  const setRoleCookie = (role: string) => {
+  const setCookie = (name: string, value: string) => {
     // Set cookie with 7 days expiration (adjust as needed)
     const expires = new Date(
       Date.now() + 7 * 24 * 60 * 60 * 1000
     ).toUTCString();
-    document.cookie = `user-role=${role}; path=/; expires=${expires}; SameSite=Strict; Secure`;
+    document.cookie = `${name}=${value}; path=/; expires=${expires}; SameSite=Strict; Secure`;
   };
 
   const handleSuccessLogin = async (user: User) => {
     const role = await fetchUserRole(user.uid);
-    setRoleCookie(role);
+
+    // Set auth token cookie
+    const token = await user.getIdToken();
+    await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, role }),
+    });
+    // Redirect based on role
     if (role === "admin") {
       router.push("/a/dashboard");
     } else if (role === "autoworker") {
@@ -96,11 +104,9 @@ export function LoginForm({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-
     const formData = new FormData(e.currentTarget);
     const email = formData.get("email")?.toString().trim();
     const password = formData.get("password")?.toString();
-
     if (!email || !password) {
       toast.error("Error", {
         description: "Please fill in all fields.",
@@ -108,10 +114,8 @@ export function LoginForm({
       setLoading(false);
       return;
     }
-
     try {
       const { user } = await signInWithEmailAndPassword(auth, email, password);
-
       // Check if email is verified
       if (!user.emailVerified) {
         await signOut(auth);
@@ -121,7 +125,6 @@ export function LoginForm({
         });
         return;
       }
-
       await handleSuccessLogin(user);
     } catch (error: unknown) {
       const firebaseError = error as FirebaseError;
@@ -131,7 +134,6 @@ export function LoginForm({
         setShowTotpDialog(true);
         return;
       }
-
       let description = "An unexpected error occurred.";
       switch (firebaseError.code) {
         case "auth/user-not-found":
@@ -160,7 +162,6 @@ export function LoginForm({
 
   const handleTotpSubmit = async () => {
     if (!multiFactorResolver || !totpCode.trim()) return;
-
     try {
       const hint = multiFactorResolver.hints[0]; // Assume first hint is TOTP
       if (hint.factorId === TotpMultiFactorGenerator.FACTOR_ID) {
@@ -192,7 +193,6 @@ export function LoginForm({
       });
       return;
     }
-
     try {
       await sendPasswordResetEmail(auth, resetEmailValue.trim());
       toast.success("Success", {
@@ -316,7 +316,6 @@ export function LoginForm({
           </form>
         </CardContent>
       </Card>
-
       {/* TOTP MFA Dialog */}
       <Dialog open={showTotpDialog} onOpenChange={setShowTotpDialog}>
         <DialogContent>
