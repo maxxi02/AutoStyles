@@ -40,6 +40,10 @@ export function RegisterForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const [formState, setFormState] = useState({
+    name: "",
+    phone: "",
+  });
   const [loading, setLoading] = useState<boolean>(false);
   const [showVerificationModal, setShowVerificationModal] =
     useState<boolean>(false);
@@ -69,6 +73,22 @@ export function RegisterForm({
     if (password !== confirmPassword) {
       toast.error("Error", {
         description: "Passwords do not match.",
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (name.length < 2) {
+      toast.error("Error", {
+        description: "Name must be at least 2 characters.",
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (phone.length < 11) {
+      toast.error("Error", {
+        description: "Phone number must be at least 11 characters.",
       });
       setLoading(false);
       return;
@@ -151,10 +171,42 @@ export function RegisterForm({
                 <Input
                   id="name"
                   type="text"
-                  placeholder="John Doe"
+                  placeholder="Juan Dela Cruz"
                   name="name"
+                  value={formState.name}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (/^[a-zA-Z\s\-']*$/.test(val)) {
+                      setFormState({ ...formState, name: val });
+                    }
+                  }}
+                  onKeyPress={(e) => {
+                    const charCode = e.charCode;
+                    if (
+                      (charCode < 65 || charCode > 90) &&
+                      (charCode < 97 || charCode > 122) &&
+                      charCode !== 32 &&
+                      charCode !== 45 &&
+                      charCode !== 39
+                    ) {
+                      e.preventDefault();
+                    }
+                  }}
+                  onPaste={(e) => {
+                    const pastedText = e.clipboardData.getData("text");
+                    if (!/^[a-zA-Z\s\-']*$/.test(pastedText)) {
+                      e.preventDefault();
+                      toast.error(
+                        "Only letters, spaces, hyphens, and apostrophes are allowed"
+                      );
+                    }
+                  }}
+                  maxLength={50}
                   required
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formState.name.length}/50 characters
+                </p>
               </Field>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
@@ -171,10 +223,43 @@ export function RegisterForm({
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="+1 (555) 123-4567"
+                  placeholder="+63 912 345 6789"
                   name="phone"
+                  value={formState.phone}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (/^[0-9\s\-\(\)\+]*$/.test(val)) {
+                      setFormState({ ...formState, phone: val });
+                    }
+                  }}
+                  onKeyPress={(e) => {
+                    const charCode = e.charCode;
+                    if (
+                      (charCode < 48 || charCode > 57) &&
+                      charCode !== 32 &&
+                      charCode !== 45 &&
+                      charCode !== 40 &&
+                      charCode !== 41 &&
+                      charCode !== 43
+                    ) {
+                      e.preventDefault();
+                    }
+                  }}
+                  onPaste={(e) => {
+                    const pastedText = e.clipboardData.getData("text");
+                    if (!/^[0-9\s\-\(\)\+]*$/.test(pastedText)) {
+                      e.preventDefault();
+                      toast.error(
+                        "Only numbers and phone formatting characters are allowed"
+                      );
+                    }
+                  }}
+                  maxLength={11}
                   required
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formState.phone.length}/11 characters
+                </p>
               </Field>
               <Field>
                 <FieldLabel htmlFor="password">Password</FieldLabel>

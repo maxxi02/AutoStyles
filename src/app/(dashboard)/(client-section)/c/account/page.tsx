@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut,  Image as ImageIcon, Moon, Sun } from "lucide-react";
+import { LogOut, Image as ImageIcon, Moon, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
@@ -525,32 +525,137 @@ const AccountPage = () => {
                       <Input
                         id="name"
                         value={editForm.name}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, name: e.target.value })
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          // Allow only letters, spaces, hyphens, and apostrophes
+                          if (/^[a-zA-Z\s\-']*$/.test(val)) {
+                            setEditForm({ ...editForm, name: val });
+                          }
+                        }}
+                        onKeyPress={(e) => {
+                          const charCode = e.charCode;
+                          // Allow letters (a-z, A-Z), space, hyphen, apostrophe
+                          if (
+                            (charCode < 65 || charCode > 90) && // A-Z
+                            (charCode < 97 || charCode > 122) && // a-z
+                            charCode !== 32 && // space
+                            charCode !== 45 && // hyphen
+                            charCode !== 39 // apostrophe
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onPaste={(e) => {
+                          const pastedText = e.clipboardData.getData("text");
+                          if (!/^[a-zA-Z\s\-']*$/.test(pastedText)) {
+                            e.preventDefault();
+                            toast.error(
+                              "Only letters, spaces, hyphens, and apostrophes are allowed"
+                            );
+                          }
+                        }}
+                        maxLength={50}
+                        placeholder="Juan Dela Cruz"
                         required
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {editForm.name.length}/50 characters
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="username">Username</Label>
                       <Input
                         id="username"
                         value={editForm.username}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, username: e.target.value })
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          // Allow only alphanumeric, underscore, hyphen, and dot
+                          if (/^[a-zA-Z0-9_.\-]*$/.test(val)) {
+                            setEditForm({ ...editForm, username: val });
+                          }
+                        }}
+                        onKeyPress={(e) => {
+                          const charCode = e.charCode;
+                          // Allow alphanumeric, underscore, hyphen, dot
+                          if (
+                            (charCode < 48 || charCode > 57) && // 0-9
+                            (charCode < 65 || charCode > 90) && // A-Z
+                            (charCode < 97 || charCode > 122) && // a-z
+                            charCode !== 95 && // underscore
+                            charCode !== 45 && // hyphen
+                            charCode !== 46 // dot
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onPaste={(e) => {
+                          const pastedText = e.clipboardData.getData("text");
+                          if (!/^[a-zA-Z0-9_.\-]*$/.test(pastedText)) {
+                            e.preventDefault();
+                            toast.error(
+                              "Only letters, numbers, underscores, hyphens, and dots are allowed"
+                            );
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          if (val.length > 0 && val.length < 3) {
+                            toast.warning(
+                              "Username should be at least 3 characters"
+                            );
+                          }
+                        }}
+                        minLength={3}
+                        maxLength={30}
+                        placeholder="juandelacruz"
                         required
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {editForm.username.length}/30 characters (minimum 3)
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone</Label>
                       <Input
                         id="phone"
+                        type="tel"
                         value={editForm.phone}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, phone: e.target.value })
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          // Allow only numbers, spaces, hyphens, parentheses, and plus sign
+                          if (/^[0-9\s\-\(\)\+]*$/.test(val)) {
+                            setEditForm({ ...editForm, phone: val });
+                          }
+                        }}
+                        onKeyPress={(e) => {
+                          // Allow only numbers and phone formatting characters
+                          const charCode = e.charCode;
+                          if (
+                            (charCode < 48 || charCode > 57) && // 0-9
+                            charCode !== 32 && // space
+                            charCode !== 45 && // hyphen
+                            charCode !== 40 && // (
+                            charCode !== 41 && // )
+                            charCode !== 43 // +
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onPaste={(e) => {
+                          const pastedText = e.clipboardData.getData("text");
+                          if (!/^[0-9\s\-\(\)\+]*$/.test(pastedText)) {
+                            e.preventDefault();
+                            toast.error(
+                              "Only numbers and phone formatting characters are allowed"
+                            );
+                          }
+                        }}
+                        maxLength={11}
+                        placeholder="+63 912 345 6789"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {editForm.phone.length}/11 characters
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
@@ -561,10 +666,15 @@ const AccountPage = () => {
                       <Input
                         id="address"
                         value={editForm.address}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, address: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setEditForm({ ...editForm, address: e.target.value });
+                        }}
+                        maxLength={200}
+                        placeholder="123 Main St, City, Province"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {editForm.address.length}/200 characters
+                      </p>
                     </div>
                   </div>
                   <Dialog
@@ -572,7 +682,18 @@ const AccountPage = () => {
                     onOpenChange={setShowEditProfileDialog}
                   >
                     <DialogTrigger asChild>
-                      <Button type="button" className="w-full">
+                      <Button
+                        type="button"
+                        className="w-full"
+                        disabled={
+                          !editForm.name.trim() ||
+                          editForm.name.length < 2 ||
+                          !editForm.username.trim() ||
+                          editForm.username.length < 3 ||
+                          (editForm.phone.length > 0 &&
+                            editForm.phone.length < 10)
+                        }
+                      >
                         Save Changes
                       </Button>
                     </DialogTrigger>
@@ -690,7 +811,9 @@ const AccountPage = () => {
                       onOpenChange={() => setEnrollmentStep("idle")}
                     >
                       <DialogTrigger asChild>
-                        <Button onClick={handleEnroll} className="w-full">Enable TOTP MFA</Button>
+                        <Button onClick={handleEnroll} className="w-full">
+                          Enable TOTP MFA
+                        </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-md">
                         <DialogHeader>
