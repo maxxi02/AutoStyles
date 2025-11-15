@@ -12,13 +12,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import {
   Dialog,
   DialogContent,
@@ -73,7 +67,6 @@ interface PayMongoPayment {
 interface PricingRule {
   id: string;
   description: string;
-  type: "discount" | "markup";
   percentage: number;
   isActive: boolean;
 }
@@ -89,13 +82,16 @@ const CashierPage: React.FC = () => {
 
   // State for modals
   const [isPricingRuleDialogOpen, setIsPricingRuleDialogOpen] = useState(false);
-  const [editingPricingRule, setEditingPricingRule] = useState<PricingRule | null>(null);
+  const [editingPricingRule, setEditingPricingRule] =
+    useState<PricingRule | null>(null);
 
   // Loading states for operations
   const [pricingRulePending, setPricingRulePending] = useState(false);
 
   // Form states
-  const [newPricingRule, setNewPricingRule] = useState<Partial<PricingRuleData>>({});
+  const [newPricingRule, setNewPricingRule] = useState<
+    Partial<PricingRuleData>
+  >({});
 
   // Initial data loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -157,37 +153,36 @@ const CashierPage: React.FC = () => {
     try {
       const pricingRuleData: PricingRuleData = {
         description: newPricingRule.description || "",
-        type: newPricingRule.type || "discount",
         percentage: newPricingRule.percentage ?? 0,
         isActive: newPricingRule.isActive ?? true,
       };
       if (editingPricingRule) {
         const pricingRuleRef = doc(db, "pricingRules", editingPricingRule.id);
         await updateDoc(pricingRuleRef, pricingRuleData);
-        toast.success("Pricing rule updated successfully");
+        toast.success("Discount rule updated successfully");
       } else {
         await addDoc(collection(db, "pricingRules"), pricingRuleData);
-        toast.success("Pricing rule added successfully");
+        toast.success("Discount rule added successfully");
       }
       setIsPricingRuleDialogOpen(false);
-      setNewPricingRule({ type: "discount", isActive: true });
+      setNewPricingRule({ isActive: true });
       setEditingPricingRule(null);
     } catch (error) {
-      console.error("Error adding/updating pricing rule:", error);
-      toast.error("Failed to add/update pricing rule");
+      console.error("Error adding/updating discount rule:", error);
+      toast.error("Failed to add/update discount rule");
     } finally {
       setPricingRulePending(false);
     }
   };
 
   const handleDeletePricingRule = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this pricing rule?")) return;
+    if (!confirm("Are you sure you want to delete this discount rule?")) return;
     try {
       await deleteDoc(doc(db, "pricingRules", id));
-      toast.success("Pricing rule deleted successfully");
+      toast.success("Discount rule deleted successfully");
     } catch (error) {
-      console.error("Error deleting pricing rule:", error);
-      toast.error("Failed to delete pricing rule");
+      console.error("Error deleting discount rule:", error);
+      toast.error("Failed to delete discount rule");
     }
   };
 
@@ -195,7 +190,6 @@ const CashierPage: React.FC = () => {
     setEditingPricingRule(rule);
     setNewPricingRule({
       description: rule.description,
-      type: rule.type,
       percentage: rule.percentage,
       isActive: rule.isActive,
     });
@@ -215,13 +209,16 @@ const CashierPage: React.FC = () => {
       Description: payment.attributes.description || "N/A",
       Amount: `₱${(payment.attributes.amount / 100).toLocaleString()}`,
       Status: payment.attributes.status.toUpperCase(),
-      Date: new Date(payment.attributes.paid_at * 1000).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      Date: new Date(payment.attributes.paid_at * 1000).toLocaleDateString(
+        "en-US",
+        {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      ),
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -256,7 +253,9 @@ const CashierPage: React.FC = () => {
     ]);
 
     autoTable(doc, {
-      head: [["Payment ID", "Customer", "Description", "Amount", "Status", "Date"]],
+      head: [
+        ["Payment ID", "Customer", "Description", "Amount", "Status", "Date"],
+      ],
       body: tableData,
       startY: 30,
       theme: "grid",
@@ -302,19 +301,19 @@ const CashierPage: React.FC = () => {
                   <Button
                     onClick={() => {
                       setEditingPricingRule(null);
-                      setNewPricingRule({ type: "discount", isActive: true });
+                      setNewPricingRule({ isActive: true });
                     }}
                     disabled={isDataLoading}
                   >
-                    Add Pricing Rule
+                    Add Discount Rule
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>
                       {editingPricingRule
-                        ? "Edit Pricing Rule"
-                        : "Add Pricing Rule"}
+                        ? "Edit Discount Rule"
+                        : "Add Discount Rule"}
                     </DialogTitle>
                   </DialogHeader>
                   <div className="grid gap-4">
@@ -331,31 +330,16 @@ const CashierPage: React.FC = () => {
                           })
                         }
                         disabled={pricingRulePending}
+                        maxLength={100}
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {newPricingRule.description?.length || 0}/100 characters
+                      </p>
                     </div>
                     <div>
-                      <Label htmlFor="type">Type</Label>
-                      <Select
-                        value={newPricingRule.type}
-                        onValueChange={(value) =>
-                          setNewPricingRule({
-                            ...newPricingRule,
-                            type: value as "discount" | "markup",
-                          })
-                        }
-                        disabled={pricingRulePending}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="discount">Discount</SelectItem>
-                          <SelectItem value="markup">Markup</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="percentage">Percentage (%)</Label>
+                      <Label htmlFor="percentage">
+                        Discount Percentage (%)
+                      </Label>
                       <Input
                         id="percentage"
                         type="number"
@@ -366,17 +350,64 @@ const CashierPage: React.FC = () => {
                         value={newPricingRule.percentage ?? ""}
                         onChange={(e) => {
                           const val = e.target.value;
-                          setNewPricingRule({
-                            ...newPricingRule,
-                            percentage: val === "" ? undefined : parseFloat(val),
-                          });
+                          const numVal = parseFloat(val);
+                          if (
+                            val === "" ||
+                            (!isNaN(numVal) && numVal >= 0 && numVal <= 100)
+                          ) {
+                            setNewPricingRule({
+                              ...newPricingRule,
+                              percentage: val === "" ? undefined : numVal,
+                            });
+                          }
+                        }}
+                        onKeyPress={(e) => {
+                          const charCode = e.charCode;
+                          // Allow numbers (0-9) and decimal point only
+                          if (
+                            (charCode < 48 || charCode > 57) &&
+                            charCode !== 46
+                          ) {
+                            e.preventDefault();
+                          }
+                          // Prevent multiple decimal points
+                          if (
+                            charCode === 46 &&
+                            e.currentTarget.value.includes(".")
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onPaste={(e) => {
+                          const pastedText = e.clipboardData.getData("text");
+                          const numVal = parseFloat(pastedText);
+                          if (
+                            !/^\d*\.?\d*$/.test(pastedText) ||
+                            isNaN(numVal) ||
+                            numVal < 0 ||
+                            numVal > 100
+                          ) {
+                            e.preventDefault();
+                            toast.error(
+                              "Only numbers between 0 and 100 are allowed"
+                            );
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val) && val > 100) {
+                            setNewPricingRule({
+                              ...newPricingRule,
+                              percentage: 100,
+                            });
+                            toast.warning("Maximum discount is 100%");
+                          }
                         }}
                         disabled={pricingRulePending}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        {newPricingRule.type === "discount"
-                          ? "Customer will receive this percentage off the total price"
-                          : "This percentage will be added to the total price"}
+                        Customer will receive this percentage off the total
+                        price
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -394,7 +425,7 @@ const CashierPage: React.FC = () => {
                         className="rounded"
                       />
                       <Label htmlFor="isActive" className="cursor-pointer">
-                        Active (rule is currently in effect)
+                        Active (discount is currently available to customers)
                       </Label>
                     </div>
                   </div>
@@ -404,7 +435,9 @@ const CashierPage: React.FC = () => {
                       disabled={
                         pricingRulePending ||
                         !newPricingRule.description ||
-                        !newPricingRule.percentage
+                        !newPricingRule.percentage ||
+                        newPricingRule.percentage <= 0 ||
+                        newPricingRule.percentage > 100
                       }
                     >
                       {pricingRulePending && (
@@ -423,7 +456,7 @@ const CashierPage: React.FC = () => {
                   >
                     <CardHeader>
                       <div className="flex items-start justify-between">
-                        <CardTitle className="flex-1">{rule.description}</CardTitle>
+                        <CardTitle>Discount Rules</CardTitle>
                         {rule.isActive && (
                           <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
                             Active
@@ -434,16 +467,13 @@ const CashierPage: React.FC = () => {
                     <CardContent>
                       <div className="space-y-2">
                         <p className="text-2xl font-bold">
-                          {rule.type === "discount" ? "-" : "+"}
-                          {rule.percentage}%
+                          -{rule.percentage}%
                         </p>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {rule.type}
+                        <p className="text-sm text-muted-foreground">
+                          Discount
                         </p>
                         <div className="text-xs text-muted-foreground">
-                          {rule.type === "discount"
-                            ? `Customers get ${rule.percentage}% off their total`
-                            : `${rule.percentage}% added to total price`}
+                          Customers get {rule.percentage}% off their total
                         </div>
                       </div>
                     </CardContent>
@@ -544,10 +574,7 @@ const CashierPage: React.FC = () => {
                       </TableHeader>
                       <TableBody>
                         {payments
-                          .slice(
-                            (currentPage - 1) * 10,
-                            currentPage * 10
-                          )
+                          .slice((currentPage - 1) * 10, currentPage * 10)
                           .map((payment) => (
                             <TableRow key={payment.id}>
                               <TableCell className="font-mono text-sm">
@@ -567,7 +594,10 @@ const CashierPage: React.FC = () => {
                                 {payment.attributes.description || "N/A"}
                               </TableCell>
                               <TableCell className="font-semibold">
-                                ₱{(payment.attributes.amount / 100).toLocaleString()}
+                                ₱
+                                {(
+                                  payment.attributes.amount / 100
+                                ).toLocaleString()}
                               </TableCell>
                               <TableCell>
                                 <Badge
@@ -609,7 +639,9 @@ const CashierPage: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(p - 1, 1))
+                        }
                         disabled={currentPage === 1}
                       >
                         Previous
@@ -621,7 +653,9 @@ const CashierPage: React.FC = () => {
                         ).map((page) => (
                           <Button
                             key={page}
-                            variant={currentPage === page ? "default" : "outline"}
+                            variant={
+                              currentPage === page ? "default" : "outline"
+                            }
                             size="sm"
                             onClick={() => setCurrentPage(page)}
                           >

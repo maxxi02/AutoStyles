@@ -30,14 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  ArrowLeft,
-  LogOut,
-  Bell,
-  Image as ImageIcon,
-  Moon,
-  Sun,
-} from "lucide-react";
+import { LogOut, Bell, Image as ImageIcon, Moon, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import Link from "next/link";
@@ -72,7 +65,7 @@ interface UserData {
 const CLOUDINARY_CLOUD_NAME =
   process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
 const CLOUDINARY_UPLOAD_PRESET =
-  process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "ml_default"; 
+  process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "ml_default";
 
 function ModeToggle() {
   const { setTheme } = useTheme();
@@ -136,6 +129,8 @@ const AccountPage = () => {
   );
   const [notifications, setNotifications] = useState(true);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showPrivacyDialog, setShowPrivacyDialog] = useState(false);
+  const [showTermsDialog, setShowTermsDialog] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -688,7 +683,11 @@ const AccountPage = () => {
                       <p className="text-sm text-muted-foreground">
                         TOTP MFA is enabled.
                       </p>
-                      <Button variant="destructive" onClick={handleUnenroll} className="w-full">
+                      <Button
+                        variant="destructive"
+                        onClick={handleUnenroll}
+                        className="w-full"
+                      >
                         Disable TOTP MFA
                       </Button>
                     </div>
@@ -698,7 +697,9 @@ const AccountPage = () => {
                       onOpenChange={() => setEnrollmentStep("idle")}
                     >
                       <DialogTrigger asChild>
-                        <Button onClick={handleEnroll} className="w-full">Enable TOTP MFA</Button>
+                        <Button onClick={handleEnroll} className="w-full">
+                          Enable TOTP MFA
+                        </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-md">
                         <DialogHeader>

@@ -39,7 +39,7 @@ import {
   deleteDoc,
   onSnapshot,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase"; 
+import { db } from "@/lib/firebase";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
@@ -181,7 +181,11 @@ const InventoryPage: React.FC = () => {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
 
-  const [revenuePeriod, setRevenuePeriod] = useState<"weekly" | "monthly" | "yearly">("monthly");
+  const getStockStatus = (inventory: number) => {
+    if (inventory === 0) return { text: "Out of Stock", color: "text-red-600" };
+    if (inventory <= 10) return { text: "Low Stock", color: "text-orange-600" };
+    return { text: "In Stock", color: "text-green-600" };
+  };
   // Load data from Firestore
   useEffect(() => {
     const unsubscribeCarTypes = onSnapshot(
@@ -686,8 +690,75 @@ const InventoryPage: React.FC = () => {
     color.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalProducts = paintColors.length + wheels.length + interiors.length;
+  const lowStockItems = [
+    ...paintColors.filter((c) => c.inventory > 0 && c.inventory <= 10),
+    ...wheels.filter((w) => w.inventory > 0 && w.inventory <= 10),
+    ...interiors.filter((i) => i.inventory > 0 && i.inventory <= 10),
+  ].length;
+  const outOfStockItems = [
+    ...paintColors.filter((c) => c.inventory === 0),
+    ...wheels.filter((w) => w.inventory === 0),
+    ...interiors.filter((i) => i.inventory === 0),
+  ].length;
+  const totalInventoryValue =
+    paintColors.reduce((sum, c) => sum + c.price * c.inventory, 0) +
+    wheels.reduce((sum, w) => sum + w.price * w.inventory, 0) +
+    interiors.reduce((sum, i) => sum + i.price * i.inventory, 0);
+
   return (
     <div className="container mx-auto p-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Products
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalProducts}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Low Stock Items
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">
+              {lowStockItems}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Out of Stock
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {outOfStockItems}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Inventory Value
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              ₱{totalInventoryValue.toLocaleString()}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="car-models">Car Models</TabsTrigger>
@@ -1072,13 +1143,40 @@ const InventoryPage: React.FC = () => {
                           <Input
                             id="price"
                             type="number"
+                            min="0"
+                            step="0.01"
                             value={newPaintColor.price ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setNewPaintColor({
-                                ...newPaintColor,
-                                price: val === "" ? undefined : parseFloat(val),
-                              });
+                              const numVal = parseFloat(val);
+                              if (
+                                val === "" ||
+                                (!isNaN(numVal) && numVal >= 0)
+                              ) {
+                                setNewPaintColor({
+                                  ...newPaintColor,
+                                  price: val === "" ? undefined : numVal,
+                                });
+                              }
+                            }}
+                            onKeyPress={(e) => {
+                              // Prevent alphabets and special characters except decimal point
+                              const charCode = e.charCode;
+                              if (
+                                (charCode < 48 || charCode > 57) && // 0-9
+                                charCode !== 46 // decimal point
+                              ) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              // Prevent pasting non-numeric content
+                              const pastedText =
+                                e.clipboardData.getData("text");
+                              if (!/^\d*\.?\d*$/.test(pastedText)) {
+                                e.preventDefault();
+                                toast.error("Only numbers are allowed");
+                              }
                             }}
                             disabled={paintColorPending}
                           />
@@ -1088,14 +1186,40 @@ const InventoryPage: React.FC = () => {
                           <Input
                             id="inventory"
                             type="number"
+                            min="0"
+                            step="1"
                             value={newPaintColor.inventory ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setNewPaintColor({
-                                ...newPaintColor,
-                                inventory:
-                                  val === "" ? undefined : parseInt(val, 10),
-                              });
+                              const numVal = parseInt(val, 10);
+                              if (
+                                val === "" ||
+                                (!isNaN(numVal) &&
+                                  numVal >= 0 &&
+                                  Number.isInteger(numVal))
+                              ) {
+                                setNewPaintColor({
+                                  ...newPaintColor,
+                                  inventory: val === "" ? undefined : numVal,
+                                });
+                              }
+                            }}
+                            onKeyPress={(e) => {
+                              // Prevent alphabets, decimal points, and special characters
+                              const charCode = e.charCode;
+                              if (charCode < 48 || charCode > 57) {
+                                // Only allow 0-9
+                                e.preventDefault();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              // Prevent pasting non-integer content
+                              const pastedText =
+                                e.clipboardData.getData("text");
+                              if (!/^\d+$/.test(pastedText)) {
+                                e.preventDefault();
+                                toast.error("Only whole numbers are allowed");
+                              }
                             }}
                             disabled={paintColorPending}
                           />
@@ -1203,6 +1327,11 @@ const InventoryPage: React.FC = () => {
                           <p className="mb-1">{color.description}</p>
                           <p>Price: ₱{color.price}</p>
                           <p>Stock: {color.inventory}</p>
+                          <p
+                            className={`text-sm font-semibold ${getStockStatus(color.inventory).color}`}
+                          >
+                            {getStockStatus(color.inventory).text}
+                          </p>
                         </CardContent>
                         <CardFooter className="flex justify-between">
                           <Button
@@ -1321,13 +1450,38 @@ const InventoryPage: React.FC = () => {
                           <Input
                             id="price"
                             type="number"
+                            min="0"
+                            step="0.01"
                             value={newWheel.price ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setNewWheel({
-                                ...newWheel,
-                                price: val === "" ? undefined : parseFloat(val),
-                              });
+                              const numVal = parseFloat(val);
+                              if (
+                                val === "" ||
+                                (!isNaN(numVal) && numVal >= 0)
+                              ) {
+                                setNewWheel({
+                                  ...newWheel,
+                                  price: val === "" ? undefined : numVal,
+                                });
+                              }
+                            }}
+                            onKeyPress={(e) => {
+                              const charCode = e.charCode;
+                              if (
+                                (charCode < 48 || charCode > 57) &&
+                                charCode !== 46
+                              ) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              const pastedText =
+                                e.clipboardData.getData("text");
+                              if (!/^\d*\.?\d*$/.test(pastedText)) {
+                                e.preventDefault();
+                                toast.error("Only numbers are allowed");
+                              }
                             }}
                             disabled={wheelPending}
                           />
@@ -1337,14 +1491,37 @@ const InventoryPage: React.FC = () => {
                           <Input
                             id="inventory"
                             type="number"
+                            min="0"
+                            step="1"
                             value={newWheel.inventory ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setNewWheel({
-                                ...newWheel,
-                                inventory:
-                                  val === "" ? undefined : parseInt(val, 10),
-                              });
+                              const numVal = parseInt(val, 10);
+                              if (
+                                val === "" ||
+                                (!isNaN(numVal) &&
+                                  numVal >= 0 &&
+                                  Number.isInteger(numVal))
+                              ) {
+                                setNewWheel({
+                                  ...newWheel,
+                                  inventory: val === "" ? undefined : numVal,
+                                });
+                              }
+                            }}
+                            onKeyPress={(e) => {
+                              const charCode = e.charCode;
+                              if (charCode < 48 || charCode > 57) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              const pastedText =
+                                e.clipboardData.getData("text");
+                              if (!/^\d+$/.test(pastedText)) {
+                                e.preventDefault();
+                                toast.error("Only whole numbers are allowed");
+                              }
                             }}
                             disabled={wheelPending}
                           />
@@ -1410,6 +1587,11 @@ const InventoryPage: React.FC = () => {
                           <p className="mb-1">{wheel.description}</p>
                           <p>Price: ₱{wheel.price}</p>
                           <p>Stock: {wheel.inventory}</p>
+                          <p
+                            className={`text-sm font-semibold ${getStockStatus(wheel.inventory).color}`}
+                          >
+                            {getStockStatus(wheel.inventory).text}
+                          </p>
                         </CardContent>
                         <CardFooter className="flex justify-between">
                           <Button
@@ -1545,13 +1727,38 @@ const InventoryPage: React.FC = () => {
                           <Input
                             id="price"
                             type="number"
+                            min="0"
+                            step="0.01"
                             value={newInterior.price ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setNewInterior({
-                                ...newInterior,
-                                price: val === "" ? undefined : parseFloat(val),
-                              });
+                              const numVal = parseFloat(val);
+                              if (
+                                val === "" ||
+                                (!isNaN(numVal) && numVal >= 0)
+                              ) {
+                                setNewInterior({
+                                  ...newInterior,
+                                  price: val === "" ? undefined : numVal,
+                                });
+                              }
+                            }}
+                            onKeyPress={(e) => {
+                              const charCode = e.charCode;
+                              if (
+                                (charCode < 48 || charCode > 57) &&
+                                charCode !== 46
+                              ) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              const pastedText =
+                                e.clipboardData.getData("text");
+                              if (!/^\d*\.?\d*$/.test(pastedText)) {
+                                e.preventDefault();
+                                toast.error("Only numbers are allowed");
+                              }
                             }}
                             disabled={interiorPending}
                           />
@@ -1561,14 +1768,37 @@ const InventoryPage: React.FC = () => {
                           <Input
                             id="inventory"
                             type="number"
+                            min="0"
+                            step="1"
                             value={newInterior.inventory ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setNewInterior({
-                                ...newInterior,
-                                inventory:
-                                  val === "" ? undefined : parseInt(val, 10),
-                              });
+                              const numVal = parseInt(val, 10);
+                              if (
+                                val === "" ||
+                                (!isNaN(numVal) &&
+                                  numVal >= 0 &&
+                                  Number.isInteger(numVal))
+                              ) {
+                                setNewInterior({
+                                  ...newInterior,
+                                  inventory: val === "" ? undefined : numVal,
+                                });
+                              }
+                            }}
+                            onKeyPress={(e) => {
+                              const charCode = e.charCode;
+                              if (charCode < 48 || charCode > 57) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              const pastedText =
+                                e.clipboardData.getData("text");
+                              if (!/^\d+$/.test(pastedText)) {
+                                e.preventDefault();
+                                toast.error("Only whole numbers are allowed");
+                              }
                             }}
                             disabled={interiorPending}
                           />
@@ -1639,6 +1869,11 @@ const InventoryPage: React.FC = () => {
                           <p className="mb-1">{interior.description}</p>
                           <p>Price: ₱{interior.price}</p>
                           <p>Stock: {interior.inventory}</p>
+                          <p
+                            className={`text-sm font-semibold ${getStockStatus(interior.inventory).color}`}
+                          >
+                            {getStockStatus(interior.inventory).text}
+                          </p>
                         </CardContent>
                         <CardFooter className="flex justify-between">
                           <Button
@@ -1679,7 +1914,8 @@ const InventoryPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Confirm Delete</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {deletePayload?.name}? This action cannot be undone.
+              Are you sure you want to delete {deletePayload?.name}? This action
+              cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -337,45 +337,13 @@ const CustomizationPage: React.FC = () => {
     (color) => color.carModelId === selectedModelId
   );
 
-  // Auto-select first color if none selected and available
-  // useEffect(() => {
-  //   if (filteredColors.length > 0 && !selectedColorId) {
-  //     setSelectedColorId(filteredColors[0].id);
-  //   } else if (filteredColors.length === 0 && selectedColorId) {
-  //     // Clear selection if no colors available for this model
-  //     setSelectedColorId("");
-  //   }
-  // }, [selectedModelId, filteredColors, selectedColorId]);
-
-  // Filtered wheels by selected model
   const filteredWheels = wheels.filter(
     (wheel) => wheel.carModelId === selectedModelId
   );
 
-  // Auto-select first wheel if none selected and available
-  // useEffect(() => {
-  //   if (filteredWheels.length > 0 && !selectedWheelId) {
-  //     setSelectedWheelId(filteredWheels[0].id);
-  //   } else if (filteredWheels.length === 0 && selectedWheelId) {
-  //     // Clear selection if no wheels available for this model
-  //     setSelectedWheelId("");
-  //   }
-  // }, [selectedModelId, filteredWheels, selectedWheelId]);
-
-  // Filtered interiors by selected model
   const filteredInteriors = interiors.filter(
     (interior) => interior.carModelId === selectedModelId
   );
-
-  // Auto-select first interior if none selected and available
-  // useEffect(() => {
-  //   if (filteredInteriors.length > 0 && !selectedInteriorId) {
-  //     setSelectedInteriorId(filteredInteriors[0].id);
-  //   } else if (filteredInteriors.length === 0 && selectedInteriorId) {
-  //     // Clear selection if no interiors available for this model
-  //     setSelectedInteriorId("");
-  //   }
-  // }, [selectedModelId, filteredInteriors, selectedInteriorId]);
 
   const selectedModel = carModels.find((m) => m.id === selectedModelId);
   const selectedColor = paintColors.find((c) => c.id === selectedColorId);
@@ -489,7 +457,7 @@ const CustomizationPage: React.FC = () => {
       // Warn user if address is missing
       if (customerDetails.address === "N/A" || !customerDetails.address) {
         toast.warning(
-          "Please update your address in your profile for delivery purposes."
+          "Please update your address in your profile."
         );
       }
 
@@ -674,6 +642,7 @@ const CustomizationPage: React.FC = () => {
                             <RadioGroupItem
                               value={color.id}
                               id={`color-${color.id}`}
+                              disabled={color.inventory === 0}
                             />
                             <label
                               htmlFor={`color-${color.id}`}
@@ -683,12 +652,19 @@ const CustomizationPage: React.FC = () => {
                                 className="w-8 h-8 rounded border"
                                 style={{ backgroundColor: color.hex }}
                               />
-                              <div className="flex flex-col">
+                              <div className="flex flex-col flex-1">
                                 <span className="text-sm font-medium">
                                   {color.name}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
                                   {color.finish}
+                                </span>
+                                <span
+                                  className={`text-xs ${color.inventory === 0 ? "text-red-600" : color.inventory <= 10 ? "text-orange-600" : "text-green-600"}`}
+                                >
+                                  {color.inventory === 0
+                                    ? "Out of Stock"
+                                    : `Stock: ${color.inventory}`}
                                 </span>
                               </div>
                               {color.images?.[0] && (
@@ -777,9 +753,16 @@ const CustomizationPage: React.FC = () => {
                               ) : (
                                 <div className="w-12 h-12 rounded bg-muted" />
                               )}
-                              <div className="flex flex-col">
+                              <div className="flex flex-col flex-1">
                                 <span className="text-sm font-medium">
                                   {wheel.name}
+                                </span>
+                                <span
+                                  className={`text-xs ${wheel.inventory === 0 ? "text-red-600" : wheel.inventory <= 10 ? "text-orange-600" : "text-green-600"}`}
+                                >
+                                  {wheel.inventory === 0
+                                    ? "Out of Stock"
+                                    : `Stock: ${wheel.inventory}`}
                                 </span>
                               </div>
                             </label>
@@ -1333,9 +1316,16 @@ const CustomizationPage: React.FC = () => {
                                         }}
                                       ></div>
                                     )}
-                                    <div className="flex-1 min-w-0">
-                                      <span className="text-sm font-medium block">
+                                    <div className="flex flex-col flex-1">
+                                      <span className="text-sm font-medium">
                                         {interior.name}
+                                      </span>
+                                      <span
+                                        className={`text-xs ${interior.inventory === 0 ? "text-red-600" : interior.inventory <= 10 ? "text-orange-600" : "text-green-600"}`}
+                                      >
+                                        {interior.inventory === 0
+                                          ? "Out of Stock"
+                                          : `Stock: ${interior.inventory}`}
                                       </span>
                                     </div>
                                   </li>
