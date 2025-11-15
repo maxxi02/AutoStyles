@@ -70,24 +70,19 @@ export function LoginForm({
     }
   };
 
-  const setCookie = (name: string, value: string) => {
-    // Set cookie with 7 days expiration (adjust as needed)
-    const expires = new Date(
-      Date.now() + 7 * 24 * 60 * 60 * 1000
-    ).toUTCString();
-    document.cookie = `${name}=${value}; path=/; expires=${expires}; SameSite=Strict; Secure`;
-  };
+const setCookie = (name: string, value: string) => {
+  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = `${name}=${value}; path=/; expires=${expires}; SameSite=Strict; Secure`;
+};
 
   const handleSuccessLogin = async (user: User) => {
     const role = await fetchUserRole(user.uid);
-
-    // Set auth token cookie
     const token = await user.getIdToken();
-    await fetch("/api/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, role }),
-    });
+
+    // Set cookies
+    setCookie("authToken", token);
+    setCookie("userRole", role);
+
     // Redirect based on role
     if (role === "admin") {
       router.push("/a/dashboard");
@@ -96,9 +91,6 @@ export function LoginForm({
     } else {
       router.push("/c/dashboard");
     }
-    toast.success("Success", {
-      description: "Logged in successfully!",
-    });
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

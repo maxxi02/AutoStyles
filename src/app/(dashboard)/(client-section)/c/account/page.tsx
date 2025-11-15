@@ -436,21 +436,21 @@ const AccountPage = () => {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      toast.success("Success", {
-        description: "Logged out successfully!",
-      });
-      router.push("/login");
-    } catch (error: unknown) {
-      toast.error("Logout Failed", {
-        description: (error as Error).message,
-      });
-    }
-    setShowLogoutDialog(false);
-  };
-
+ const handleLogout = async () => {
+  try {
+    // Clear cookies BEFORE signOut
+    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    
+    await signOut(auth);
+    
+    // Force full reload to prevent any middleware calls
+    window.location.href = '/login';
+  } catch (error) {
+    console.error("Logout error:", error);
+    window.location.href = '/login';
+  }
+};
   const getInitials = (name: string) => {
     return name
       .split(" ")
