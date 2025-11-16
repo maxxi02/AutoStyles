@@ -2,9 +2,7 @@
 
 import * as React from "react";
 
-import {
-  DropdownMenu,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -34,14 +32,13 @@ export function TeamSwitcher({
         <DropdownMenu>
           <SidebarMenuButton
             size="lg"
-            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-transparent active:bg-transparent"
           >
             <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
               <activeTeam.logo className="size-4" />
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-bold text-2xl">
-                {/* papalitan pa ng icon dito */}
+              <span className="truncate font-bold text-2xl ">
                 {activeTeam.name}
               </span>
             </div>

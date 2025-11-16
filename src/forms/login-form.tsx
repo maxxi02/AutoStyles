@@ -326,7 +326,7 @@ const setCookie = (name: string, value: string) => {
                 maxLength={6}
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
-                placeholder="123456"
+                placeholder="6 Digit Authenticator Code"
               />
             </Field>
           </div>

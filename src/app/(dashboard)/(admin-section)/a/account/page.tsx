@@ -863,7 +863,7 @@ const AccountPage = () => {
                                     e.target.value.replace(/\D/g, "")
                                   )
                                 }
-                                placeholder="123456"
+                                placeholder="6 Digit Authenticator Code"
                               />
                             </Field>
                             <Button

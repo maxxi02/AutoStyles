@@ -402,7 +402,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Sample data for non-dynamic parts
   const data = {
     user: user || {
-      name: "AutoStyles User",
+      name: "AutoStyles",
       email: "user@example.com",
       avatar: "/avatars/default.jpg",
     },
