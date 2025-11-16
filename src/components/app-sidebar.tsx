@@ -38,6 +38,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
+
 interface NavItem {
   title: string;
   url: string;
@@ -81,50 +83,87 @@ function ModeToggle() {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const router = useRouter();
   const [userRole, setUserRole] = React.useState<
     "user" | "admin" | "autoworker"
   >("user");
   const [user, setUser] = React.useState<UserData | null>(null);
   const [navMain, setNavMain] = React.useState<NavItem[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (isLoading || !user) return;
+
+    const currentPath = window.location.pathname;
+
+    // Define allowed path prefixes for each role
+    const roleBasedPaths = {
+      user: ["/c/", "/login", "/signup"],
+      autoworker: ["/w/", "/login", "/signup"],
+      admin: ["/a/", "/login", "/signup"],
+    };
+
+    const allowedPaths = roleBasedPaths[userRole];
+    const hasAccess = allowedPaths.some((path) => currentPath.startsWith(path));
+
+    if (!hasAccess) {
+      // Redirect to role-specific dashboard
+      const redirectPaths = {
+        user: "/c/dashboard",
+        autoworker: "/w/dashboard",
+        admin: "/a/dashboard",
+      };
+      router.push(redirectPaths[userRole]);
+    }
+  }, [userRole, user, isLoading, router]);
 
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
+      if (!currentUser) {
+        // User is not authenticated, redirect to login
+        setUser(null);
+        setUserRole("user");
+        setIsLoading(false);
+        router.push("/login");
+        return;
+      }
+
+      // User is authenticated
+      try {
         // Initial fallback
         setUser({
           name: currentUser.displayName || "AutoStyles User",
           email: currentUser.email || "user@example.com",
           avatar: "/avatars/default.jpg",
         });
-        try {
-          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data() as UserData & {
-              role?: string;
-              photoURL?: string;
-            };
-            const role = data?.role || "user";
-            setUserRole(role as "user" | "admin" | "autoworker");
-            // Update user with Firestore data, including photoURL for avatar
-            setUser({
-              name: data.name || currentUser.displayName || "AutoStyles User",
-              email: currentUser.email || "user@example.com",
-              avatar: data.photoURL || "/avatars/default.jpg", // Use photoURL if available
-            });
-          } else {
-            setUserRole("user");
-          }
-        } catch (error) {
-          console.error("Error fetching user role:", error);
+
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data() as UserData & {
+            role?: string;
+            photoURL?: string;
+          };
+          const role = data?.role || "user";
+          setUserRole(role as "user" | "admin" | "autoworker");
+          // Update user with Firestore data, including photoURL for avatar
+          setUser({
+            name: data.name || currentUser.displayName || "AutoStyles User",
+            email: currentUser.email || "user@example.com",
+            avatar: data.photoURL || "/avatars/default.jpg",
+          });
+        } else {
           setUserRole("user");
         }
-      } else {
-        setUser(null);
+      } catch (error) {
+        console.error("Error fetching user role:", error);
         setUserRole("user");
+      } finally {
+        setIsLoading(false);
       }
     });
-    return unsubscribe;
-  }, []);
+
+    return () => unsubscribe();
+  }, [router]);
 
   React.useEffect(() => {
     if (userRole === "user") {
@@ -255,7 +294,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Dashboard",
           url: "/a/dashboard",
           icon: Frame,
-          isActive: false, // Changed from true
+          isActive: false,
         },
         {
           title: "Transactions",
@@ -287,7 +326,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           items: [
             {
               title: "Pricing Rules",
-              url: "/a/cashier", // Changed from /a/cashier/new
+              url: "/a/cashier",
             },
             {
               title: "Payments",
@@ -318,7 +357,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Inventory",
           url: "/a/inventory",
           icon: Package,
-          isActive: false, // Changed from true
+          isActive: false,
         },
         {
           title: "Account",
@@ -327,7 +366,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           items: [
             {
               title: "Profile",
-              url: "/a/account", // This should match your account page route
+              url: "/a/account",
             },
             {
               title: "Logout",
@@ -354,6 +393,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ]);
     }
   }, [userRole]);
+
+  // Show loading state or nothing while checking auth
+  if (isLoading) {
+    return null; // Or return a loading spinner
+  }
 
   // Sample data for non-dynamic parts
   const data = {
