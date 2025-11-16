@@ -301,37 +301,35 @@ const ClientsTransactionPage: React.FC = () => {
       orderBy("timestamp", "desc")
     );
     const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs
-        .map((doc) => {
-          const docData = doc.data();
-          return {
-            id: doc.id,
-            ...docData,
-            timestamp: docData.timestamp.toDate(),
-            paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
-            customizationProgress: docData.customizationProgress
-              ? {
-                  ...docData.customizationProgress,
-                  paintCompletedAt:
-                    docData.customizationProgress.paintCompletedAt?.toDate() ||
-                    null,
-                  wheelsCompletedAt:
-                    docData.customizationProgress.wheelsCompletedAt?.toDate() ||
-                    null,
-                  interiorCompletedAt:
-                    docData.customizationProgress.interiorCompletedAt?.toDate() ||
-                    null,
-                }
-              : undefined,
-            feedback: docData.feedback
-              ? {
-                  ...docData.feedback,
-                  submittedAt: docData.feedback.submittedAt?.toDate(),
-                }
-              : undefined,
-          } as Transaction;
-        })
-        .filter((transaction) => transaction.userId === currentUserId);
+      const data = snapshot.docs.map((doc) => {
+        const docData = doc.data();
+        return {
+          id: doc.id,
+          ...docData,
+          timestamp: docData.timestamp.toDate(),
+          paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
+          customizationProgress: docData.customizationProgress
+            ? {
+                ...docData.customizationProgress,
+                paintCompletedAt:
+                  docData.customizationProgress.paintCompletedAt?.toDate() ||
+                  null,
+                wheelsCompletedAt:
+                  docData.customizationProgress.wheelsCompletedAt?.toDate() ||
+                  null,
+                interiorCompletedAt:
+                  docData.customizationProgress.interiorCompletedAt?.toDate() ||
+                  null,
+              }
+            : undefined,
+          feedback: docData.feedback
+            ? {
+                ...docData.feedback,
+                submittedAt: docData.feedback.submittedAt?.toDate(),
+              }
+            : undefined,
+        } as Transaction;
+      });
       setTransactions(data);
       console.log("Transactions updated, count:", data.length);
       setSnapshotCount((prev) => {
@@ -651,8 +649,16 @@ const ClientsTransactionPage: React.FC = () => {
     );
   }
   const getFilteredTransactions = () => {
-    if (!searchQuery) return transactions;
-    return transactions.filter((transaction) => {
+    // First filter by current user
+    const userTransactions = transactions.filter(
+      (transaction) => transaction.userId === currentUserId
+    );
+
+    // If no search query, return user's transactions
+    if (!searchQuery) return userTransactions;
+
+    // Apply search filter on user's transactions
+    return userTransactions.filter((transaction) => {
       const searchLower = searchQuery.toLowerCase();
       const { type, model, color, wheel, interior } =
         getTransactionDetails(transaction);
@@ -667,6 +673,7 @@ const ClientsTransactionPage: React.FC = () => {
         "MMM dd, yyyy HH:mm"
       ).toLowerCase();
       const priceStr = transaction.price.toString();
+
       return (
         modelName.includes(searchLower) ||
         typeName.includes(searchLower) ||
