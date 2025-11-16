@@ -182,6 +182,7 @@ const ClientsTransactionPage: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [appointmentDate, setAppointmentDate] = useState("");
   const [appointmentTime, setAppointmentTime] = useState("");
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [verifyingTransactionId, setVerifyingTransactionId] = useState<
     string | null
   >(null);
@@ -192,11 +193,89 @@ const ClientsTransactionPage: React.FC = () => {
   >(null);
   const [editDate, setEditDate] = useState("");
   const [editTime, setEditTime] = useState("");
+  const [editAvailableTimes, setEditAvailableTimes] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   // Refund modal state
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [appointmentToRefund, setAppointmentToRefund] =
     useState<Appointment | null>(null);
+  // Convert 24-hour time to 12-hour format for display
+  const formatTimeTo12Hour = (time24: string): string => {
+    const [hours, minutes] = time24.split(":").map(Number);
+    const period = hours >= 12 ? "PM" : "AM";
+    const hours12 = hours % 12 || 12;
+    return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
+  };
+  // Helper to get current date in PHST (assuming browser is set to PH)
+  const getCurrentDateString = (): string => {
+    return new Date().toISOString().split("T")[0];
+  };
+  // Helper to get next available slot after current time
+  const getNextAvailableSlot = (): string => {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const totalMinutes = hours * 60 + minutes;
+    const roundedMinutes = Math.ceil(totalMinutes / 30) * 30;
+    const roundedHours = Math.floor(roundedMinutes / 60);
+    const roundedMins = roundedMinutes % 60;
+    return `${roundedHours.toString().padStart(2, "0")}:${roundedMins.toString().padStart(2, "0")}`;
+  };
+  // Updated helper functions
+  const isWithinBusinessHours = (time: string): boolean => {
+    const [hours, minutes] = time.split(":").map(Number);
+    const timeInMinutes = hours * 60 + minutes;
+    const startTime = 8 * 60; // 8 AM
+    const endTime = 17 * 60; // 5 PM
+    return timeInMinutes >= startTime && timeInMinutes <= endTime;
+  };
+  const isBusinessDay = (date: string): boolean => {
+    const selectedDate = new Date(date);
+    const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 6 = Saturday
+    // Business days: Monday (1) to Saturday (6)
+    return dayOfWeek >= 1 && dayOfWeek <= 6;
+  };
+  const checkDuplicateAppointment = (
+    date: string,
+    time: string,
+    excludeId?: string
+  ): boolean => {
+    return appointments.some(
+      (apt) =>
+        apt.date === date &&
+        apt.time === time &&
+        apt.status !== "cancelled" &&
+        apt.id !== excludeId
+    );
+  };
+  const getAvailableTimes = (date: string, excludeId?: string): string[] => {
+    if (!isBusinessDay(date)) return [];
+    const today = getCurrentDateString();
+    const times: string[] = [];
+    let startHour = 8;
+    let startMin = 0;
+    if (date === today) {
+      const nextSlot = getNextAvailableSlot();
+      const [h, m] = nextSlot.split(":").map(Number);
+      startHour = h;
+      startMin = m;
+    }
+    // Loop through hours 8-17 (8 AM to 5 PM)
+    for (let h = startHour; h <= 17; h++) {
+      const startMinute = h === startHour ? startMin : 0;
+      const endMinute = h === 17 ? 30 : 60; // At 5 PM (17), only add 5:00, not 5:30
+      for (let m = startMinute; m < endMinute; m += 30) {
+        const time24 = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+        if (
+          isWithinBusinessHours(time24) &&
+          !checkDuplicateAppointment(date, time24, excludeId)
+        ) {
+          times.push(time24);
+        }
+      }
+    }
+    return times;
+  };
   // Load data from Firestore
   useEffect(() => {
     const expectedSnapshots = 7; // transactions + appointments + 5 others
@@ -359,6 +438,38 @@ const ClientsTransactionPage: React.FC = () => {
       unsubscribeInteriors();
     };
   }, []);
+  // Available times for booking
+  useEffect(() => {
+    if (appointmentDate) {
+      setAvailableTimes(getAvailableTimes(appointmentDate));
+      // If date is today and time is set, ensure it's available
+      if (
+        appointmentDate === getCurrentDateString() &&
+        appointmentTime &&
+        !getAvailableTimes(appointmentDate).includes(appointmentTime)
+      ) {
+        setAppointmentTime("");
+      }
+    } else {
+      setAvailableTimes([]);
+    }
+  }, [appointmentDate, appointments]);
+  // Available times for editing
+  useEffect(() => {
+    if (editingAppointmentId && editDate) {
+      setEditAvailableTimes(getAvailableTimes(editDate, editingAppointmentId));
+      // If date is today and time is set, ensure it's available
+      if (
+        editDate === getCurrentDateString() &&
+        editTime &&
+        !getAvailableTimes(editDate, editingAppointmentId).includes(editTime)
+      ) {
+        setEditTime("");
+      }
+    } else {
+      setEditAvailableTimes([]);
+    }
+  }, [editDate, editingAppointmentId, appointments]);
   useEffect(() => {
     const success = searchParams.get("success");
     const cancelled = searchParams.get("cancelled");
@@ -667,10 +778,28 @@ const ClientsTransactionPage: React.FC = () => {
       console.error(error);
     }
   };
+  // Updated handleBookAppointment with new validations
   const handleBookAppointment = async () => {
     const latestTransaction = getLatestTransaction();
     if (!latestTransaction || !appointmentDate || !appointmentTime) {
       toast.error("Please select date and time.");
+      return;
+    }
+    // Check if date is a business day
+    if (!isBusinessDay(appointmentDate)) {
+      toast.error("Appointments are only available Monday to Saturday.");
+      return;
+    }
+    // Check if time is within business hours
+    if (!isWithinBusinessHours(appointmentTime)) {
+      toast.error("Please select a time between 8:00 AM and 5:00 PM.");
+      return;
+    }
+    // Check for duplicate appointments
+    if (checkDuplicateAppointment(appointmentDate, appointmentTime)) {
+      toast.error(
+        "This time slot is already booked. Please choose a different time."
+      );
       return;
     }
     // Check if there's already an active appointment
@@ -712,6 +841,23 @@ const ClientsTransactionPage: React.FC = () => {
   const handleSaveEdit = async () => {
     if (!editingAppointmentId || !editDate || !editTime) {
       toast.error("Please select date and time.");
+      return;
+    }
+    // Check if date is a business day
+    if (!isBusinessDay(editDate)) {
+      toast.error("Appointments are only available Monday to Saturday.");
+      return;
+    }
+    // Check if time is within business hours
+    if (!isWithinBusinessHours(editTime)) {
+      toast.error("Please select a time between 8:00 AM and 5:00 PM.");
+      return;
+    }
+    // Check for duplicate appointments (excluding current)
+    if (checkDuplicateAppointment(editDate, editTime, editingAppointmentId)) {
+      toast.error(
+        "This time slot is already booked. Please choose a different time."
+      );
       return;
     }
     try {
@@ -1301,33 +1447,44 @@ const ClientsTransactionPage: React.FC = () => {
                                 {editingAppointmentId === apt.id ? (
                                   // Edit Mode
                                   <div className="space-y-3">
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div>
-                                        <Label htmlFor="edit-date">Date</Label>
-                                        <Input
-                                          id="edit-date"
-                                          type="date"
-                                          value={editDate}
-                                          onChange={(e) =>
-                                            setEditDate(e.target.value)
-                                          }
-                                          min={
-                                            new Date()
-                                              .toISOString()
-                                              .split("T")[0]
-                                          }
-                                        />
-                                      </div>
-                                      <div>
-                                        <Label htmlFor="edit-time">Time</Label>
-                                        <Input
-                                          id="edit-time"
-                                          type="time"
-                                          value={editTime}
-                                          onChange={(e) =>
-                                            setEditTime(e.target.value)
-                                          }
-                                        />
+                                    <div>
+                                      <Label htmlFor="edit-date">Date</Label>
+                                      <Input
+                                        id="edit-date"
+                                        type="date"
+                                        value={editDate}
+                                        onChange={(e) =>
+                                          setEditDate(e.target.value)
+                                        }
+                                        min={getCurrentDateString()}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Time</Label>
+                                      <div className="grid grid-cols-3 gap-1 mt-2 max-h-40 overflow-y-auto">
+                                        {editAvailableTimes.length > 0 ? (
+                                          editAvailableTimes.map((time) => (
+                                            <Button
+                                              key={time}
+                                              variant={
+                                                editTime === time
+                                                  ? "default"
+                                                  : "outline"
+                                              }
+                                              size="sm"
+                                              onClick={() => setEditTime(time)}
+                                              className="h-8"
+                                            >
+                                              {formatTimeTo12Hour(time)}
+                                            </Button>
+                                          ))
+                                        ) : (
+                                          <p className="col-span-3 text-sm text-muted-foreground">
+                                            {editDate
+                                              ? "No available slots for this date."
+                                              : "Select a date first."}
+                                          </p>
+                                        )}
                                       </div>
                                     </div>
                                     <div className="flex gap-2">
@@ -1335,6 +1492,10 @@ const ClientsTransactionPage: React.FC = () => {
                                         onClick={handleSaveEdit}
                                         size="sm"
                                         className="flex-1"
+                                        disabled={
+                                          !editTime ||
+                                          editAvailableTimes.length === 0
+                                        }
                                       >
                                         Save Changes
                                       </Button>
@@ -1361,7 +1522,7 @@ const ClientsTransactionPage: React.FC = () => {
                                                 new Date(apt.date),
                                                 "MMM dd, yyyy"
                                               )}{" "}
-                                              at {apt.time}
+                                              at {formatTimeTo12Hour(apt.time)}
                                             </p>
                                             {isUpcoming && (
                                               <Badge
@@ -1536,9 +1697,9 @@ const ClientsTransactionPage: React.FC = () => {
                       !getTransactionAppointments(latestTransaction.id).some(
                         (apt) => apt.status !== "cancelled"
                       ) && (
-                        <div className="space-y-2 pt-4 border-t">
+                        <div className="space-y-4 pt-4 border-t">
                           <h4 className="font-medium">Book Appointment</h4>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-4">
                             <div>
                               <Label htmlFor="date">Date</Label>
                               <Input
@@ -1548,25 +1709,47 @@ const ClientsTransactionPage: React.FC = () => {
                                 onChange={(e) =>
                                   setAppointmentDate(e.target.value)
                                 }
-                                min={new Date().toISOString().split("T")[0]}
+                                min={getCurrentDateString()}
                               />
                             </div>
                             <div>
-                              <Label htmlFor="time">Time</Label>
-                              <Input
-                                id="time"
-                                type="time"
-                                value={appointmentTime}
-                                onChange={(e) =>
-                                  setAppointmentTime(e.target.value)
-                                }
-                              />
+                              <Label>Time</Label>
+                              <div className="grid grid-cols-3 gap-1 mt-2 max-h-40 overflow-y-auto">
+                                {availableTimes.length > 0 ? (
+                                  availableTimes.map((time) => (
+                                    <Button
+                                      key={time}
+                                      variant={
+                                        appointmentTime === time
+                                          ? "default"
+                                          : "outline"
+                                      }
+                                      size="sm"
+                                      onClick={() => setAppointmentTime(time)}
+                                      className="h-8"
+                                    >
+                                      {formatTimeTo12Hour(time)}
+                                    </Button>
+                                  ))
+                                ) : (
+                                  <p className="col-span-3 text-sm text-muted-foreground">
+                                    {appointmentDate
+                                      ? "No available slots for this date."
+                                      : "Select a date first."}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <Button
                             onClick={handleBookAppointment}
                             className="w-full"
                             variant="outline"
+                            disabled={
+                              !appointmentDate ||
+                              !appointmentTime ||
+                              availableTimes.length === 0
+                            }
                           >
                             Book Appointment
                           </Button>
