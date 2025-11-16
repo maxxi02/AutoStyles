@@ -45,6 +45,13 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 interface Transaction {
   id: string;
   userId?: string;
@@ -58,6 +65,7 @@ interface Transaction {
   status: "saved" | "purchased" | "cancelled";
   paymentVerifiedAt?: Date;
   paymentId?: string;
+  paymentMethod?: "paymongo" | "cash";
   customerDetails?: {
     fullName: string;
     email: string;
@@ -201,6 +209,10 @@ const ClientsTransactionPage: React.FC = () => {
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [appointmentToRefund, setAppointmentToRefund] =
     useState<Appointment | null>(null);
+
+  const [paymentMethod, setPaymentMethod] = useState<"paymongo" | "cash">(
+    "paymongo"
+  );
   // Convert 24-hour time to 12-hour format for display
   const formatTimeTo12Hour = (time24: string): string => {
     const [hours, minutes] = time24.split(":").map(Number);
@@ -249,6 +261,88 @@ const ClientsTransactionPage: React.FC = () => {
         apt.status !== "cancelled" &&
         apt.id !== excludeId
     );
+  };
+
+  const handleCashPayment = async () => {
+    const latestTransaction = getLatestTransaction();
+    if (!latestTransaction) return;
+
+    const hasActiveAppointment = getTransactionAppointments(
+      latestTransaction.id
+    ).some((apt) => apt.status !== "cancelled");
+
+    if (!hasActiveAppointment) {
+      toast.error("Please book an appointment first.");
+      return;
+    }
+
+    // Check inventory same as handlePay
+    if (latestTransaction.colorId) {
+      const color = paintColors.find((c) => c.id === latestTransaction.colorId);
+      if (!color || color.inventory < 1) {
+        toast.error("Sorry, the selected paint color is out of stock.");
+        return;
+      }
+    }
+    if (latestTransaction.wheelId) {
+      const wheel = wheels.find((w) => w.id === latestTransaction.wheelId);
+      if (!wheel || wheel.inventory < 1) {
+        toast.error("Sorry, the selected wheels are out of stock.");
+        return;
+      }
+    }
+    if (latestTransaction.interiorId) {
+      const interior = interiors.find(
+        (i) => i.id === latestTransaction.interiorId
+      );
+      if (!interior || interior.inventory < 1) {
+        toast.error("Sorry, the selected interior is out of stock.");
+        return;
+      }
+    }
+
+    try {
+      const loadingToast = toast.loading(
+        "Processing cash payment confirmation..."
+      );
+
+      // Update transaction status to purchased with cash payment method
+      await updateDoc(doc(db, "transactions", latestTransaction.id), {
+        status: "purchased",
+        paymentVerifiedAt: new Date(),
+        paymentId: `CASH-${Date.now()}`,
+        paymentMethod: "cash",
+        customizationProgress: {
+          paintCompleted: false,
+          paintCompletedAt: null,
+          wheelsCompleted: false,
+          wheelsCompletedAt: null,
+          interiorCompleted: false,
+          interiorCompletedAt: null,
+          overallStatus: "pending",
+        },
+      });
+
+      // Update appointment payment status
+      const appointment = getTransactionAppointments(latestTransaction.id).find(
+        (apt) => apt.status !== "cancelled"
+      );
+      if (appointment) {
+        await updateDoc(doc(db, "appointments", appointment.id), {
+          paymentStatus: "paid",
+          paidAt: new Date(),
+          paymentId: `CASH-${Date.now()}`,
+        });
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success(
+        "Cash payment confirmed! Please bring exact amount to your appointment."
+      );
+    } catch (error) {
+      console.error("Error confirming cash payment:", error);
+      toast.error("Failed to confirm cash payment. Please try again.");
+    }
   };
   const getAvailableTimes = (date: string, excludeId?: string): string[] => {
     if (!isBusinessDay(date)) return [];
@@ -1245,21 +1339,44 @@ const ClientsTransactionPage: React.FC = () => {
                       </div>
                       {/* Payment Status */}
                       {latestTransaction.status === "purchased" && (
-                        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
-                          <CheckCircle2 className="h-5 w-5 text-green-600" />
-                          <div>
-                            <p className="font-medium text-green-900">
-                              Payment Verified
-                            </p>
-                            {latestTransaction.paymentVerifiedAt && (
-                              <p className="text-sm text-green-700">
+                        <div className="border rounded-lg p-4">
+                          <h3 className="font-semibold mb-2">
+                            Payment Details
+                          </h3>
+                          <p className="text-2xl font-bold">
+                            ₱{latestTransaction.price.toLocaleString()}
+                          </p>
+                          {latestTransaction.paymentVerifiedAt && (
+                            <>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Paid:{" "}
                                 {format(
                                   latestTransaction.paymentVerifiedAt,
-                                  "MMM dd, yyyy HH:mm"
+                                  "MMM dd, yyyy"
                                 )}
                               </p>
-                            )}
-                          </div>
+                              <Badge
+                                variant={
+                                  latestTransaction.paymentMethod === "cash"
+                                    ? "secondary"
+                                    : "default"
+                                }
+                                className="mt-2"
+                              >
+                                {latestTransaction.paymentMethod === "cash"
+                                  ? "Cash Payment"
+                                  : "PayMongo Payment"}
+                              </Badge>
+                              {latestTransaction.paymentMethod === "cash" && (
+                                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                  <p className="text-sm text-yellow-800 font-medium">
+                                    💰 Please proceed to the cashier to complete
+                                    your cash payment on your appointment date.
+                                  </p>
+                                </div>
+                              )}
+                            </>
+                          )}
                         </div>
                       )}
                       {/* Feedback Section - Show when customization is complete */}
@@ -1476,21 +1593,56 @@ const ClientsTransactionPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    {/* Payment Button */}
+                    {/* Payment Method Selection & Button */}
                     {latestTransaction.status !== "purchased" &&
                       overallStatus !== "completed" && (
-                        <div className="space-y-2 pt-4">
+                        <div className="space-y-4 pt-4">
+                          <div className="space-y-2">
+                            <Label>Payment Method</Label>
+                            <Select
+                              value={paymentMethod}
+                              onValueChange={(value: "paymongo" | "cash") =>
+                                setPaymentMethod(value)
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select payment method" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="paymongo">
+                                  PayMongo (Online Payment)
+                                </SelectItem>
+                                <SelectItem value="cash">
+                                  Cash (Pay on Appointment)
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
                           <Button
-                            onClick={handlePay}
+                            onClick={
+                              paymentMethod === "paymongo"
+                                ? handlePay
+                                : handleCashPayment
+                            }
                             className="w-full"
                             disabled={!hasActiveAppointment}
                           >
-                            Pay Now with PayMongo
+                            {paymentMethod === "paymongo"
+                              ? "Pay Now with PayMongo"
+                              : "Confirm Cash Payment"}
                           </Button>
+
                           {!hasActiveAppointment && (
                             <p className="text-sm text-muted-foreground text-center">
                               Please book an appointment before proceeding to
                               payment.
+                            </p>
+                          )}
+
+                          {paymentMethod === "cash" && (
+                            <p className="text-sm text-muted-foreground text-center">
+                              You will pay in cash during your appointment.
                             </p>
                           )}
                         </div>

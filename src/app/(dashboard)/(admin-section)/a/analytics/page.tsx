@@ -26,6 +26,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import Link from "next/link";
 
 interface Transaction {
   id: string;
@@ -668,7 +669,9 @@ const AnalyticsPage: React.FC = () => {
                             className="w-full"
                             variant="outline"
                           >
+                            <Link href={"/a/inventory"}>
                             View in Inventory
+                            </Link>
                           </Button>
                         </CardFooter>
                       </Card>

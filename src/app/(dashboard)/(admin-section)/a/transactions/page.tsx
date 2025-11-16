@@ -72,8 +72,11 @@ interface Transaction {
   status: "saved" | "purchased" | "cancelled";
   paymentVerifiedAt?: Date;
   paymentId?: string;
+  paymentMethod?: "paymongo" | "cash";
   assignedAutoworkerId?: string;
   estimatedCompletionDate?: Date;
+  cashPaymentVerified?: boolean; // Add this line
+  cashPaymentVerifiedAt?: Date; // Add this line
   customizationProgress?: {
     paintCompleted: boolean;
     paintCompletedAt: Date | null;
@@ -218,6 +221,7 @@ const AdminTransactionPage = () => {
             timestamp: docData.timestamp.toDate(),
             paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
             estimatedCompletionDate: docData.estimatedCompletionDate?.toDate(),
+            cashPaymentVerifiedAt: docData.cashPaymentVerifiedAt?.toDate(),
             customizationProgress: docData.customizationProgress
               ? {
                   ...docData.customizationProgress,
@@ -457,6 +461,19 @@ const AdminTransactionPage = () => {
     return totalStages > 0
       ? Math.round((completedStages / totalStages) * 100)
       : 0;
+  };
+
+  const handleVerifyCashPayment = async (transactionId: string) => {
+    try {
+      await updateDoc(doc(db, "transactions", transactionId), {
+        cashPaymentVerified: true,
+        cashPaymentVerifiedAt: Timestamp.now(),
+      });
+      toast.success("Cash payment verified successfully!");
+    } catch (error) {
+      console.error("Error verifying cash payment:", error);
+      toast.error("Failed to verify cash payment");
+    }
   };
   const getProgressColor = (percentage: number): string => {
     if (percentage === 0) return "text-gray-500";
@@ -1306,70 +1323,75 @@ const AdminTransactionPage = () => {
                             </div>
                             {apt.status !== "cancelled" && (
                               <div className="flex gap-2">
-                                {apt.paymentStatus !== "paid" && !isCompleted && (
-                                  <>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleEditAppointment(apt)}
-                                      className="flex-1"
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        handleDeleteAppointment(
-                                          apt.id,
-                                          apt.paymentStatus
-                                        )
-                                      }
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </>
-                                )}
-                                {!isCompleted && (
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => {
-                                      if (apt.paymentStatus === "paid") {
-                                        const appointmentDateTime = new Date(
-                                          `${apt.date}T${apt.time}`
-                                        );
-                                        const now = new Date();
-                                        const hoursDifference =
-                                          (appointmentDateTime.getTime() -
-                                            now.getTime()) /
-                                          (1000 * 60 * 60);
-                                        if (
-                                          hoursDifference < 24 &&
-                                          appointmentDateTime > now
-                                        ) {
-                                          toast.error(
-                                            "Cannot cancel within 24 hours of appointment time"
-                                          );
-                                          return;
+                                {apt.paymentStatus !== "paid" &&
+                                  !isCompleted && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleEditAppointment(apt)
                                         }
-                                        setAppointmentToRefund(apt);
-                                        setShowRefundModal(true);
-                                      } else {
-                                        handleCancelAppointment(apt.id);
+                                        className="flex-1"
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleDeleteAppointment(
+                                            apt.id,
+                                            apt.paymentStatus
+                                          )
+                                        }
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </>
+                                  )}
+                                {!isCompleted &&
+                                  customizationProgress.overallStatus !==
+                                    "completed" && (
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (apt.paymentStatus === "paid") {
+                                          const appointmentDateTime = new Date(
+                                            `${apt.date}T${apt.time}`
+                                          );
+                                          const now = new Date();
+                                          const hoursDifference =
+                                            (appointmentDateTime.getTime() -
+                                              now.getTime()) /
+                                            (1000 * 60 * 60);
+                                          if (
+                                            hoursDifference < 24 &&
+                                            appointmentDateTime > now
+                                          ) {
+                                            toast.error(
+                                              "Cannot cancel within 24 hours of appointment time"
+                                            );
+                                            return;
+                                          }
+                                          setAppointmentToRefund(apt);
+                                          setShowRefundModal(true);
+                                        } else {
+                                          handleCancelAppointment(apt.id);
+                                        }
+                                      }}
+                                      className={
+                                        apt.paymentStatus === "paid"
+                                          ? "w-full"
+                                          : "flex-1"
                                       }
-                                    }}
-                                    className={
-                                      apt.paymentStatus === "paid"
-                                        ? "w-full"
-                                        : "flex-1"
-                                    }
-                                  >
-                                    Cancel{" "}
-                                    {apt.paymentStatus === "paid" &&
-                                      "(with Refund)"}
-                                  </Button>
-                                )}
+                                    >
+                                      Cancel{" "}
+                                      {apt.paymentStatus === "paid" &&
+                                        "(with Refund)"}
+                                    </Button>
+                                  )}
                               </div>
                             )}
                             {apt.status === "cancelled" && (
@@ -1447,18 +1469,53 @@ const AdminTransactionPage = () => {
             )}
             {/* Payment Info */}
             <div className="border rounded-lg p-4">
-              <h3 className="font-semibold mb-2">Total Amount</h3>
+              <h3 className="font-semibold mb-2">Payment Details</h3>
               <p className="text-2xl font-bold">
                 ₱{selectedTransaction.price.toLocaleString()}
               </p>
               {selectedTransaction.paymentVerifiedAt && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Paid:{" "}
-                  {format(
-                    selectedTransaction.paymentVerifiedAt,
-                    "MMM dd, yyyy"
+                <>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Paid:{" "}
+                    {format(
+                      selectedTransaction.paymentVerifiedAt,
+                      "MMM dd, yyyy"
+                    )}
+                  </p>
+                  <Badge
+                    variant={
+                      selectedTransaction.paymentMethod === "cash"
+                        ? "secondary"
+                        : "default"
+                    }
+                    className="mt-2"
+                  >
+                    {selectedTransaction.paymentMethod === "cash"
+                      ? "Cash Payment"
+                      : "PayMongo Payment"}
+                  </Badge>
+                  {selectedTransaction.paymentMethod === "cash" && (
+                    <>
+                      <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <p className="text-sm text-yellow-800 font-medium">
+                          💰 Customer will pay in cash on appointment date.
+                        </p>
+                      </div>
+                      {!selectedTransaction.cashPaymentVerifiedAt && (
+                        <Button
+                          onClick={() =>
+                            handleVerifyCashPayment(selectedTransaction.id)
+                          }
+                          className="w-full mt-3"
+                          variant="default"
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Verify Cash Payment
+                        </Button>
+                      )}
+                    </>
                   )}
-                </p>
+                </>
               )}
             </div>
           </div>
@@ -1512,7 +1569,12 @@ const AdminTransactionPage = () => {
                 <TableHead className="text-muted-foreground">Contact</TableHead>
                 <TableHead className="text-muted-foreground">Model</TableHead>
                 <TableHead className="text-muted-foreground">Amount</TableHead>
-                <TableHead className="text-muted-foreground">Status</TableHead>
+                <TableHead className="text-muted-foreground">
+                  Payment Status
+                </TableHead>
+                <TableHead className="text-muted-foreground">
+                  Payment Method
+                </TableHead>
                 <TableHead className="text-muted-foreground">
                   Progress
                 </TableHead>
@@ -1553,18 +1615,63 @@ const AdminTransactionPage = () => {
                     <TableCell className="font-medium text-foreground">
                       ₱{transaction.price.toLocaleString()}
                     </TableCell>
+                    {/* Payment Status */}
                     <TableCell>
-                      <Badge
-                        variant={
-                          transaction.status === "purchased"
-                            ? "default"
-                            : transaction.status === "saved"
+                      <div className="flex flex-col gap-1">
+                        <Badge
+                          variant={
+                            transaction.status === "purchased"
+                              ? "default"
+                              : transaction.status === "saved"
+                                ? "secondary"
+                                : "destructive"
+                          }
+                        >
+                          {transaction.status === "purchased"
+                            ? "PAID"
+                            : transaction.status.toUpperCase()}
+                        </Badge>
+                        {transaction.paymentMethod === "cash" &&
+                          transaction.status === "purchased" && (
+                            <>
+                              {!transaction.cashPaymentVerifiedAt ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs text-yellow-600"
+                                >
+                                  Pending Verification
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="default"
+                                  className="text-xs bg-green-600"
+                                >
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Verified
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                      </div>
+                    </TableCell>
+                    {/* Payment Method */}
+                    <TableCell>
+                      {transaction.status === "purchased" &&
+                      transaction.paymentMethod ? (
+                        <Badge
+                          variant={
+                            transaction.paymentMethod === "cash"
                               ? "secondary"
-                              : "destructive"
-                        }
-                      >
-                        {transaction.status.toUpperCase()}
-                      </Badge>
+                              : "default"
+                          }
+                        >
+                          {transaction.paymentMethod === "cash"
+                            ? "💵 Cash"
+                            : "💳 PayMongo"}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
