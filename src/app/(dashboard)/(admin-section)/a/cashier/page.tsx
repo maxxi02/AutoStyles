@@ -67,7 +67,7 @@ interface PayMongoPayment {
 interface PricingRule {
   id: string;
   description: string;
-  percentage: number;
+  discountPercentage: number;
   isActive: boolean;
 }
 
@@ -153,7 +153,7 @@ const CashierPage: React.FC = () => {
     try {
       const pricingRuleData: PricingRuleData = {
         description: newPricingRule.description || "",
-        percentage: newPricingRule.percentage ?? 0,
+        discountPercentage: newPricingRule.discountPercentage ?? 0,
         isActive: newPricingRule.isActive ?? true,
       };
       if (editingPricingRule) {
@@ -190,7 +190,7 @@ const CashierPage: React.FC = () => {
     setEditingPricingRule(rule);
     setNewPricingRule({
       description: rule.description,
-      percentage: rule.percentage,
+      discountPercentage: rule.discountPercentage,
       isActive: rule.isActive,
     });
     setIsPricingRuleDialogOpen(true);
@@ -337,17 +337,17 @@ const CashierPage: React.FC = () => {
                       </p>
                     </div>
                     <div>
-                      <Label htmlFor="percentage">
+                      <Label htmlFor="discountPercentage">
                         Discount Percentage (%)
                       </Label>
                       <Input
-                        id="percentage"
+                        id="discountPercentage"
                         type="number"
                         step="0.1"
                         min="0"
                         max="100"
                         placeholder="e.g., 20 for 20% off"
-                        value={newPricingRule.percentage ?? ""}
+                        value={newPricingRule.discountPercentage ?? ""}
                         onChange={(e) => {
                           const val = e.target.value;
                           const numVal = parseFloat(val);
@@ -357,20 +357,19 @@ const CashierPage: React.FC = () => {
                           ) {
                             setNewPricingRule({
                               ...newPricingRule,
-                              percentage: val === "" ? undefined : numVal,
+                              discountPercentage:
+                                val === "" ? undefined : numVal,
                             });
                           }
                         }}
                         onKeyPress={(e) => {
                           const charCode = e.charCode;
-                          // Allow numbers (0-9) and decimal point only
                           if (
                             (charCode < 48 || charCode > 57) &&
                             charCode !== 46
                           ) {
                             e.preventDefault();
                           }
-                          // Prevent multiple decimal points
                           if (
                             charCode === 46 &&
                             e.currentTarget.value.includes(".")
@@ -398,7 +397,7 @@ const CashierPage: React.FC = () => {
                           if (!isNaN(val) && val > 100) {
                             setNewPricingRule({
                               ...newPricingRule,
-                              percentage: 100,
+                              discountPercentage: 100,
                             });
                             toast.warning("Maximum discount is 100%");
                           }
@@ -435,9 +434,9 @@ const CashierPage: React.FC = () => {
                       disabled={
                         pricingRulePending ||
                         !newPricingRule.description ||
-                        !newPricingRule.percentage ||
-                        newPricingRule.percentage <= 0 ||
-                        newPricingRule.percentage > 100
+                        !newPricingRule.discountPercentage ||
+                        newPricingRule.discountPercentage <= 0 ||
+                        newPricingRule.discountPercentage > 100
                       }
                     >
                       {pricingRulePending && (
@@ -466,14 +465,18 @@ const CashierPage: React.FC = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        <p className="text-2xl font-bold">
-                          -{rule.percentage}%
+                        <p className="text-2xl font-bold text-green-600">
+                          -{rule.discountPercentage}%
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Discount
                         </p>
+                        <p className="text-sm font-medium">
+                          {rule.description}
+                        </p>
                         <div className="text-xs text-muted-foreground">
-                          Customers get {rule.percentage}% off their total
+                          Customers get {rule.discountPercentage}% off their
+                          total
                         </div>
                       </div>
                     </CardContent>

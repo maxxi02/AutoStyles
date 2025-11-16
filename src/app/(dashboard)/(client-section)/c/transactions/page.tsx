@@ -10,7 +10,7 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import {
   Card,
   CardContent,
@@ -44,6 +44,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
+import { onAuthStateChanged } from "firebase/auth";
 interface Transaction {
   id: string;
   userId?: string;
@@ -195,6 +196,8 @@ const ClientsTransactionPage: React.FC = () => {
   const [editTime, setEditTime] = useState("");
   const [editAvailableTimes, setEditAvailableTimes] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   // Refund modal state
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [appointmentToRefund, setAppointmentToRefund] =
@@ -276,6 +279,19 @@ const ClientsTransactionPage: React.FC = () => {
     }
     return times;
   };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUserId(user.uid);
+      } else {
+        setCurrentUserId(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   // Load data from Firestore
   useEffect(() => {
     const expectedSnapshots = 7; // transactions + appointments + 5 others
@@ -285,35 +301,37 @@ const ClientsTransactionPage: React.FC = () => {
       orderBy("timestamp", "desc")
     );
     const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => {
-        const docData = doc.data();
-        return {
-          id: doc.id,
-          ...docData,
-          timestamp: docData.timestamp.toDate(),
-          paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
-          customizationProgress: docData.customizationProgress
-            ? {
-                ...docData.customizationProgress,
-                paintCompletedAt:
-                  docData.customizationProgress.paintCompletedAt?.toDate() ||
-                  null,
-                wheelsCompletedAt:
-                  docData.customizationProgress.wheelsCompletedAt?.toDate() ||
-                  null,
-                interiorCompletedAt:
-                  docData.customizationProgress.interiorCompletedAt?.toDate() ||
-                  null,
-              }
-            : undefined,
-          feedback: docData.feedback
-            ? {
-                ...docData.feedback,
-                submittedAt: docData.feedback.submittedAt?.toDate(),
-              }
-            : undefined,
-        } as Transaction;
-      });
+      const data = snapshot.docs
+        .map((doc) => {
+          const docData = doc.data();
+          return {
+            id: doc.id,
+            ...docData,
+            timestamp: docData.timestamp.toDate(),
+            paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
+            customizationProgress: docData.customizationProgress
+              ? {
+                  ...docData.customizationProgress,
+                  paintCompletedAt:
+                    docData.customizationProgress.paintCompletedAt?.toDate() ||
+                    null,
+                  wheelsCompletedAt:
+                    docData.customizationProgress.wheelsCompletedAt?.toDate() ||
+                    null,
+                  interiorCompletedAt:
+                    docData.customizationProgress.interiorCompletedAt?.toDate() ||
+                    null,
+                }
+              : undefined,
+            feedback: docData.feedback
+              ? {
+                  ...docData.feedback,
+                  submittedAt: docData.feedback.submittedAt?.toDate(),
+                }
+              : undefined,
+          } as Transaction;
+        })
+        .filter((transaction) => transaction.userId === currentUserId);
       setTransactions(data);
       console.log("Transactions updated, count:", data.length);
       setSnapshotCount((prev) => {
@@ -622,7 +640,7 @@ const ClientsTransactionPage: React.FC = () => {
     if (percentage < 100) return "text-orange-500";
     return "text-green-600";
   };
-  if (isDataLoading) {
+  if (isDataLoading || currentUserId === null) {
     return (
       <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center">
