@@ -3,12 +3,12 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import {
   collection,
   onSnapshot,
-  orderBy,
   query,
   addDoc,
   doc,
   updateDoc,
   deleteDoc,
+  where,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import {
@@ -196,7 +196,6 @@ const ClientsTransactionPage: React.FC = () => {
   const [editTime, setEditTime] = useState("");
   const [editAvailableTimes, setEditAvailableTimes] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   // Refund modal state
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -243,7 +242,7 @@ const ClientsTransactionPage: React.FC = () => {
     time: string,
     excludeId?: string
   ): boolean => {
-    return appointments.some(
+    return userAppointments.some(
       (apt) =>
         apt.date === date &&
         apt.time === time &&
@@ -263,10 +262,10 @@ const ClientsTransactionPage: React.FC = () => {
       startHour = h;
       startMin = m;
     }
-    // Loop through hours 8-17 (8 AM to 5 PM)
+
     for (let h = startHour; h <= 17; h++) {
       const startMinute = h === startHour ? startMin : 0;
-      const endMinute = h === 17 ? 30 : 60; // At 5 PM (17), only add 5:00, not 5:30
+      const endMinute = h === 17 ? 30 : 60;
       for (let m = startMinute; m < endMinute; m += 30) {
         const time24 = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
         if (
@@ -279,7 +278,18 @@ const ClientsTransactionPage: React.FC = () => {
     }
     return times;
   };
+  useEffect(() => {
+    console.log("Current User ID:", currentUserId);
+    console.log("Transactions count:", transactions.length);
+    console.log("Appointments count:", appointments.length);
 
+    if (transactions.length > 0) {
+      console.log(
+        "Transaction user IDs:",
+        transactions.map((t) => t.userId)
+      );
+    }
+  }, [currentUserId, transactions, appointments]);
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -288,50 +298,58 @@ const ClientsTransactionPage: React.FC = () => {
         setCurrentUserId(null);
       }
     });
-
     return () => unsubscribe();
   }, []);
-
   // Load data from Firestore
   useEffect(() => {
+    if (!currentUserId) return;
     const expectedSnapshots = 7; // transactions + appointments + 5 others
     // Load transactions
     const q = query(
       collection(db, "transactions"),
-      orderBy("timestamp", "desc")
+      where("userId", "==", currentUserId)
     );
+
     const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => {
-        const docData = doc.data();
-        return {
-          id: doc.id,
-          ...docData,
-          timestamp: docData.timestamp.toDate(),
-          paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
-          customizationProgress: docData.customizationProgress
-            ? {
-                ...docData.customizationProgress,
-                paintCompletedAt:
-                  docData.customizationProgress.paintCompletedAt?.toDate() ||
-                  null,
-                wheelsCompletedAt:
-                  docData.customizationProgress.wheelsCompletedAt?.toDate() ||
-                  null,
-                interiorCompletedAt:
-                  docData.customizationProgress.interiorCompletedAt?.toDate() ||
-                  null,
-              }
-            : undefined,
-          feedback: docData.feedback
-            ? {
-                ...docData.feedback,
-                submittedAt: docData.feedback.submittedAt?.toDate(),
-              }
-            : undefined,
-        } as Transaction;
-      });
+      const data = snapshot.docs
+        .map((doc) => {
+          const docData = doc.data();
+          return {
+            id: doc.id,
+            ...docData,
+            timestamp: docData.timestamp.toDate(),
+            paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
+            customizationProgress: docData.customizationProgress
+              ? {
+                  ...docData.customizationProgress,
+                  paintCompletedAt:
+                    docData.customizationProgress.paintCompletedAt?.toDate() ||
+                    null,
+                  wheelsCompletedAt:
+                    docData.customizationProgress.wheelsCompletedAt?.toDate() ||
+                    null,
+                  interiorCompletedAt:
+                    docData.customizationProgress.interiorCompletedAt?.toDate() ||
+                    null,
+                }
+              : undefined,
+            feedback: docData.feedback
+              ? {
+                  ...docData.feedback,
+                  submittedAt: docData.feedback.submittedAt?.toDate(),
+                }
+              : undefined,
+          } as Transaction;
+        })
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
       setTransactions(data);
-      console.log("Transactions updated, count:", data.length);
+      console.log(
+        "Transactions updated for user:",
+        currentUserId,
+        "count:",
+        data.length
+      );
       setSnapshotCount((prev) => {
         const next = prev + 1;
         if (next === expectedSnapshots) {
@@ -453,7 +471,17 @@ const ClientsTransactionPage: React.FC = () => {
       unsubscribeWheels();
       unsubscribeInteriors();
     };
-  }, []);
+  }, [currentUserId]);
+  const userAppointments = React.useMemo(() => {
+    if (transactions.length > 0 && currentUserId) {
+      const userTransactionIds = new Set(transactions.map((t) => t.id));
+      return appointments.filter((apt) =>
+        userTransactionIds.has(apt.transactionId)
+      );
+    }
+    return [];
+  }, [transactions, currentUserId, appointments]);
+
   // Available times for booking
   useEffect(() => {
     if (appointmentDate) {
@@ -590,7 +618,7 @@ const ClientsTransactionPage: React.FC = () => {
     }
   };
   const getFilteredAndSortedAppointments = (transactionId: string) => {
-    const filtered = appointments.filter(
+    const filtered = userAppointments.filter(
       (apt) => apt.transactionId === transactionId
     );
     // Sort by date and time (nearest first), but keep cancelled at the end
@@ -648,20 +676,47 @@ const ClientsTransactionPage: React.FC = () => {
       </div>
     );
   }
-  const getFilteredTransactions = () => {
-    // First filter by current user
-    const userTransactions = transactions.filter(
-      (transaction) => transaction.userId === currentUserId
+
+  // Also add a check for when user is not authenticated but data loading is complete
+  if (!currentUserId && !isDataLoading) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">
+            Please log in to view your transactions
+          </p>
+          <Button onClick={() => (window.location.href = "/auth")}>
+            Go to Login
+          </Button>
+        </div>
+      </div>
     );
+  }
 
-    // If no search query, return user's transactions
-    if (!searchQuery) return userTransactions;
+  if (!currentUserId && !isDataLoading) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">
+            Please log in to view your transactions
+          </p>
+          <Button onClick={() => (window.location.href = "/auth")}>
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  const getFilteredTransactions = () => {
+    // Start with the current user's transactions (already filtered by Firestore query)
+    return transactions.filter((transaction) => {
+      // Only apply search filter if there's a search query
+      if (!searchQuery.trim()) return true;
 
-    // Apply search filter on user's transactions
-    return userTransactions.filter((transaction) => {
       const searchLower = searchQuery.toLowerCase();
       const { type, model, color, wheel, interior } =
         getTransactionDetails(transaction);
+
       const modelName = model?.name?.toLowerCase() || "";
       const typeName = type?.name?.toLowerCase() || "";
       const colorName = color?.name?.toLowerCase() || "";
@@ -702,8 +757,11 @@ const ClientsTransactionPage: React.FC = () => {
     return { type, model, color, wheel, interior };
   };
   const getTransactionAppointments = (transactionId: string) => {
-    return appointments.filter((apt) => apt.transactionId === transactionId);
+    return userAppointments.filter(
+      (apt) => apt.transactionId === transactionId
+    );
   };
+
   const handleSubmitFeedback = async () => {
     if (!feedbackTransactionId || rating === 0) {
       toast.error("Please provide a rating");
@@ -999,13 +1057,17 @@ const ClientsTransactionPage: React.FC = () => {
     <div className="flex flex-col gap-4 mb-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Transactions</h1>
-        <Badge variant={transactions.length > 0 ? "default" : "secondary"}>
-          {transactions.length} Transaction
-          {transactions.length !== 1 ? "s" : ""}
+        <Badge
+          variant={
+            getFilteredTransactions().length > 0 ? "default" : "secondary"
+          }
+        >
+          {getFilteredTransactions().length} Transaction
+          {getFilteredTransactions().length !== 1 ? "s" : ""}
         </Badge>
       </div>
       {/* Global Search Bar */}
-      {transactions.length > 0 && (
+      {getFilteredTransactions().length > 0 && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -1017,7 +1079,7 @@ const ClientsTransactionPage: React.FC = () => {
           />
         </div>
       )}
-      {transactions.length === 0 ? (
+      {getFilteredTransactions().length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
             <p className="text-muted-foreground">

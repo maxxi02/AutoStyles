@@ -18,7 +18,14 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { collection, addDoc, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Loader2, MessageCircleWarning } from "lucide-react";
 import { toast } from "sonner";
@@ -26,12 +33,10 @@ import Image from "next/image";
 import { auth } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, type User } from "firebase/auth";
-
 interface CarType {
   id: string;
   name: string;
 }
-
 interface CarModel {
   id: string;
   name: string;
@@ -39,7 +44,6 @@ interface CarModel {
   imageUrl?: string;
   basePrice?: number;
 }
-
 interface PaintColor {
   id: string;
   carModelId: string;
@@ -51,7 +55,6 @@ interface PaintColor {
   inventory: number;
   images?: string[];
 }
-
 interface Wheel {
   id: string;
   carModelId: string;
@@ -61,7 +64,6 @@ interface Wheel {
   inventory: number;
   imageUrl?: string;
 }
-
 interface Interior {
   id: string;
   carModelId: string;
@@ -72,7 +74,6 @@ interface Interior {
   imageUrl?: string;
   hex?: string;
 }
-
 interface CustomizationState {
   typeId: string;
   modelId: string;
@@ -80,14 +81,12 @@ interface CustomizationState {
   wheelId: string;
   interiorId: string;
 }
-
 interface PricingRule {
   id: string;
   description: string;
   discountPercentage: number;
   isActive: boolean;
 }
-
 interface TransactionData {
   userId: string;
   typeId: string;
@@ -121,7 +120,6 @@ interface TransactionData {
     discountAmount: number;
   };
 }
-
 const CustomizationPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"customize" | "models">(
     "customize"
@@ -140,21 +138,16 @@ const CustomizationPage: React.FC = () => {
   const [currentState, setCurrentState] = useState<CustomizationState | null>(
     null
   );
-
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-
   // Loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
-
   const [isSaving, setIsSaving] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
   // pricing rules
   const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
   const [selectedPricingRuleId, setSelectedPricingRuleId] =
     useState<string>("");
-
   //to track authentication
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -162,7 +155,6 @@ const CustomizationPage: React.FC = () => {
     });
     return unsubscribe;
   }, []);
-
   // Load data from Firestore
   useEffect(() => {
     const unsubscribeCarTypes = onSnapshot(
@@ -181,7 +173,6 @@ const CustomizationPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribeCarModels = onSnapshot(
       collection(db, "carModels"),
       (snapshot) => {
@@ -198,7 +189,6 @@ const CustomizationPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribePaintColors = onSnapshot(
       collection(db, "paintColors"),
       (snapshot) => {
@@ -215,7 +205,6 @@ const CustomizationPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribeWheels = onSnapshot(
       collection(db, "wheels"),
       (snapshot) => {
@@ -232,7 +221,6 @@ const CustomizationPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribeInteriors = onSnapshot(
       collection(db, "interiors"),
       (snapshot) => {
@@ -249,7 +237,6 @@ const CustomizationPage: React.FC = () => {
         });
       }
     );
-
     const unsubscribePricingRules = onSnapshot(
       collection(db, "pricingRules"),
       (snapshot) => {
@@ -267,7 +254,6 @@ const CustomizationPage: React.FC = () => {
         });
       }
     );
-
     return () => {
       unsubscribeCarTypes();
       unsubscribeCarModels();
@@ -277,12 +263,10 @@ const CustomizationPage: React.FC = () => {
       unsubscribePricingRules();
     };
   }, []);
-
   const getUserDetails = async (userId: string) => {
     try {
       const userDocRef = doc(db, "users", userId);
       const userDoc = await getDoc(userDocRef);
-
       if (userDoc.exists()) {
         const data = userDoc.data();
         return {
@@ -292,7 +276,6 @@ const CustomizationPage: React.FC = () => {
           address: data.address || "N/A",
         };
       }
-
       // Fallback to auth data if Firestore doc doesn't exist
       return {
         fullName: currentUser?.displayName || "N/A",
@@ -310,44 +293,36 @@ const CustomizationPage: React.FC = () => {
       };
     }
   };
-
   // Filtered models by type
   const filteredModels = carModels.filter(
     (model) => model.carTypeId === selectedTypeId
   );
-
   // Auto-select first type if none selected and available
   useEffect(() => {
     if (carTypes.length > 0 && !selectedTypeId) {
       setSelectedTypeId(carTypes[0].id);
     }
   }, [carTypes, selectedTypeId]);
-
   // Auto-select first model if none selected and available
   useEffect(() => {
     if (filteredModels.length > 0 && !selectedModelId) {
       setSelectedModelId(filteredModels[0].id);
     }
   }, [selectedTypeId, filteredModels, selectedModelId]);
-
   // Filtered colors by selected model
   const filteredColors = paintColors.filter(
     (color) => color.carModelId === selectedModelId
   );
-
   const filteredWheels = wheels.filter(
     (wheel) => wheel.carModelId === selectedModelId
   );
-
   const filteredInteriors = interiors.filter(
     (interior) => interior.carModelId === selectedModelId
   );
-
   const selectedModel = carModels.find((m) => m.id === selectedModelId);
   const selectedColor = paintColors.find((c) => c.id === selectedColorId);
   const selectedWheel = wheels.find((w) => w.id === selectedWheelId);
   const selectedInterior = interiors.find((i) => i.id === selectedInteriorId);
-
   useEffect(() => {
     if (selectedTypeId && selectedModelId) {
       const newState: CustomizationState = {
@@ -357,7 +332,6 @@ const CustomizationPage: React.FC = () => {
         wheelId: selectedWheelId,
         interiorId: selectedInteriorId,
       };
-
       setHistory((prev) => {
         if (
           currentState &&
@@ -371,7 +345,6 @@ const CustomizationPage: React.FC = () => {
         }
         return prev;
       });
-
       setCurrentState(newState);
     }
   }, [
@@ -381,12 +354,10 @@ const CustomizationPage: React.FC = () => {
     selectedWheelId,
     selectedInteriorId,
   ]);
-
   // Reset image index when color changes
   useEffect(() => {
     setCurrentImageIndex(0);
   }, [selectedColorId, selectedColor?.images?.length]);
-
   // Calculate price - only add prices for selected items
   const basePrice = selectedModel?.basePrice ?? 0;
   const colorPrice =
@@ -396,19 +367,16 @@ const CustomizationPage: React.FC = () => {
   const interiorPrice =
     selectedInteriorId && selectedInterior ? (selectedInterior.price ?? 0) : 0;
   const subtotal = basePrice + colorPrice + wheelPrice + interiorPrice;
-
   // Apply pricing rule if selected
   const selectedPricingRule = pricingRules.find(
     (rule) => rule.id === selectedPricingRuleId
   );
   let discountAmount = 0;
   let calculatedPrice = subtotal;
-
   if (selectedPricingRule) {
     discountAmount = (subtotal * selectedPricingRule.discountPercentage) / 100;
     calculatedPrice = subtotal - discountAmount;
   }
-
   const handleUndo = () => {
     if (history.length > 0) {
       const previousState = history[history.length - 1];
@@ -426,7 +394,6 @@ const CustomizationPage: React.FC = () => {
       toast.error("Please select a model first.");
       return;
     }
-
     // Check if at least one customization option is selected
     if (!selectedColorId && !selectedWheelId && !selectedInteriorId) {
       toast.error(
@@ -434,23 +401,36 @@ const CustomizationPage: React.FC = () => {
       );
       return;
     }
-
     if (!currentUser) {
       toast.error("You must be logged in to save a design.");
       return;
     }
-
     setIsSaving(true);
-
     try {
+      // Check for existing transaction with same customization
+      const existingQuery = query(
+        collection(db, "transactions"),
+        where("userId", "==", currentUser.uid),
+        where("modelId", "==", selectedModelId),
+        where("colorId", "==", selectedColorId),
+        where("wheelId", "==", selectedWheelId),
+        where("interiorId", "==", selectedInteriorId),
+        where("status", "==", "saved")
+      );
+      const existingSnap = await getDocs(existingQuery);
+      if (existingSnap.size > 0) {
+        toast.warning(
+          "This exact design is already saved. You can view or update it in your transactions."
+        );
+        setIsSaving(false);
+        return;
+      }
       // Fetch customer details
       const customerDetails = await getUserDetails(currentUser.uid);
-
       // Warn user if address is missing
       if (customerDetails.address === "N/A" || !customerDetails.address) {
         toast.warning("Please update your address in your profile.");
       }
-
       const transactionData: TransactionData = {
         userId: currentUser.uid,
         typeId: selectedTypeId,
@@ -473,7 +453,6 @@ const CustomizationPage: React.FC = () => {
           overallStatus: "pending" as const,
         },
       };
-
       // Add pricing rule info if applied
       if (selectedPricingRuleId && selectedPricingRule) {
         transactionData.pricingRule = {
@@ -483,12 +462,10 @@ const CustomizationPage: React.FC = () => {
           discountAmount: discountAmount,
         };
       }
-
       const transactionRef = await addDoc(
         collection(db, "transactions"),
         transactionData
       );
-
       toast.success(`Design saved to transaction! ID: ${transactionRef.id}`);
     } catch (error) {
       console.error("Error saving transaction:", error);
@@ -500,17 +477,14 @@ const CustomizationPage: React.FC = () => {
   // Get image for preview fallback
   const getPreviewImage = () =>
     selectedModel?.imageUrl || "/placeholder-car.png";
-
   const handleCustomizeModel = (modelId: string, carTypeId: string) => {
     setActiveTab("customize");
     setSelectedTypeId(carTypeId);
     setSelectedModelId(modelId);
   };
-
   const handlePricingRuleChange = (value: string) => {
     setSelectedPricingRuleId(value === "none" ? "" : value);
   };
-
   if (isDataLoading) {
     return (
       <div className="container mx-auto p-4 flex items-center justify-center">
@@ -521,7 +495,6 @@ const CustomizationPage: React.FC = () => {
       </div>
     );
   }
-
   return (
     <div className="container mx-auto p-4">
       <Tabs
@@ -565,7 +538,6 @@ const CustomizationPage: React.FC = () => {
                     </p>
                   )}
                 </div>
-
                 {/* Model Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Model</label>
@@ -591,7 +563,6 @@ const CustomizationPage: React.FC = () => {
                     </p>
                   )}
                 </div>
-
                 {/* Color Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">
@@ -691,7 +662,6 @@ const CustomizationPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-
                 {/* Wheel Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Wheels</label>
@@ -769,7 +739,6 @@ const CustomizationPage: React.FC = () => {
                       : "No wheels selected"}
                   </p>
                 </div>
-
                 {/* Interior Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Interior</label>
@@ -964,7 +933,6 @@ const CustomizationPage: React.FC = () => {
                 </Button>
               </CardFooter>
             </Card>
-
             {/* Preview Area */}
             <Card className="lg:col-span-3">
               <CardHeader>
@@ -1085,7 +1053,6 @@ const CustomizationPage: React.FC = () => {
                         </p>
                       )}
                     </div>
-
                     {/* Wheels Preview */}
                     {selectedWheelId && selectedWheel?.imageUrl && (
                       <div className="w-full">
@@ -1114,7 +1081,6 @@ const CustomizationPage: React.FC = () => {
                         </p>
                       </div>
                     )}
-
                     {/* Interior Preview */}
                     {selectedInteriorId && selectedInterior && (
                       <div className="w-full">
@@ -1361,5 +1327,4 @@ const CustomizationPage: React.FC = () => {
     </div>
   );
 };
-
 export default CustomizationPage;
