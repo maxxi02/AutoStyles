@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    unoptimized: true, // Add this to disable Next.js image optimization globally
     remotePatterns: [
       {
         protocol: "https",
@@ -25,5 +26,4 @@ const nextConfig = {
     ],
   },
 };
-
 module.exports = nextConfig;

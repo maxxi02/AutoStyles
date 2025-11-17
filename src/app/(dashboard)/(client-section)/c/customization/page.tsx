@@ -25,13 +25,16 @@ import {
   query,
   where,
   getDocs,
+  doc,
+  updateDoc,
+  increment,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Loader2, MessageCircleWarning } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { auth } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, type User } from "firebase/auth";
 interface CarType {
   id: string;
@@ -467,6 +470,33 @@ const CustomizationPage: React.FC = () => {
         transactionData
       );
       toast.success(`Design saved to transaction! ID: ${transactionRef.id}`);
+
+      // Deduct inventory for selected customizations (assuming save = purchase point)
+      if (selectedColorId && selectedColor && selectedColor.inventory > 0) {
+        await updateDoc(doc(db, "paintColors", selectedColorId), {
+          inventory: increment(-1),
+          sold: increment(1),
+        });
+        toast.info(`Deducted 1 from ${selectedColor.name} inventory`);
+      }
+      if (selectedWheelId && selectedWheel && selectedWheel.inventory > 0) {
+        await updateDoc(doc(db, "wheels", selectedWheelId), {
+          inventory: increment(-1),
+          sold: increment(1),
+        });
+        toast.info(`Deducted 1 from ${selectedWheel.name} inventory`);
+      }
+      if (
+        selectedInteriorId &&
+        selectedInterior &&
+        selectedInterior.inventory > 0
+      ) {
+        await updateDoc(doc(db, "interiors", selectedInteriorId), {
+          inventory: increment(-1),
+          sold: increment(1),
+        });
+        toast.info(`Deducted 1 from ${selectedInterior.name} inventory`);
+      }
     } catch (error) {
       console.error("Error saving transaction:", error);
       toast.error("Failed to save transaction");
@@ -695,6 +725,7 @@ const CustomizationPage: React.FC = () => {
                             <RadioGroupItem
                               value={wheel.id}
                               id={`wheel-${wheel.id}`}
+                              disabled={wheel.inventory === 0}
                             />
                             <label
                               htmlFor={`wheel-${wheel.id}`}
@@ -772,6 +803,7 @@ const CustomizationPage: React.FC = () => {
                             <RadioGroupItem
                               value={interior.id}
                               id={`interior-${interior.id}`}
+                              disabled={interior.inventory === 0}
                             />
                             <label
                               htmlFor={`interior-${interior.id}`}
@@ -803,6 +835,13 @@ const CustomizationPage: React.FC = () => {
                                   {interior.hex}
                                 </span>
                               )}
+                              <span
+                                className={`text-xs ml-2 ${interior.inventory === 0 ? "text-red-600" : interior.inventory <= 10 ? "text-orange-600" : "text-green-600"}`}
+                              >
+                                {interior.inventory === 0
+                                  ? "Out of Stock"
+                                  : `Stock: ${interior.inventory}`}
+                              </span>
                             </label>
                           </div>
                         ))}
