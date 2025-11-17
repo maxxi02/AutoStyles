@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { db } from "@/lib/firebase";
 import { format } from "date-fns";
 import {
@@ -19,9 +19,9 @@ import {
   DollarSign,
   FileText,
   Loader2,
-  Search,
   Trash2,
   Calendar,
+  Search,
 } from "lucide-react";
 import {
   Table,
@@ -75,8 +75,8 @@ interface Transaction {
   paymentMethod?: "paymongo" | "cash";
   assignedAutoworkerId?: string;
   estimatedCompletionDate?: Date;
-  cashPaymentVerified?: boolean; // Add this line
-  cashPaymentVerifiedAt?: Date; // Add this line
+  cashPaymentVerified?: boolean;
+  cashPaymentVerifiedAt?: Date;
   customizationProgress?: {
     paintCompleted: boolean;
     paintCompletedAt: Date | null;
@@ -199,7 +199,6 @@ const AdminTransactionPage = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [isUpdatingProgress, setIsUpdatingProgress] = useState(false);
   const [autoworkers, setAutoworkers] = useState<UserData[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
   const [editingAppointmentId, setEditingAppointmentId] = useState<
     string | null
   >(null);
@@ -208,8 +207,13 @@ const AdminTransactionPage = () => {
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [appointmentToRefund, setAppointmentToRefund] =
     useState<Appointment | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const expectedSnapshots = 7;
+
     const unsubscribeTransactions = onSnapshot(
       collection(db, "transactions"),
       (snapshot) => {
@@ -239,7 +243,7 @@ const AdminTransactionPage = () => {
             feedback: docData.feedback
               ? {
                   ...docData.feedback,
-                  submittedAt: docData.feedback.submittedAt?.toDate(),
+                  submittedAt: docData.feedback.subitedAt?.toDate(),
                 }
               : undefined,
           } as Transaction;
@@ -247,9 +251,7 @@ const AdminTransactionPage = () => {
         setTransactions(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === expectedSnapshots) {
-            setIsLoading(false);
-          }
+          if (next === expectedSnapshots) setIsLoading(false);
           return next;
         });
       }
@@ -269,9 +271,7 @@ const AdminTransactionPage = () => {
         setAppointments(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === expectedSnapshots) {
-            setIsLoading(false);
-          }
+          if (next === expectedSnapshots) setIsLoading(false);
           return next;
         });
       }
@@ -285,9 +285,7 @@ const AdminTransactionPage = () => {
         setCarTypes(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === expectedSnapshots) {
-            setIsLoading(false);
-          }
+          if (next === expectedSnapshots) setIsLoading(false);
           return next;
         });
       }
@@ -301,9 +299,7 @@ const AdminTransactionPage = () => {
         setCarModels(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === expectedSnapshots) {
-            setIsLoading(false);
-          }
+          if (next === expectedSnapshots) setIsLoading(false);
           return next;
         });
       }
@@ -317,9 +313,7 @@ const AdminTransactionPage = () => {
         setWheels(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === expectedSnapshots) {
-            setIsLoading(false);
-          }
+          if (next === expectedSnapshots) setIsLoading(false);
           return next;
         });
       }
@@ -333,9 +327,7 @@ const AdminTransactionPage = () => {
         setInteriors(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === expectedSnapshots) {
-            setIsLoading(false);
-          }
+          if (next === expectedSnapshots) setIsLoading(false);
           return next;
         });
       }
@@ -349,9 +341,7 @@ const AdminTransactionPage = () => {
         setPaintColors(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === expectedSnapshots) {
-            setIsLoading(false);
-          }
+          if (next === expectedSnapshots) setIsLoading(false);
           return next;
         });
       }
@@ -386,48 +376,21 @@ const AdminTransactionPage = () => {
       }
     }
   }, [transactions, selectedTransaction, showDetailsModal]);
-  const getFilteredTransactions = () => {
-    if (!searchQuery) return transactions;
-    const searchLower = searchQuery.toLowerCase();
-    return transactions.filter((transaction) => {
-      const { type, model, color, wheel, interior } =
-        getTransactionDetails(transaction);
-      const fullName =
-        transaction.customerDetails?.fullName?.toLowerCase() || "";
-      const modelName = model?.name?.toLowerCase() || "";
-      const typeName = type?.name?.toLowerCase() || "";
-      const colorName = color?.name?.toLowerCase() || "";
-      const wheelName = wheel?.name?.toLowerCase() || "";
-      const interiorName = interior?.name?.toLowerCase() || "";
-      const status = transaction.status.toLowerCase();
-      const dateStr = format(
-        transaction.timestamp,
-        "MMM dd, yyyy HH:mm"
-      ).toLowerCase();
-      const priceStr = transaction.price.toString();
-      return (
-        fullName.includes(searchLower) ||
-        modelName.includes(searchLower) ||
-        typeName.includes(searchLower) ||
-        colorName.includes(searchLower) ||
-        wheelName.includes(searchLower) ||
-        interiorName.includes(searchLower) ||
-        status.includes(searchLower) ||
-        dateStr.includes(searchLower) ||
-        priceStr.includes(searchLower)
+
+  const getTransactionDetails = useCallback(
+    (transaction: Transaction) => {
+      const type = carTypes.find((t) => t.id === transaction.typeId);
+      const model = carModels.find((m) => m.id === transaction.modelId);
+      const color = paintColors.find((c) => c.id === transaction.colorId || "");
+      const wheel = wheels.find((w) => w.id === transaction.wheelId || "");
+      const interior = interiors.find(
+        (i) => i.id === transaction.interiorId || ""
       );
-    });
-  };
-  const getTransactionDetails = (transaction: Transaction) => {
-    const type = carTypes.find((t) => t.id === transaction.typeId);
-    const model = carModels.find((m) => m.id === transaction.modelId);
-    const color = paintColors.find((c) => c.id === transaction.colorId || "");
-    const wheel = wheels.find((w) => w.id === transaction.wheelId || "");
-    const interior = interiors.find(
-      (i) => i.id === transaction.interiorId || ""
-    );
-    return { type, model, color, wheel, interior };
-  };
+      return { type, model, color, wheel, interior };
+    },
+    [carTypes, carModels, paintColors, wheels, interiors]
+  );
+
   const getTransactionAppointments = (transactionId: string) => {
     return appointments.filter((apt) => apt.transactionId === transactionId);
   };
@@ -462,7 +425,6 @@ const AdminTransactionPage = () => {
       ? Math.round((completedStages / totalStages) * 100)
       : 0;
   };
-
   const handleVerifyCashPayment = async (transactionId: string) => {
     try {
       await updateDoc(doc(db, "transactions", transactionId), {
@@ -667,6 +629,54 @@ const AdminTransactionPage = () => {
     setEditDate("");
     setEditTime("");
   };
+  const sortedTransactions = useMemo(() => {
+    return [...transactions].sort(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+    );
+  }, [transactions]);
+
+  const filteredTransactions = useMemo(() => {
+    if (!searchQuery.trim()) return sortedTransactions;
+
+    const query = searchQuery.toLowerCase();
+
+    return sortedTransactions.filter((transaction) => {
+      // Get details inline without calling external function
+      const type = carTypes.find((t) => t.id === transaction.typeId);
+      const model = carModels.find((m) => m.id === transaction.modelId);
+      const color = paintColors.find((c) => c.id === transaction.colorId || "");
+      const wheel = wheels.find((w) => w.id === transaction.wheelId || "");
+      const interior = interiors.find(
+        (i) => i.id === transaction.interiorId || ""
+      );
+
+      const fields = [
+        transaction.customerDetails?.fullName?.toLowerCase() || "",
+        transaction.customerDetails?.email?.toLowerCase() || "",
+        transaction.customerDetails?.contactNumber || "",
+        transaction.customerDetails?.address?.toLowerCase() || "",
+        model?.name?.toLowerCase() || "",
+        type?.name?.toLowerCase() || "",
+        color?.name?.toLowerCase() || "",
+        wheel?.name?.toLowerCase() || "",
+        interior?.name?.toLowerCase() || "",
+        transaction.status.toLowerCase(),
+        format(transaction.timestamp, "MMM dd, yyyy").toLowerCase(),
+        transaction.price.toString(),
+      ];
+
+      return fields.some((field) => field.includes(query));
+    });
+  }, [
+    sortedTransactions,
+    searchQuery,
+    carTypes,
+    carModels,
+    paintColors,
+    wheels,
+    interiors,
+  ]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -784,6 +794,7 @@ const AdminTransactionPage = () => {
   }
   const DetailsModal = () => {
     if (!selectedTransaction) return null;
+
     const { type, model, color, wheel, interior } =
       getTransactionDetails(selectedTransaction);
     const progress = calculateProgress(selectedTransaction);
@@ -798,9 +809,6 @@ const AdminTransactionPage = () => {
       interiorCompletedAt: null,
       overallStatus: "pending" as const,
     };
-    const hasActiveAppointment = getTransactionAppointments(
-      selectedTransaction.id
-    ).some((apt) => apt.status !== "cancelled");
     const hasAssignedWorker = !!selectedTransaction.assignedAutoworkerId;
     return (
       <Dialog open={showDetailsModal} onOpenChange={handleCloseModal}>
@@ -1529,35 +1537,30 @@ const AdminTransactionPage = () => {
     );
   };
   function TransactionsTable() {
-    const filteredTransactions = getFilteredTransactions();
     return (
       <Card className="bg-card border-border">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-foreground">
-                All Transactions
-              </CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Manage and track customer orders
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search by customer, model, status..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-              <Button variant="outline" size="sm">
-                Export
-              </Button>
-            </div>
+        <CardHeader className="flex flex-row items-center justify-between pb-4">
+          <div>
+            <CardTitle className="text-foreground">All Transactions</CardTitle>
+            <CardDescription className="text-muted-foreground">
+              Manage and track customer orders
+            </CardDescription>
           </div>
+          {/* <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search by customer, model, color, status, date, or price..."
+              defaultValue={searchQuery}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Use setTimeout to defer state update
+                setTimeout(() => setSearchQuery(value), 0);
+              }}
+              className="pl-10"
+            />
+          </div> */}
         </CardHeader>
         <CardContent>
           <Table>
@@ -1591,6 +1594,7 @@ const AdminTransactionPage = () => {
               {filteredTransactions.map((transaction) => {
                 const details = getTransactionDetails(transaction);
                 const progress = calculateProgress(transaction);
+
                 return (
                   <TableRow key={transaction.id} className="border-border">
                     <TableCell>
@@ -1733,9 +1737,20 @@ const AdminTransactionPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto p-6 space-y-6">
+        <div className="relative w-64 ml-auto">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search transactions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
         <StatsCards />
         <TransactionsTable />
         <DetailsModal />
+        {/* search bar */}
         {/* Refund Confirmation Modal */}
         <Dialog open={showRefundModal} onOpenChange={setShowRefundModal}>
           <DialogContent>
@@ -1748,6 +1763,7 @@ const AdminTransactionPage = () => {
                       (t) => t.id === appointmentToRefund.transactionId
                     );
                     if (!transaction) return <p>Transaction not found.</p>;
+
                     const refundAmount = transaction.price * 0.98;
                     const deductionAmount = transaction.price * 0.02;
                     const appointmentDateTime = new Date(
@@ -1757,6 +1773,7 @@ const AdminTransactionPage = () => {
                     const hoursDifference =
                       (appointmentDateTime.getTime() - now.getTime()) /
                       (1000 * 60 * 60);
+
                     if (hoursDifference < 24 && appointmentDateTime > now) {
                       return (
                         <p>
@@ -1764,12 +1781,13 @@ const AdminTransactionPage = () => {
                         </p>
                       );
                     }
+
                     return (
                       <>
                         <p>
                           This appointment is paid. Cancelling will process a
                           refund of ₱{refundAmount.toLocaleString()} (98% of the
-                          payment) with a 2% processing fee ( ₱
+                          payment) with a 2% processing fee (₱
                           {deductionAmount.toLocaleString()}).
                         </p>
                         <p className="text-sm text-muted-foreground mt-2">
