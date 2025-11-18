@@ -27,6 +27,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
+import { ChartConfig, ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 interface Transaction {
   id: string;
@@ -86,13 +87,78 @@ const AnalyticsPage: React.FC = () => {
   const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
   const [wheels, setWheels] = useState<Wheel[]>([]);
   const [interiors, setInteriors] = useState<Interior[]>([]);
-  // Initial data loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [revenuePeriod, setRevenuePeriod] = useState<
     "weekly" | "monthly" | "yearly"
   >("monthly");
+
+  // Create dynamic chart configs after data is loaded
+  const paintColorsChartConfig = React.useMemo(() => {
+    const config: ChartConfig = {
+      value: {
+        label: "Sold",
+      },
+    };
+
+    paintColors
+      .filter((c) => (c.sold || 0) > 0)
+      .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+      .slice(0, 5)
+      .forEach((color) => {
+        config[color.name] = {
+          label: color.name,
+          color: color.hex,
+        };
+      });
+
+    return config;
+  }, [paintColors]) satisfies ChartConfig;
+
+  const wheelsChartConfig = React.useMemo(() => {
+    const config: ChartConfig = {
+      value: {
+        label: "Sold",
+      },
+    };
+
+    const colors = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+    wheels
+      .filter((w) => (w.sold || 0) > 0)
+      .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+      .slice(0, 5)
+      .forEach((wheel, i) => {
+        config[wheel.name] = {
+          label: wheel.name,
+          color: colors[i],
+        };
+      });
+
+    return config;
+  }, [wheels]) satisfies ChartConfig;
+
+  const interiorsChartConfig = React.useMemo(() => {
+    const config: ChartConfig = {
+      value: {
+        label: "Sold",
+      },
+    };
+
+    const colors = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+    interiors
+      .filter((i) => (i.sold || 0) > 0)
+      .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+      .slice(0, 5)
+      .forEach((interior, idx) => {
+        config[interior.name] = {
+          label: interior.name,
+          color: interior.hex || colors[idx],
+        };
+      });
+
+    return config;
+  }, [interiors]) satisfies ChartConfig;
 
   // Load data from Firestore
   useEffect(() => {
@@ -175,7 +241,6 @@ const AnalyticsPage: React.FC = () => {
         setSnapshotCount((prev) => {
           const next = prev + 1;
           if (next === 5) {
-            // Update to 5 snapshots
             setIsDataLoading(false);
           }
           return next;
@@ -359,7 +424,10 @@ const AnalyticsPage: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
+                <ChartContainer
+                  config={paintColorsChartConfig}
+                  className="mx-auto aspect-square max-h-[250px]"
+                >
                   <PieChart>
                     <Pie
                       data={[...paintColors]
@@ -369,29 +437,18 @@ const AnalyticsPage: React.FC = () => {
                         .map((c) => ({
                           name: c.name,
                           value: c.sold || 0,
-                          color: c.hex,
+                          fill: c.hex,
+                          label: c.name,
                         }))}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={(entry) => `${entry.name}: ${entry.value}`}
-                      outerRadius={80}
-                      fill="#8884d8"
                       dataKey="value"
-                      stroke="#000"
-                      strokeWidth={1}
-                    >
-                      {[...paintColors]
-                        .filter((c) => (c.sold || 0) > 0)
-                        .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-                        .slice(0, 5)
-                        .map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.hex} />
-                        ))}
-                    </Pie>
-                    <Tooltip />
+                      nameKey="name"
+                    />
+                    <ChartLegend
+                      content={<ChartLegendContent nameKey="name" />}
+                      className="-translate-y-2 flex-wrap gap-2 [&>*]:basis-1/4 [&>*]:justify-center"
+                    />
                   </PieChart>
-                </ResponsiveContainer>
+                </ChartContainer>
                 {paintColors.filter((c) => (c.sold || 0) > 0).length === 0 && (
                   <p className="text-center text-sm text-muted-foreground">
                     No sales data yet
@@ -405,8 +462,12 @@ const AnalyticsPage: React.FC = () => {
                 <CardTitle className="text-base">Top Selling Wheels</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
+                <ChartContainer
+                  config={wheelsChartConfig}
+                  className="[&_.recharts-pie-label-text]:fill-foreground mx-auto aspect-square max-h-[250px]"
+                >
                   <PieChart>
+                    <ChartTooltip content={<ChartTooltipContent hideLabel />} />
                     <Pie
                       data={[...wheels]
                         .filter((w) => (w.sold || 0) > 0)
@@ -415,46 +476,14 @@ const AnalyticsPage: React.FC = () => {
                         .map((w, i) => ({
                           name: w.name,
                           value: w.sold || 0,
-                          color: [
-                            "#0088FE",
-                            "#00C49F",
-                            "#FFBB28",
-                            "#FF8042",
-                            "#8884d8",
-                          ][i],
+                          fill: ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"][i],
                         }))}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={(entry) => `${entry.name}: ${entry.value}`}
-                      outerRadius={80}
-                      fill="#8884d8"
                       dataKey="value"
-                      stroke="#000"
-                      strokeWidth={1}
-                    >
-                      {[...wheels]
-                        .filter((w) => (w.sold || 0) > 0)
-                        .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-                        .slice(0, 5)
-                        .map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={
-                              [
-                                "#0088FE",
-                                "#00C49F",
-                                "#FFBB28",
-                                "#FF8042",
-                                "#8884d8",
-                              ][index]
-                            }
-                          />
-                        ))}
-                    </Pie>
-                    <Tooltip />
+                      nameKey="name"
+                      label
+                    />
                   </PieChart>
-                </ResponsiveContainer>
+                </ChartContainer>
                 {wheels.filter((w) => (w.sold || 0) > 0).length === 0 && (
                   <p className="text-center text-sm text-muted-foreground">
                     No sales data yet
@@ -470,7 +499,10 @@ const AnalyticsPage: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
+                <ChartContainer
+                  config={interiorsChartConfig}
+                  className="mx-auto aspect-square max-h-[250px]"
+                >
                   <PieChart>
                     <Pie
                       data={[...interiors]
@@ -480,49 +512,18 @@ const AnalyticsPage: React.FC = () => {
                         .map((i, idx) => ({
                           name: i.name,
                           value: i.sold || 0,
-                          color:
-                            i.hex ||
-                            [
-                              "#0088FE",
-                              "#00C49F",
-                              "#FFBB28",
-                              "#FF8042",
-                              "#8884d8",
-                            ][idx],
+                          fill: i.hex || ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"][idx],
+                          label: i.name,
                         }))}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={(entry) => `${entry.name}: ${entry.value}`}
-                      outerRadius={80}
-                      fill="#8884d8"
                       dataKey="value"
-                      stroke="#000"
-                      strokeWidth={1}
-                    >
-                      {[...interiors]
-                        .filter((i) => (i.sold || 0) > 0)
-                        .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-                        .slice(0, 5)
-                        .map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={
-                              entry.hex ||
-                              [
-                                "#0088FE",
-                                "#00C49F",
-                                "#FFBB28",
-                                "#FF8042",
-                                "#8884d8",
-                              ][index]
-                            }
-                          />
-                        ))}
-                    </Pie>
-                    <Tooltip />
+                      nameKey="name"
+                    />
+                    <ChartLegend
+                      content={<ChartLegendContent nameKey="name" />}
+                      className="-translate-y-2 flex-wrap gap-2 [&>*]:basis-1/4 [&>*]:justify-center"
+                    />
                   </PieChart>
-                </ResponsiveContainer>
+                </ChartContainer>
                 {interiors.filter((i) => (i.sold || 0) > 0).length === 0 && (
                   <p className="text-center text-sm text-muted-foreground">
                     No sales data yet
@@ -634,7 +635,7 @@ const AnalyticsPage: React.FC = () => {
                               </CardDescription>
                             </div>
                             <div
-                              className="w-8 h-8 rounded border"
+                              className="w-8 h-8 rounded border-2 border-black"
                               style={{ backgroundColor: color.hex }}
                             />
                           </div>
@@ -670,7 +671,7 @@ const AnalyticsPage: React.FC = () => {
                             variant="outline"
                           >
                             <Link href={"/a/inventory"}>
-                            View in Inventory
+                              View in Inventory
                             </Link>
                           </Button>
                         </CardFooter>
@@ -727,7 +728,9 @@ const AnalyticsPage: React.FC = () => {
                             className="w-full"
                             variant="outline"
                           >
-                            View in Inventory
+                            <Link href={"/a/inventory"}>
+                              View in Inventory
+                            </Link>
                           </Button>
                         </CardFooter>
                       </Card>
@@ -783,7 +786,9 @@ const AnalyticsPage: React.FC = () => {
                             className="w-full"
                             variant="outline"
                           >
-                            View in Inventory
+                            <Link href={"/a/inventory"}>
+                              View in Inventory
+                            </Link>
                           </Button>
                         </CardFooter>
                       </Card>

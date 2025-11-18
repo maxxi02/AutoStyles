@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    unoptimized: true, // Add this to disable Next.js image optimization globally
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
@@ -18,10 +18,14 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "scontent.fmnl30-1.fna.fbcdn.net",
+        port: "",
+        pathname: "/**",  // Add this
       },
       {
         protocol: "https",
         hostname: "scontent.fmnl30-3.fna.fbcdn.net",
+        port: "",
+        pathname: "/**",  // Add this
       },
     ],
   },
