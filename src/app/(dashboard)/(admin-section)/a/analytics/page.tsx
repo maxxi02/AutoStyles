@@ -114,7 +114,6 @@ const AnalyticsPage: React.FC = () => {
         label: "Sold",
       },
     };
-
     paintColors
       .filter((c) => (c.sold || 0) > 0)
       .sort((a, b) => (b.sold || 0) - (a.sold || 0))
@@ -125,7 +124,6 @@ const AnalyticsPage: React.FC = () => {
           color: color.hex,
         };
       });
-
     return config;
   }, [paintColors]) satisfies ChartConfig;
 
@@ -135,7 +133,6 @@ const AnalyticsPage: React.FC = () => {
         label: "Sold",
       },
     };
-
     const colors = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
     wheels
       .filter((w) => (w.sold || 0) > 0)
@@ -147,7 +144,6 @@ const AnalyticsPage: React.FC = () => {
           color: colors[i],
         };
       });
-
     return config;
   }, [wheels]) satisfies ChartConfig;
 
@@ -157,7 +153,6 @@ const AnalyticsPage: React.FC = () => {
         label: "Sold",
       },
     };
-
     const colors = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
     interiors
       .filter((i) => (i.sold || 0) > 0)
@@ -169,7 +164,6 @@ const AnalyticsPage: React.FC = () => {
           color: interior.hex || colors[idx],
         };
       });
-
     return config;
   }, [interiors]) satisfies ChartConfig;
 
@@ -184,7 +178,7 @@ const AnalyticsPage: React.FC = () => {
         setCarModels(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 4) {
+          if (next === 5) {
             setIsDataLoading(false);
           }
           return next;
@@ -200,7 +194,7 @@ const AnalyticsPage: React.FC = () => {
         setPaintColors(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 4) {
+          if (next === 5) {
             setIsDataLoading(false);
           }
           return next;
@@ -216,7 +210,7 @@ const AnalyticsPage: React.FC = () => {
         setWheels(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 4) {
+          if (next === 5) {
             setIsDataLoading(false);
           }
           return next;
@@ -232,7 +226,7 @@ const AnalyticsPage: React.FC = () => {
         setInteriors(data);
         setSnapshotCount((prev) => {
           const next = prev + 1;
-          if (next === 4) {
+          if (next === 5) {
             setIsDataLoading(false);
           }
           return next;
@@ -294,23 +288,48 @@ const AnalyticsPage: React.FC = () => {
 
   const filteredTransactions = getFilteredTransactions();
 
+  // Precompute sales counts for efficiency
+  const colorSales = React.useMemo(() => {
+    const salesMap = new Map<string, number>();
+    filteredTransactions.forEach((t) => {
+      if (t.colorId) {
+        salesMap.set(t.colorId, (salesMap.get(t.colorId) || 0) + 1);
+      }
+    });
+    return salesMap;
+  }, [filteredTransactions]);
+
+  const wheelSales = React.useMemo(() => {
+    const salesMap = new Map<string, number>();
+    filteredTransactions.forEach((t) => {
+      if (t.wheelId) {
+        salesMap.set(t.wheelId, (salesMap.get(t.wheelId) || 0) + 1);
+      }
+    });
+    return salesMap;
+  }, [filteredTransactions]);
+
+  const interiorSales = React.useMemo(() => {
+    const salesMap = new Map<string, number>();
+    filteredTransactions.forEach((t) => {
+      if (t.interiorId) {
+        salesMap.set(t.interiorId, (salesMap.get(t.interiorId) || 0) + 1);
+      }
+    });
+    return salesMap;
+  }, [filteredTransactions]);
+
   const totalRevenue =
     paintColors.reduce((sum, c) => {
-      const sold = filteredTransactions.filter(
-        (t) => t.colorId === c.id
-      ).length;
+      const sold = colorSales.get(c.id) || 0;
       return sum + sold * c.price;
     }, 0) +
     wheels.reduce((sum, w) => {
-      const sold = filteredTransactions.filter(
-        (t) => t.wheelId === w.id
-      ).length;
+      const sold = wheelSales.get(w.id) || 0;
       return sum + sold * w.price;
     }, 0) +
     interiors.reduce((sum, i) => {
-      const sold = filteredTransactions.filter(
-        (t) => t.interiorId === i.id
-      ).length;
+      const sold = interiorSales.get(i.id) || 0;
       return sum + sold * i.price;
     }, 0);
 
@@ -364,11 +383,17 @@ const AnalyticsPage: React.FC = () => {
                   ₱
                   {(
                     paintColors.reduce(
-                      (sum, c) => sum + c.price * c.inventory,
+                      (sum, c) => sum + c.price * Number(c.inventory || 0),
                       0
                     ) +
-                    wheels.reduce((sum, w) => sum + w.price * w.inventory, 0) +
-                    interiors.reduce((sum, i) => sum + i.price * i.inventory, 0)
+                    wheels.reduce(
+                      (sum, w) => sum + w.price * Number(w.inventory || 0),
+                      0
+                    ) +
+                    interiors.reduce(
+                      (sum, i) => sum + i.price * Number(i.inventory || 0),
+                      0
+                    )
                   ).toLocaleString()}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -382,21 +407,6 @@ const AnalyticsPage: React.FC = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">
                     Total Revenue
                   </CardTitle>
-                  <Select
-                    value={revenuePeriod}
-                    onValueChange={(value) =>
-                      setRevenuePeriod(value as "weekly" | "monthly" | "yearly")
-                    }
-                  >
-                    <SelectTrigger className="w-[120px] h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="yearly">Yearly</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </CardHeader>
               <CardContent>
@@ -416,9 +426,10 @@ const AnalyticsPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-red-600">
-                  {paintColors.filter((c) => c.inventory < 50).length +
-                    wheels.filter((w) => w.inventory < 50).length +
-                    interiors.filter((i) => i.inventory < 50).length}
+                  {paintColors.filter((c) => Number(c.inventory || 0) < 50)
+                    .length +
+                    wheels.filter((w) => Number(w.inventory || 0) < 50).length +
+                    interiors.filter((i) => Number(i.inventory || 0) < 50).length}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Items below threshold
@@ -572,17 +583,17 @@ const AnalyticsPage: React.FC = () => {
                   data={[
                     ...paintColors.map((c) => ({
                       name: c.name,
-                      stock: c.inventory,
+                      stock: Number(c.inventory || 0),
                       type: "Color",
                     })),
                     ...wheels.map((w) => ({
                       name: w.name,
-                      stock: w.inventory,
+                      stock: Number(w.inventory || 0),
                       type: "Wheel",
                     })),
                     ...interiors.map((i) => ({
                       name: i.name,
-                      stock: i.inventory,
+                      stock: Number(i.inventory || 0),
                       type: "Interior",
                     })),
                   ]
@@ -636,19 +647,23 @@ const AnalyticsPage: React.FC = () => {
               <TabsList>
                 <TabsTrigger value="colors">
                   Paint Colors (
-                  {paintColors.filter((c) => c.inventory < 50).length})
+                  {paintColors.filter((c) => Number(c.inventory || 0) < 50).length}
+                )
                 </TabsTrigger>
                 <TabsTrigger value="wheels">
-                  Wheels ({wheels.filter((w) => w.inventory < 50).length})
+                  Wheels ({wheels.filter((w) => Number(w.inventory || 0) < 50).length}
+                )
                 </TabsTrigger>
                 <TabsTrigger value="interiors">
-                  Interiors ({interiors.filter((i) => i.inventory < 50).length})
+                  Interiors (
+                  {interiors.filter((i) => Number(i.inventory || 0) < 50).length}
+                )
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="colors">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {paintColors
-                    .filter((c) => c.inventory < 50)
+                    .filter((c) => Number(c.inventory || 0) < 50)
                     .map((color) => (
                       <Card key={color.id} className="border-red-200">
                         <CardHeader>
@@ -674,7 +689,7 @@ const AnalyticsPage: React.FC = () => {
                                 Stock:
                               </span>
                               <span className="font-bold text-red-600">
-                                {color.inventory}
+                                {Number(color.inventory || 0)}
                               </span>
                             </div>
                             <div className="flex justify-between text-sm">
@@ -702,7 +717,8 @@ const AnalyticsPage: React.FC = () => {
                         </CardFooter>
                       </Card>
                     ))}
-                  {paintColors.filter((c) => c.inventory < 50).length === 0 && (
+                  {paintColors.filter((c) => Number(c.inventory || 0) < 50)
+                    .length === 0 && (
                     <p className="col-span-full text-center text-muted-foreground py-8">
                       All paint colors are well-stocked ✓
                     </p>
@@ -712,7 +728,7 @@ const AnalyticsPage: React.FC = () => {
               <TabsContent value="wheels">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {wheels
-                    .filter((w) => w.inventory < 50)
+                    .filter((w) => Number(w.inventory || 0) < 50)
                     .map((wheel) => (
                       <Card key={wheel.id} className="border-red-200">
                         <CardHeader>
@@ -730,7 +746,7 @@ const AnalyticsPage: React.FC = () => {
                                 Stock:
                               </span>
                               <span className="font-bold text-red-600">
-                                {wheel.inventory}
+                                {Number(wheel.inventory || 0)}
                               </span>
                             </div>
                             <div className="flex justify-between text-sm">
@@ -753,12 +769,13 @@ const AnalyticsPage: React.FC = () => {
                             className="w-full"
                             variant="outline"
                           >
-                            View in Inventory
+                            <Link href={"/a/inventory"}>View in Inventory</Link>
                           </Button>
                         </CardFooter>
                       </Card>
                     ))}
-                  {wheels.filter((w) => w.inventory < 50).length === 0 && (
+                  {wheels.filter((w) => Number(w.inventory || 0) < 50)
+                    .length === 0 && (
                     <p className="col-span-full text-center text-muted-foreground py-8">
                       All wheels are well-stocked ✓
                     </p>
@@ -768,7 +785,7 @@ const AnalyticsPage: React.FC = () => {
               <TabsContent value="interiors">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {interiors
-                    .filter((i) => i.inventory < 50)
+                    .filter((i) => Number(i.inventory || 0) < 50)
                     .map((interior) => (
                       <Card key={interior.id} className="border-red-200">
                         <CardHeader>
@@ -786,7 +803,7 @@ const AnalyticsPage: React.FC = () => {
                                 Stock:
                               </span>
                               <span className="font-bold text-red-600">
-                                {interior.inventory}
+                                {Number(interior.inventory || 0)}
                               </span>
                             </div>
                             <div className="flex justify-between text-sm">
@@ -809,12 +826,13 @@ const AnalyticsPage: React.FC = () => {
                             className="w-full"
                             variant="outline"
                           >
-                            View in Inventory
+                            <Link href={"/a/inventory"}>View in Inventory</Link>
                           </Button>
                         </CardFooter>
                       </Card>
                     ))}
-                  {interiors.filter((i) => i.inventory < 50).length === 0 && (
+                  {interiors.filter((i) => Number(i.inventory || 0) < 50)
+                    .length === 0 && (
                     <p className="col-span-full text-center text-muted-foreground py-8">
                       All interiors are well-stocked ✓
                     </p>
