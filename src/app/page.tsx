@@ -100,27 +100,27 @@ export default function Home() {
   const heroSlides = [
     {
       image:
-        "https://scontent.fmnl30-3.fna.fbcdn.net/v/t39.30808-6/464151342_27551660981115826_2519574407233915309_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=86c6b0&_nc_eui2=AeGVnZUr13y-hofMTvo0jNCnnIQZhn9V5lychBmGf1XmXPCrvrL4p-FLcOumzYnPPRDKmmuiBZiAqsfVAq0WdYKf&_nc_ohc=F63sAcwFxqIQ7kNvwG7RdOQ&_nc_oc=AdmaSI3dg38EqsCB6LFNB5VpuI-vgkzFTCHtQHUVY41Egb5rxL629tuY8LoR9GrPo8s&_nc_zt=23&_nc_ht=scontent.fmnl30-3.fna&_nc_gid=4jumwGb5gMnFg0zAoqGLEQ&oh=00_AfjZSWCwu3CqlvCD-MU9MpX6NLaRqxmkmpI2oocjj_wpdw&oe=691A031D",
+        "https://scontent.fmnl13-4.fna.fbcdn.net/v/t39.30808-6/490824927_1091246506371204_6664277804586216558_n.jpg?stp=cp6_dst-jpg_tt6&_nc_cat=107&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeGTuWLJJkKr9I4QNoGHr66kzccotENfZIfNxyi0Q19kh1zsFJIuSPYxXnonfhGOdQiGxCOcESODV3neVBjgtW6C&_nc_ohc=YF0Slnx1t2EQ7kNvwGH663d&_nc_oc=AdlUCtIwAx5qknyKQF5C90wn-dyldKTbLlnP7s3EIP1zW-DkY3WjAzXQf4X_BjTsqYk&_nc_zt=23&_nc_ht=scontent.fmnl13-4.fna&_nc_gid=QPCo1LtzFfFJJtHmwlMrLg&oh=00_AfhY1npsiQbbzl1wr-PyKdCM8n93bwMTXcH-xWwq5C1bFg&oe=692267B7",
       alt: "AutoStyles customized car 1",
     },
     {
       image:
-        "https://scontent.fmnl30-1.fna.fbcdn.net/v/t39.30808-6/482000458_28975415192073724_2252981353448231833_n.jpg?_nc_cat=107&ccb=1-7&_nc_sid=cc71e4&_nc_eui2=AeFXzAxmC7btyEqL0CO6xgiNHuGhflA1Czce4aF-UDULN3srE33NsEtta-ICLg7yvTCKHo-9OUsto-CTwa11eA1z&_nc_ohc=OP_ldnrZ2PYQ7kNvwHvYNp1&_nc_oc=AdnMvDNohhwZZDIPSyjDmcN2l6KZaxLHsaxqZ-yE4R_wvbAOZOqGTGKS__-yqm1qcyw&_nc_zt=23&_nc_ht=scontent.fmnl30-1.fna&_nc_gid=xx1R8W_7__DC0lEwWWZZwA&oh=00_AfgDe2IYFHCP55Lwg50AyViqYmIrFKd54Ru1ljQOzVZNkg&oe=6919DFA0",
+        "https://scontent.fmnl13-2.fna.fbcdn.net/v/t39.30808-6/487940910_1081000847395770_8161891473151918147_n.jpg?stp=cp6_dst-jpg_tt6&_nc_cat=111&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeFcsAr9F5A42dQpCgn9xq1NaWyDPGYJa8xpbIM8ZglrzAdwb_cmcPi1l5Vu_DGJxOWjUNtQHIr-zTS0JFweWcXG&_nc_ohc=0QDJ_fO3GygQ7kNvwEIWFWK&_nc_oc=AdkA9E_XrS2GRO9ol6ld8sKgy067pM8rl9vYLmK9Jhq9O8lveMJKApCKliHm8L6oRHY&_nc_zt=23&_nc_ht=scontent.fmnl13-2.fna&_nc_gid=L4qnljJ4IncSkuOFQPYXZw&oh=00_AfirrVoB6pYZDpldflysQtdbDvl4ufBMbnirkelAXT8WIA&oe=692249A7",
       alt: "AutoStyles customized car 2",
     },
     {
       image:
-        "https://scontent.fmnl30-1.fna.fbcdn.net/v/t39.30808-6/465438652_27687328930882363_724556434674650557_n.jpg?_nc_cat=103&ccb=1-7&_nc_sid=cc71e4&_nc_eui2=AeGMYFG-xLyJGXAPdcBxLfr8JdMlSLAtSgUl0yVIsC1KBaPOoEVhuU2scqsjh2Mxly8h0b5awsS8SkyAjqUMmViY&_nc_ohc=4z-FVwvSASIQ7kNvwHn3YPn&_nc_oc=AdkV4yyiS-RZ6mSFYcaC9kIbnqG6OmPMT8SZ5eb8OKHxcmRDmu1u-eCM7xMD5_jDGxE&_nc_zt=23&_nc_ht=scontent.fmnl30-1.fna&_nc_gid=UIRXU26hUGhAtRSETQI1cQ&oh=00_Afiijz2MJC7XjYgt0MI_yJa9oSJjL5xCeU5BPzbRKDgHHA&oe=6919FFF2",
+        "https://scontent.fmnl13-2.fna.fbcdn.net/v/t39.30808-6/485911645_1070834321745756_1832389509894947724_n.jpg?stp=cp6_dst-jpg_tt6&_nc_cat=111&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeEXdNMnYfSAzXZx_08eJoCT7pg2W6LoWWbumDZbouhZZlYYgecZdfThvkvmWIfqj6bSnsoTbexKCsmDym-bmqe4&_nc_ohc=NKwDQXUMVqoQ7kNvwGQ-hmY&_nc_oc=Adkt8l6EPhdnG9fS9tFGWX_n9EXn8R0IPL-cx6louP128iTzZZXuIR2-WO0IvPTxbjM&_nc_zt=23&_nc_ht=scontent.fmnl13-2.fna&_nc_gid=M9vi6uKIWz5CfgoPAfb8kg&oh=00_AfiPoOVO77kq1Fiyulj13EjXq0hpyI1VLkEeA4KYVWdGmg&oe=69226BAB",
       alt: "AutoStyles customized car 3",
     },
     {
       image:
-        "https://scontent.fmnl30-3.fna.fbcdn.net/v/t39.30808-6/465023409_27655031144112142_3665967185021494388_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=86c6b0&_nc_eui2=AeEwbavyAMLECCXPo6ot_uxSmNrdVDSG0FCY2t1UNIbQUHycStCouvOs1_PbPReqOugfDGxDyUfpBpDhe--G0QCS&_nc_ohc=77LsiMZR4BoQ7kNvwHdzA-n&_nc_oc=AdkyEO4m3w0FbB0dLsMkR2BkeQTu1Ie8uJAhKAnviBPT2nLngNisgFllhwHd9HkcBno&_nc_zt=23&_nc_ht=scontent.fmnl30-3.fna&_nc_gid=3xkZ_XR29Qubg8YFqrLBTw&oh=00_Afhwrb8E2hny11b2EIejM7QS6GgwwMa8R6jiX2ytXhfvpA&oe=691A06AB",
+        "https://scontent.fmnl13-4.fna.fbcdn.net/v/t39.30808-6/481701454_1059612626201259_1222920101485924553_n.jpg?_nc_cat=109&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeH4tntA8i8_tl--VTE_jVA5vGVogGi9ML28ZWiAaL0wvfcrVl0J0v6s6QfZz1_Qd2A28XNuSGJDeVGGrkzlR2RC&_nc_ohc=Rv2mTn7ZPskQ7kNvwHFpEZL&_nc_oc=AdlrqdjLt_il84pM4qxS80ZaFjw4CdsSnNbZi-VZLET3x3pO5NEqKmkJH6z0dl3QaBk&_nc_zt=23&_nc_ht=scontent.fmnl13-4.fna&_nc_gid=dyXjQKsVc67vnFKy-xg48g&oh=00_Afgq7DtD4fuxjhBO0uybhorRgMmHYs12QayIftHY2rsUWg&oe=692249D6",
       alt: "AutoStyles customized car 4",
     },
     {
       image:
-        "https://scontent.fmnl30-1.fna.fbcdn.net/v/t39.30808-6/464155834_27563311703284087_7897004082253006181_n.jpg?_nc_cat=106&ccb=1-7&_nc_sid=86c6b0&_nc_eui2=AeH9o21uxEUh_VzzsIqPFiVbusXXNZNe0ja6xdc1k17SNnV5j3vjfHxMemK-5BmcrjfVNgzTVzTdLhIgys0JOYHU&_nc_ohc=QbpZHTKjzg8Q7kNvwEdE0OS&_nc_oc=AdlDa7fuO_LU8I3b9iRiVsTpCly0VVJx4lPS_wNxSk5iYIVpIMrmL1A5WYzcKH0v2Mc&_nc_zt=23&_nc_ht=scontent.fmnl30-1.fna&_nc_gid=owBUA5BFcjUpXRR2WCEGvA&oh=00_Afh_ypU2WzkIKepeXur4aQQbYQn-DqbV8DFLzDi1MmkPmw&oe=6919E022",
+        "https://scontent.fmnl13-3.fna.fbcdn.net/v/t39.30808-6/481081596_1052923300203525_303428817841296234_n.jpg?_nc_cat=102&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeH26HUnpUue8sZYSREbi77l6jPYlFso35PqM9iUWyjfk9ByiKPFCV8Slfz0qr6PgZ3Tfr1syQIPmt_UhD-gLQVh&_nc_ohc=c-YyzdvOcWoQ7kNvwFAoMXs&_nc_oc=AdnrvBuhiOiUSRnOuQ2WzG8FiVzr1PL-CWGfOJrpufENnMBWnoUP2R6rHwmiRid_-YE&_nc_zt=23&_nc_ht=scontent.fmnl13-3.fna&_nc_gid=qCy6hnMOVjmylcXg0yI4Lg&oh=00_AfglnDhBymbNPFaxRM-N-_k1A2VtKlVdEu71205Xkn5C9Q&oe=69226059",
       alt: "AutoStyles customized car 5",
     },
   ];
@@ -182,14 +182,9 @@ export default function Home() {
 
                 <div className="flex flex-wrap justify-center lg:justify-start gap-4">
                   <Button size="lg" className="text-base font-semibold px-8">
-                    Get Started
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="text-base font-semibold px-8 bg-transparent"
-                  >
-                    Learn More
+                    <Link href={"/login"}>
+                      Get Started
+                    </Link>
                   </Button>
                 </div>
               </div>
@@ -199,9 +194,8 @@ export default function Home() {
                   {heroSlides.map((slide, index) => (
                     <div
                       key={index}
-                      className={`absolute inset-0 transition-opacity duration-700 ${
-                        index === currentSlide ? "opacity-100" : "opacity-0"
-                      }`}
+                      className={`absolute inset-0 transition-opacity duration-700 ${index === currentSlide ? "opacity-100" : "opacity-0"
+                        }`}
                     >
                       <Image
                         src={slide.image}
@@ -231,11 +225,10 @@ export default function Home() {
                     {heroSlides.map((_, index) => (
                       <div
                         key={index}
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          index === currentSlide
-                            ? "w-8 bg-primary"
-                            : "w-2 bg-muted hover:w-8"
-                        }`}
+                        className={`h-2 rounded-full transition-all duration-300 ${index === currentSlide
+                          ? "w-8 bg-primary"
+                          : "w-2 bg-muted hover:w-8"
+                          }`}
                         onClick={() => setCurrentSlide(index)}
                         role="button"
                         tabIndex={0}
