@@ -25,7 +25,13 @@ import {
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Link from "next/link";
 
 interface Transaction {
@@ -578,9 +584,9 @@ const AnalyticsPage: React.FC = () => {
                           fill="#666"
                           transform="rotate(-45)"
                           style={{
-                            fontSize: '12px',
-                            backgroundColor: 'white',
-                            padding: '2px'
+                            fontSize: "12px",
+                            backgroundColor: "white",
+                            padding: "2px",
                           }}
                         >
                           {payload.value}
@@ -669,9 +675,7 @@ const AnalyticsPage: React.FC = () => {
                             className="w-full"
                             variant="outline"
                           >
-                            <Link href={"/a/inventory"}>
-                            View in Inventory
-                            </Link>
+                            <Link href={"/a/inventory"}>View in Inventory</Link>
                           </Button>
                         </CardFooter>
                       </Card>
@@ -727,7 +731,7 @@ const AnalyticsPage: React.FC = () => {
                             className="w-full"
                             variant="outline"
                           >
-                            View in Inventory
+                            <Link href={"/a/inventory"}>View in Inventory</Link>
                           </Button>
                         </CardFooter>
                       </Card>
@@ -783,7 +787,7 @@ const AnalyticsPage: React.FC = () => {
                             className="w-full"
                             variant="outline"
                           >
-                            View in Inventory
+                            <Link href={"/a/inventory"}>View in Inventory</Link>
                           </Button>
                         </CardFooter>
                       </Card>

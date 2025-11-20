@@ -733,7 +733,6 @@ const AdminTransactionPage = () => {
                 >
                   {change}
                 </span>
-                <span className="text-muted-foreground">vs last month</span>
               </div>
             </div>
             <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
@@ -757,28 +756,28 @@ const AdminTransactionPage = () => {
         <StatCard
           title="Total Transactions"
           value={totalTransactions.toString()}
-          change="+15%"
+          change=""
           trend="up"
           icon={<FileText className="h-6 w-6" />}
         />
         <StatCard
           title="Pending"
           value={pendingCount.toString()}
-          change="-2%"
+          change=""
           trend="down"
           icon={<Clock className="h-6 w-6" />}
         />
         <StatCard
           title="Completed"
           value={completedCount.toString()}
-          change="+22%"
+          change=""
           trend="up"
           icon={<CheckCircle2 className="h-6 w-6" />}
         />
         <StatCard
           title="Total Revenue"
           value={`₱${totalRevenue.toLocaleString()}`}
-          change="+28%"
+          change=""
           trend="up"
           icon={<DollarSign className="h-6 w-6" />}
         />

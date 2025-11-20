@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import {
   collection,
   onSnapshot,
@@ -52,6 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 interface Transaction {
   id: string;
   userId?: string;
@@ -65,7 +66,7 @@ interface Transaction {
   status: "saved" | "purchased" | "cancelled";
   paymentVerifiedAt?: Date;
   paymentId?: string;
-  paymentMethod?: "paymongo" | "cash";
+  paymentMethod?: "cash";
   customerDetails?: {
     fullName: string;
     email: string;
@@ -87,6 +88,7 @@ interface Transaction {
     submittedAt: Date;
   };
 }
+
 interface Appointment {
   id: string;
   transactionId: string;
@@ -103,10 +105,12 @@ interface Appointment {
   refundId?: string;
   deductionAmount?: number;
 }
+
 interface CarType {
   id: string;
   name: string;
 }
+
 interface CarModel {
   id: string;
   name: string;
@@ -114,6 +118,7 @@ interface CarModel {
   imageUrl?: string;
   basePrice?: number;
 }
+
 interface PaintColor {
   id: string;
   carModelId: string;
@@ -125,6 +130,7 @@ interface PaintColor {
   inventory: number;
   imageUrl?: string;
 }
+
 interface Wheel {
   id: string;
   carModelId: string;
@@ -134,6 +140,7 @@ interface Wheel {
   inventory: number;
   imageUrl?: string;
 }
+
 interface Interior {
   id: string;
   carModelId: string;
@@ -144,6 +151,7 @@ interface Interior {
   imageUrl?: string;
   hex?: string;
 }
+
 const StarRating: React.FC<{
   rating: number;
   onRatingChange: (rating: number) => void;
@@ -167,12 +175,11 @@ const StarRating: React.FC<{
     </div>
   );
 };
+
 const ClientsTransactionPage: React.FC = () => {
   // feedback functions
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackTransactionId, setFeedbackTransactionId] = useState<
-    string | null
-  >(null);
+  const [feedbackTransactionId, setFeedbackTransactionId] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [feedbackComment, setFeedbackComment] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
@@ -185,21 +192,12 @@ const ClientsTransactionPage: React.FC = () => {
   const [interiors, setInteriors] = useState<Interior[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
-  const [selectedTransactionId, setSelectedTransactionId] = useState<
-    string | null
-  >(null);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [appointmentDate, setAppointmentDate] = useState("");
   const [appointmentTime, setAppointmentTime] = useState("");
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-  const [verifyingTransactionId, setVerifyingTransactionId] = useState<
-    string | null
-  >(null);
-  const searchParams = useSearchParams();
-  const verificationAttempted = useRef<Set<string>>(new Set());
-  const [editingAppointmentId, setEditingAppointmentId] = useState<
-    string | null
-  >(null);
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editTime, setEditTime] = useState("");
   const [editAvailableTimes, setEditAvailableTimes] = useState<string[]>([]);
@@ -207,12 +205,10 @@ const ClientsTransactionPage: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   // Refund modal state
   const [showRefundModal, setShowRefundModal] = useState(false);
-  const [appointmentToRefund, setAppointmentToRefund] =
-    useState<Appointment | null>(null);
+  const [appointmentToRefund, setAppointmentToRefund] = useState<Appointment | null>(null);
 
-  const [paymentMethod, setPaymentMethod] = useState<"paymongo" | "cash">(
-    "paymongo"
-  );
+  const [paymentMethod, setPaymentMethod] = useState<"cash">("cash");
+
   // Convert 24-hour time to 12-hour format for display
   const formatTimeTo12Hour = (time24: string): string => {
     const [hours, minutes] = time24.split(":").map(Number);
@@ -220,10 +216,12 @@ const ClientsTransactionPage: React.FC = () => {
     const hours12 = hours % 12 || 12;
     return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
   };
+
   // Helper to get current date in PHST (assuming browser is set to PH)
   const getCurrentDateString = (): string => {
     return new Date().toISOString().split("T")[0];
   };
+
   // Helper to get next available slot after current time
   const getNextAvailableSlot = (): string => {
     const now = new Date();
@@ -235,6 +233,7 @@ const ClientsTransactionPage: React.FC = () => {
     const roundedMins = roundedMinutes % 60;
     return `${roundedHours.toString().padStart(2, "0")}:${roundedMins.toString().padStart(2, "0")}`;
   };
+
   // Updated helper functions
   const isWithinBusinessHours = (time: string): boolean => {
     const [hours, minutes] = time.split(":").map(Number);
@@ -243,12 +242,14 @@ const ClientsTransactionPage: React.FC = () => {
     const endTime = 17 * 60; // 5 PM
     return timeInMinutes >= startTime && timeInMinutes <= endTime;
   };
+
   const isBusinessDay = (date: string): boolean => {
     const selectedDate = new Date(date);
     const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 6 = Saturday
     // Business days: Monday (1) to Saturday (6)
     return dayOfWeek >= 1 && dayOfWeek <= 6;
   };
+
   const checkDuplicateAppointment = (
     date: string,
     time: string,
@@ -276,7 +277,7 @@ const ClientsTransactionPage: React.FC = () => {
       return;
     }
 
-    // Check inventory same as handlePay
+    // Check inventory
     if (latestTransaction.colorId) {
       const color = paintColors.find((c) => c.id === latestTransaction.colorId);
       if (!color || color.inventory < 1) {
@@ -344,6 +345,7 @@ const ClientsTransactionPage: React.FC = () => {
       toast.error("Failed to confirm cash payment. Please try again.");
     }
   };
+
   const getAvailableTimes = (date: string, excludeId?: string): string[] => {
     if (!isBusinessDay(date)) return [];
     const today = getCurrentDateString();
@@ -372,6 +374,7 @@ const ClientsTransactionPage: React.FC = () => {
     }
     return times;
   };
+
   useEffect(() => {
     console.log("Current User ID:", currentUserId);
     console.log("Transactions count:", transactions.length);
@@ -384,6 +387,7 @@ const ClientsTransactionPage: React.FC = () => {
       );
     }
   }, [currentUserId, transactions, appointments]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -394,10 +398,12 @@ const ClientsTransactionPage: React.FC = () => {
     });
     return () => unsubscribe();
   }, []);
+
   // Load data from Firestore
   useEffect(() => {
     if (!currentUserId) return;
     const expectedSnapshots = 7; // transactions + appointments + 5 others
+    
     // Load transactions
     const q = query(
       collection(db, "transactions"),
@@ -452,6 +458,7 @@ const ClientsTransactionPage: React.FC = () => {
         return next;
       });
     });
+
     // Load appointments
     const unsubscribeAppointments = onSnapshot(
       collection(db, "appointments"),
@@ -475,6 +482,7 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
+
     // Load supporting data (same as CustomizationPage)
     const unsubscribeCarTypes = onSnapshot(
       collection(db, "carTypes"),
@@ -492,6 +500,7 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
+
     const unsubscribeCarModels = onSnapshot(
       collection(db, "carModels"),
       (snapshot) => {
@@ -508,6 +517,7 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
+
     const unsubscribePaintColors = onSnapshot(
       collection(db, "paintColors"),
       (snapshot) => {
@@ -524,6 +534,7 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
+
     const unsubscribeWheels = onSnapshot(
       collection(db, "wheels"),
       (snapshot) => {
@@ -540,6 +551,7 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
+
     const unsubscribeInteriors = onSnapshot(
       collection(db, "interiors"),
       (snapshot) => {
@@ -556,6 +568,7 @@ const ClientsTransactionPage: React.FC = () => {
         });
       }
     );
+
     return () => {
       unsubscribeTransactions();
       unsubscribeAppointments();
@@ -566,6 +579,7 @@ const ClientsTransactionPage: React.FC = () => {
       unsubscribeInteriors();
     };
   }, [currentUserId]);
+
   const userAppointments = React.useMemo(() => {
     if (transactions.length > 0 && currentUserId) {
       const userTransactionIds = new Set(transactions.map((t) => t.id));
@@ -592,6 +606,7 @@ const ClientsTransactionPage: React.FC = () => {
       setAvailableTimes([]);
     }
   }, [appointmentDate, appointments]);
+
   // Available times for editing
   useEffect(() => {
     if (editingAppointmentId && editDate) {
@@ -608,109 +623,7 @@ const ClientsTransactionPage: React.FC = () => {
       setEditAvailableTimes([]);
     }
   }, [editDate, editingAppointmentId, appointments]);
-  useEffect(() => {
-    const success = searchParams.get("success");
-    const cancelled = searchParams.get("cancelled");
-    const tid = searchParams.get("tid");
-    // Only process if we have valid params and haven't attempted verification
-    if (!tid || verificationAttempted.current.has(tid)) {
-      return;
-    }
-    if (cancelled === "true") {
-      verificationAttempted.current.add(tid);
-      toast.error("Payment was cancelled. Please try again.");
-      setTimeout(() => {
-        window.history.replaceState({}, "", "/c/transactions");
-      }, 3000);
-      return;
-    }
-    if (success === "true") {
-      console.log("Payment success detected for transaction:", tid);
-      // Wait for transactions to be loaded before attempting verification
-      if (!isDataLoading && transactions.length > 0) {
-        const transaction = transactions.find((t) => t.id === tid);
-        if (transaction) {
-          verificationAttempted.current.add(tid);
-          // Check if already verified
-          if (transaction.status === "purchased") {
-            console.log("Transaction already verified");
-            toast.success("Payment already verified!");
-            setSelectedTransactionId(tid);
-            setShowModal(true);
-          } else {
-            console.log("Starting verification process");
-            handleVerifyPayment(tid);
-          }
-        } else {
-          console.log("Transaction not found yet, waiting...");
-        }
-      } else {
-        console.log("Still loading data, waiting...");
-      }
-    }
-  }, [searchParams, transactions, isDataLoading]);
-  const handleVerifyPayment = async (tid: string) => {
-    // Prevent duplicate calls
-    if (verifyingTransactionId === tid) {
-      console.log("Already verifying this transaction, skipping...");
-      return;
-    }
-    const transaction = transactions.find((t) => t.id === tid);
-    if (!transaction) {
-      console.error("Transaction not found:", tid);
-      toast.error("Transaction not found. Please refresh the page.");
-      return;
-    }
-    if (transaction.status === "purchased") {
-      console.log("Transaction already purchased, skipping verification");
-      toast.success("Payment already verified!");
-      setSelectedTransactionId(tid);
-      setShowModal(true);
-      // Clean URL after processing
-      setTimeout(() => {
-        window.history.replaceState({}, "", "/c/transactions");
-      }, 2000);
-      return;
-    }
-    console.log("Starting verification for transaction:", tid);
-    setVerifyingTransactionId(tid);
-    const loadingToast = toast.loading("Verifying payment...");
-    try {
-      const response = await fetch("/api/transactions/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transactionId: tid }),
-      });
-      const data = await response.json();
-      toast.dismiss(loadingToast);
-      if (response.ok) {
-        console.log("Verification successful:", data);
-        if (data.alreadyPaid) {
-          toast.success("Payment already verified!");
-        } else {
-          toast.success("Payment verified! Your appointment is now confirmed.");
-        }
-        // Show modal with details
-        setSelectedTransactionId(tid);
-        setShowModal(true);
-        // Clean URL after showing success
-        setTimeout(() => {
-          window.history.replaceState({}, "", "/c/transactions");
-        }, 2000);
-      } else {
-        console.error("Verification API error:", data);
-        toast.error(
-          data.error || "Verification failed. Please contact support."
-        );
-      }
-    } catch (error) {
-      console.error("Verification network error:", error);
-      toast.dismiss(loadingToast);
-      toast.error("Network error during verification. Please try again.");
-    } finally {
-      setVerifyingTransactionId(null);
-    }
-  };
+
   const getFilteredAndSortedAppointments = (transactionId: string) => {
     const filtered = userAppointments.filter(
       (apt) => apt.transactionId === transactionId
@@ -726,6 +639,7 @@ const ClientsTransactionPage: React.FC = () => {
       return dateA.getTime() - dateB.getTime();
     });
   };
+
   const calculateProgress = (transaction: Transaction): number => {
     if (!transaction.customizationProgress) return 0;
     const progress = transaction.customizationProgress;
@@ -747,6 +661,7 @@ const ClientsTransactionPage: React.FC = () => {
       ? Math.round((completedStages / totalStages) * 100)
       : 0;
   };
+
   const getOverallStatus = (
     transaction: Transaction
   ): "pending" | "in-progress" | "completed" => {
@@ -755,11 +670,13 @@ const ClientsTransactionPage: React.FC = () => {
     if (progress > 0) return "in-progress";
     return "pending";
   };
+
   const getProgressColor = (percentage: number): string => {
     if (percentage === 0) return "text-gray-500";
     if (percentage < 100) return "text-orange-500";
     return "text-green-600";
   };
+
   if (isDataLoading || currentUserId === null) {
     return (
       <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
@@ -787,20 +704,6 @@ const ClientsTransactionPage: React.FC = () => {
     );
   }
 
-  if (!currentUserId && !isDataLoading) {
-    return (
-      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">
-            Please log in to view your transactions
-          </p>
-          <Button onClick={() => (window.location.href = "/auth")}>
-            Go to Login
-          </Button>
-        </div>
-      </div>
-    );
-  }
   const getFilteredTransactions = () => {
     // Start with the current user's transactions (already filtered by Firestore query)
     return transactions.filter((transaction) => {
@@ -835,11 +738,13 @@ const ClientsTransactionPage: React.FC = () => {
       );
     });
   };
+
   const getLatestTransaction = () => {
     return selectedTransactionId
       ? transactions.find((t) => t.id === selectedTransactionId)
       : null;
   };
+
   const getTransactionDetails = (transaction: Transaction) => {
     const type = carTypes.find((t) => t.id === transaction.typeId);
     const model = carModels.find((m) => m.id === transaction.modelId);
@@ -850,6 +755,7 @@ const ClientsTransactionPage: React.FC = () => {
     );
     return { type, model, color, wheel, interior };
   };
+
   const getTransactionAppointments = (transactionId: string) => {
     return userAppointments.filter(
       (apt) => apt.transactionId === transactionId
@@ -882,79 +788,12 @@ const ClientsTransactionPage: React.FC = () => {
       setIsSubmittingFeedback(false);
     }
   };
+
   const handleViewDetails = (transaction: Transaction) => {
     setSelectedTransactionId(transaction.id);
     setShowModal(true);
   };
-  const handlePay = async () => {
-    const latestTransaction = getLatestTransaction();
-    if (!latestTransaction) return;
-    const hasActiveAppointment = getTransactionAppointments(
-      latestTransaction.id
-    ).some((apt) => apt.status !== "cancelled");
-    if (!hasActiveAppointment) {
-      toast.error("Please book an appointment first.");
-      return;
-    }
-    // Only check inventory for selected items
-    if (latestTransaction.colorId) {
-      const color = paintColors.find((c) => c.id === latestTransaction.colorId);
-      if (!color || color.inventory < 1) {
-        toast.error("Sorry, the selected paint color is out of stock.");
-        return;
-      }
-    }
-    if (latestTransaction.wheelId) {
-      const wheel = wheels.find((w) => w.id === latestTransaction.wheelId);
-      if (!wheel || wheel.inventory < 1) {
-        toast.error("Sorry, the selected wheels are out of stock.");
-        return;
-      }
-    }
-    if (latestTransaction.interiorId) {
-      const interior = interiors.find(
-        (i) => i.id === latestTransaction.interiorId
-      );
-      if (!interior || interior.inventory < 1) {
-        toast.error("Sorry, the selected interior is out of stock.");
-        return;
-      }
-    }
-    const { model } = getTransactionDetails(latestTransaction);
-    try {
-      const response = await fetch("/api/create-checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transactionId: latestTransaction.id,
-          amount: Math.round(latestTransaction.price * 100),
-          description: `Payment for ${model?.name || "Custom Design"} customization`,
-        }),
-      });
-      const data = await response.json();
-      if (response.ok && data.checkout_url) {
-        window.location.href = data.checkout_url;
-      } else {
-        const errorMsg = data.error
-          ? Array.isArray(data.error)
-            ? data.error
-                .map(
-                  (e: { code: string; detail: string }) =>
-                    `${e.code}: ${e.detail}`
-                )
-                .join("; ")
-            : typeof data.error === "string"
-              ? data.error
-              : JSON.stringify(data.error)
-          : "Unknown error occurred";
-        toast.error(`Payment initiation failed: ${errorMsg}`);
-        console.error("PayMongo error:", data);
-      }
-    } catch (error) {
-      toast.error("Failed to initiate payment. Check console for details.");
-      console.error(error);
-    }
-  };
+
   // Updated handleBookAppointment with new validations
   const handleBookAppointment = async () => {
     const latestTransaction = getLatestTransaction();
@@ -998,8 +837,7 @@ const ClientsTransactionPage: React.FC = () => {
         date: appointmentDate,
         time: appointmentTime,
         status: "booked",
-        paymentStatus:
-          latestTransaction.status === "purchased" ? "paid" : "pending",
+        paymentStatus: "pending",
         timestamp: new Date(),
       });
       toast.success("Appointment booked successfully!");
@@ -1010,11 +848,13 @@ const ClientsTransactionPage: React.FC = () => {
       console.error(error);
     }
   };
+
   const handleEditAppointment = (appointment: Appointment) => {
     setEditingAppointmentId(appointment.id);
     setEditDate(appointment.date);
     setEditTime(appointment.time);
   };
+
   const handleSaveEdit = async () => {
     if (!editingAppointmentId || !editDate || !editTime) {
       toast.error("Please select date and time.");
@@ -1051,11 +891,13 @@ const ClientsTransactionPage: React.FC = () => {
       console.error(error);
     }
   };
+
   const handleCancelEdit = () => {
     setEditingAppointmentId(null);
     setEditDate("");
     setEditTime("");
   };
+
   const handleCancelAppointment = async (appointmentId: string) => {
     const appointment = appointments.find((apt) => apt.id === appointmentId);
     if (!appointment) return;
@@ -1110,16 +952,19 @@ const ClientsTransactionPage: React.FC = () => {
       }
     }
   };
+
   const handleRefundConfirm = async () => {
     if (!appointmentToRefund) return;
     await handleCancelAppointment(appointmentToRefund.id);
     setShowRefundModal(false);
     setAppointmentToRefund(null);
   };
+
   const handleRefundCancel = () => {
     setShowRefundModal(false);
     setAppointmentToRefund(null);
   };
+
   const handleDeleteAppointment = async (
     appointmentId: string,
     paymentStatus: string | undefined
@@ -1136,6 +981,7 @@ const ClientsTransactionPage: React.FC = () => {
       console.error(error);
     }
   };
+
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedTransactionId(null);
@@ -1146,7 +992,9 @@ const ClientsTransactionPage: React.FC = () => {
     setEditDate("");
     setEditTime("");
   };
+
   const latestTransaction = getLatestTransaction();
+  
   return (
     <div className="flex flex-col gap-4 mb-6">
       <div className="flex justify-between items-center">
@@ -1356,25 +1204,17 @@ const ClientsTransactionPage: React.FC = () => {
                                 )}
                               </p>
                               <Badge
-                                variant={
-                                  latestTransaction.paymentMethod === "cash"
-                                    ? "secondary"
-                                    : "default"
-                                }
+                                variant="secondary"
                                 className="mt-2"
                               >
-                                {latestTransaction.paymentMethod === "cash"
-                                  ? "Cash Payment"
-                                  : "PayMongo Payment"}
+                                Cash Payment
                               </Badge>
-                              {latestTransaction.paymentMethod === "cash" && (
-                                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                                  <p className="text-sm text-yellow-800 font-medium">
-                                    💰 Please proceed to the cashier to complete
-                                    your cash payment on your appointment date.
-                                  </p>
-                                </div>
-                              )}
+                              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                <p className="text-sm text-yellow-800 font-medium">
+                                  💰 Please proceed to the cashier to complete
+                                  your cash payment on your appointment date.
+                                </p>
+                              </div>
                             </>
                           )}
                         </div>
@@ -1593,44 +1433,16 @@ const ClientsTransactionPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    {/* Payment Method Selection & Button */}
+                    {/* Payment Button */}
                     {latestTransaction.status !== "purchased" &&
                       overallStatus !== "completed" && (
                         <div className="space-y-4 pt-4">
-                          <div className="space-y-2">
-                            <Label>Payment Method</Label>
-                            <Select
-                              value={paymentMethod}
-                              onValueChange={(value: "paymongo" | "cash") =>
-                                setPaymentMethod(value)
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select payment method" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="paymongo">
-                                  PayMongo (Online Payment)
-                                </SelectItem>
-                                <SelectItem value="cash">
-                                  Cash (Pay on Appointment)
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
                           <Button
-                            onClick={
-                              paymentMethod === "paymongo"
-                                ? handlePay
-                                : handleCashPayment
-                            }
+                            onClick={handleCashPayment}
                             className="w-full"
                             disabled={!hasActiveAppointment}
                           >
-                            {paymentMethod === "paymongo"
-                              ? "Pay Now with PayMongo"
-                              : "Confirm Cash Payment"}
+                            Confirm Cash Payment
                           </Button>
 
                           {!hasActiveAppointment && (
@@ -1640,11 +1452,9 @@ const ClientsTransactionPage: React.FC = () => {
                             </p>
                           )}
 
-                          {paymentMethod === "cash" && (
-                            <p className="text-sm text-muted-foreground text-center">
-                              You will pay in cash during your appointment.
-                            </p>
-                          )}
+                          <p className="text-sm text-muted-foreground text-center">
+                            You will pay in cash during your appointment.
+                          </p>
                         </div>
                       )}
                     {/* Existing Appointments */}
@@ -2114,6 +1924,7 @@ const ClientsTransactionPage: React.FC = () => {
     </div>
   );
 };
+
 const TransactionsPageWrapper: React.FC = () => {
   return (
     <Suspense
@@ -2130,4 +1941,5 @@ const TransactionsPageWrapper: React.FC = () => {
     </Suspense>
   );
 };
+
 export default TransactionsPageWrapper;
