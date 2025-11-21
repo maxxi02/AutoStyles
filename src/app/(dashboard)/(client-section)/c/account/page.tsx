@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,11 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -29,27 +24,32 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, Image as ImageIcon, Moon, Sun } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { auth, db } from "@/lib/firebase";
 import {
-  onAuthStateChanged,
-  type User as FirebaseUser,
-  MultiFactorInfo,
-  updateProfile,
-  updatePassword,
-  reauthenticateWithCredential,
   EmailAuthProvider,
-  signOut,
   multiFactor,
+  MultiFactorInfo,
+  onAuthStateChanged,
+  reauthenticateWithCredential,
+  signOut,
   TotpMultiFactorGenerator,
   TotpSecret,
+  updatePassword,
+  updateProfile,
+  type User as FirebaseUser,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-import { toast } from "sonner";
+import { Image as ImageIcon, LogOut, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface UserData {
   name?: string;
@@ -128,6 +128,10 @@ const AccountPage = () => {
   );
   const [notifications, setNotifications] = useState(true);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showPrivacyPolicyDialog, setShowPrivacyPolicyDialog] =
+    useState<boolean>(false);
+  const [showTermsOfServiceDialog, setShowTermsOfServiceDialog] =
+    useState<boolean>(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -875,15 +879,15 @@ const AccountPage = () => {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="text-foreground">Preferences</CardTitle>
-                  <CardDescription className="text-muted-foreground">
-                    Customize your experience
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Preferences</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Customize your experience
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="space-y-1">
                       <h3 className="font-medium">Dark Mode</h3>
@@ -905,9 +909,161 @@ const AccountPage = () => {
                       onCheckedChange={setNotifications}
                     />
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Legal & Support</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Review our policies and get help
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Dialog
+                  open={showPrivacyPolicyDialog}
+                  onOpenChange={setShowPrivacyPolicyDialog}
+                >
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start">
+                      Privacy Policy
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Privacy Policy</DialogTitle>
+                      <DialogDescription>
+                        Last updated: May 17, 2025
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 text-sm">
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          1. Summary
+                        </h3>
+                        <p className="text-muted-foreground">
+                          AutoStyles provides a web-based car paint visualization and customization service for Danny Auto Paint With Oven. This Privacy Policy explains what personal data we collect, why we collect it, how we use it, with whom we share it, and the rights you have over your data. The system is designed and operated in compliance with the Philippine Data Privacy Act of 2012 (RA 10173).
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          2. Data We Collect
+                        </h3>
+                        <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                          <li><strong>Account & identity data:</strong> Name, email address, phone number, profile picture (if provided), username, and hashed password.</li>
+                          <li><strong>Vehicle & customization data:</strong> Car brand and model selection, selected paint colors, paint finish type, saved designs and 2D preview metadata.</li>
+                          <li><strong>Transaction data:</strong> Order details, pricing, discounts applied, payment method (if stored), receipts and status of transactions.</li>
+                          <li><strong>Usage & device data:</strong> IP address, browser type, device type, operating system, pages visited, interaction logs, timestamps, and performance logs.</li>
+                          <li><strong>Uploaded files:</strong> Any images or files you upload — stored in Cloud Firestore.</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          3. How We Use Your Data
+                        </h3>
+                        <p className="text-muted-foreground">
+                          We use collected data to provide and maintain the AutoStyles service, process orders, improve service functionality, communicate with you, and comply with legal obligations.
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          4. Data Sharing
+                        </h3>
+                        <p className="text-muted-foreground">
+                          We share data with service providers (cloud hosting/storage, email, analytics, payments) such as Firebase services used for hosting, storage, functions, and authentication. We require providers to maintain appropriate security and confidentiality.
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          5. Your Rights
+                        </h3>
+                        <p className="text-muted-foreground">
+                          You have the right to access, request correction, request deletion, object to processing, and request portability of your data. To exercise rights, contact us at autowerkesph@gmail.com or 0917 725 0985.
+                        </p>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog
+                  open={showTermsOfServiceDialog}
+                  onOpenChange={setShowTermsOfServiceDialog}
+                >
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start">
+                      Terms of Service
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Terms of Service</DialogTitle>
+                      <DialogDescription>
+                        Last updated: May 17, 2025
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 text-sm">
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          1. Acceptance
+                        </h3>
+                        <p className="text-muted-foreground">
+                          By using AutoStyles (website) you agree to these Terms of Service (ToS). If you do not agree, do not use the service.
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          2. Scope of Service
+                        </h3>
+                        <p className="text-muted-foreground">
+                          AutoStyles is a web application that provides interactive 2D previews of supported car models, color selection from a predefined palette, and transaction creation with price estimation and digital receipts. Supported brands: Toyota, Honda, Mitsubishi, Isuzu (selected models).
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          3. Accounts
+                        </h3>
+                        <p className="text-muted-foreground">
+                          You are responsible for maintaining account confidentiality and providing accurate information. We may suspend or terminate accounts that violate these ToS.
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          4. Acceptable Use
+                        </h3>
+                        <p className="text-muted-foreground">
+                          You may use the service only for lawful purposes. Prohibited activities include reverse-engineering the service, uploading unlawful content, attempting to breach security, and using the system for other shops.
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          5. Intellectual Property
+                        </h3>
+                        <p className="text-muted-foreground">
+                          All content, code, 2D models, designs, and trademarks are owned by the developer / licensed partners. You retain ownership of content you upload, but grant AutoStyles a license to use it to provide the service.
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          6. Limitation of Liability
+                        </h3>
+                        <p className="text-muted-foreground">
+                          AutoStyles is provided &quot;as is&quot; without warranty. We do not guarantee that the 2D preview precisely matches final paint results. Our aggregate liability will not exceed fees actually paid by you, or PHP 10,000, whichever is lower.
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          7. Termination
+                        </h3>
+                        <p className="text-muted-foreground">
+                          We reserve the right to suspend or terminate accounts for policy violations, illegal activity, or at our discretion. Outstanding transactions may be completed or retained for legal/accounting reasons.
+                        </p>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
+            </Card>
 
             <Card className="bg-card border-border">
               <CardContent className="p-6">
