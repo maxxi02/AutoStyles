@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   signInWithEmailAndPassword,
@@ -31,7 +31,7 @@ import {
   User,
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import {
   Dialog,
@@ -42,6 +42,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
+
+interface LoginAttempt {
+  attempts: number;
+  lockedUntil: number | null;
+  lastAttempt: number;
+}
 
 export function LoginForm({
   className,
@@ -55,19 +64,148 @@ export function LoginForm({
   const [multiFactorResolver, setMultiFactorResolver] =
     useState<MultiFactorResolver | null>(null);
   const [totpCode, setTotpCode] = useState<string>("");
+  const [isLocked, setIsLocked] = useState<boolean>(false);
+  const [remainingTime, setRemainingTime] = useState<number>(0);
   const router = useRouter();
+
+  // Timer effect for locked account countdown
+  useEffect(() => {
+    if (remainingTime > 0) {
+      const timer = setInterval(() => {
+        setRemainingTime((prev) => {
+          if (prev <= 1000) {
+            setIsLocked(false);
+            return 0;
+          }
+          return prev - 1000;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [remainingTime]);
+
+  const getAttemptDocId = (email: string): string => {
+    // Hash email for privacy (simple hash for demo, use crypto in production)
+    return btoa(email.toLowerCase()).replace(/[^a-zA-Z0-9]/g, "");
+  };
+
+  const checkLoginAttempts = async (
+    email: string
+  ): Promise<{ allowed: boolean; remainingTime?: number }> => {
+    try {
+      const attemptId = getAttemptDocId(email);
+      const attemptRef = doc(db, "loginAttempts", attemptId);
+      const attemptDoc = await getDoc(attemptRef);
+
+      if (!attemptDoc.exists()) {
+        return { allowed: true };
+      }
+
+      const data = attemptDoc.data() as LoginAttempt;
+      const now = Date.now();
+
+      // Check if account is locked
+      if (data.lockedUntil && data.lockedUntil > now) {
+        const remaining = data.lockedUntil - now;
+        return { allowed: false, remainingTime: remaining };
+      }
+
+      // Reset if lockout has expired
+      if (data.lockedUntil && data.lockedUntil <= now) {
+        await setDoc(attemptRef, {
+          attempts: 0,
+          lockedUntil: null,
+          lastAttempt: now,
+        });
+        return { allowed: true };
+      }
+
+      // Check if max attempts reached
+      if (data.attempts >= MAX_ATTEMPTS) {
+        const lockedUntil = now + LOCKOUT_DURATION;
+        await setDoc(
+          attemptRef,
+          {
+            lockedUntil,
+            lastAttempt: now,
+          },
+          { merge: true }
+        );
+        return { allowed: false, remainingTime: LOCKOUT_DURATION };
+      }
+
+      return { allowed: true };
+    } catch (error) {
+      console.error("Error checking login attempts:", error);
+      return { allowed: true }; // Fail open to avoid locking legitimate users
+    }
+  };
+
+  const recordFailedAttempt = async (email: string): Promise<void> => {
+    try {
+      const attemptId = getAttemptDocId(email);
+      const attemptRef = doc(db, "loginAttempts", attemptId);
+      const attemptDoc = await getDoc(attemptRef);
+      const now = Date.now();
+
+      if (!attemptDoc.exists()) {
+        await setDoc(attemptRef, {
+          attempts: 1,
+          lockedUntil: null,
+          lastAttempt: now,
+        });
+        return;
+      }
+
+      const data = attemptDoc.data() as LoginAttempt;
+      const newAttempts = data.attempts + 1;
+
+      if (newAttempts >= MAX_ATTEMPTS) {
+        const lockedUntil = now + LOCKOUT_DURATION;
+        await setDoc(attemptRef, {
+          attempts: newAttempts,
+          lockedUntil,
+          lastAttempt: now,
+        });
+        setIsLocked(true);
+        setRemainingTime(LOCKOUT_DURATION);
+      } else {
+        await setDoc(attemptRef, {
+          attempts: newAttempts,
+          lockedUntil: null,
+          lastAttempt: now,
+        });
+      }
+    } catch (error) {
+      console.error("Error recording failed attempt:", error);
+    }
+  };
+
+  const clearLoginAttempts = async (email: string): Promise<void> => {
+    try {
+      const attemptId = getAttemptDocId(email);
+      const attemptRef = doc(db, "loginAttempts", attemptId);
+      await setDoc(attemptRef, {
+        attempts: 0,
+        lockedUntil: null,
+        lastAttempt: Date.now(),
+      });
+    } catch (error) {
+      console.error("Error clearing login attempts:", error);
+    }
+  };
 
   const fetchUserRole = async (uid: string) => {
     try {
       const userDoc = await getDoc(doc(db, "users", uid));
       if (userDoc.exists()) {
         const data = userDoc.data();
-        return data?.role || "user"; // Default to user if no role
+        return data?.role || "user";
       }
       return "user";
     } catch (error) {
       console.error("Error fetching user role:", error);
-      return "user"; // Fallback
+      return "user";
     }
   };
 
@@ -82,11 +220,9 @@ export function LoginForm({
     const role = await fetchUserRole(user.uid);
     const token = await user.getIdToken();
 
-    // Set cookies
     setCookie("authToken", token);
     setCookie("userRole", role);
 
-    // Redirect based on role
     if (role === "admin") {
       router.push("/a/dashboard");
     } else if (role === "autoworker") {
@@ -96,12 +232,19 @@ export function LoginForm({
     }
   };
 
+  const formatTime = (ms: number): string => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     const email = formData.get("email")?.toString().trim();
     const password = formData.get("password")?.toString();
+
     if (!email || !password) {
       toast.error("Error", {
         description: "Please fill in all fields.",
@@ -109,33 +252,65 @@ export function LoginForm({
       setLoading(false);
       return;
     }
+
+    // Check if account is locked
+    const { allowed, remainingTime: lockTime } = await checkLoginAttempts(
+      email
+    );
+    if (!allowed && lockTime) {
+      setIsLocked(true);
+      setRemainingTime(lockTime);
+      toast.error("Account Temporarily Locked", {
+        description: `Too many failed login attempts. Please try again in ${formatTime(
+          lockTime
+        )}.`,
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
       const { user } = await signInWithEmailAndPassword(auth, email, password);
-      // Check if email is verified
+
       if (!user.emailVerified) {
         await signOut(auth);
         toast.error("Verification Required", {
           description:
             "Please verify your email before logging in. Check your inbox (including spam) for the verification link.",
         });
+        setLoading(false);
         return;
       }
+
+      // Clear failed attempts on successful login
+      await clearLoginAttempts(email);
       await handleSuccessLogin(user);
     } catch (error: unknown) {
       const firebaseError = error as FirebaseError;
+
       if (firebaseError.code === "auth/multi-factor-auth-required") {
         const multiFactorError = error as MultiFactorError;
         setMultiFactorResolver(getMultiFactorResolver(auth, multiFactorError));
         setShowTotpDialog(true);
+        setLoading(false);
         return;
       }
+
+      // Record failed attempt for auth errors
+      if (
+        firebaseError.code === "auth/wrong-password" ||
+        firebaseError.code === "auth/user-not-found" ||
+        firebaseError.code === "auth/invalid-credential"
+      ) {
+        await recordFailedAttempt(email);
+      }
+
       let description = "An unexpected error occurred.";
       switch (firebaseError.code) {
         case "auth/user-not-found":
-          description = "No account with this email exists.";
-          break;
         case "auth/wrong-password":
-          description = "Incorrect password.";
+        case "auth/invalid-credential":
+          description = "Invalid email or password.";
           break;
         case "auth/invalid-email":
           description = "Invalid email address.";
@@ -158,15 +333,18 @@ export function LoginForm({
   const handleTotpSubmit = async () => {
     if (!multiFactorResolver || !totpCode.trim()) return;
     try {
-      const hint = multiFactorResolver.hints[0]; // Assume first hint is TOTP
+      const hint = multiFactorResolver.hints[0];
       if (hint.factorId === TotpMultiFactorGenerator.FACTOR_ID) {
         const multiFactorAssertion =
-          TotpMultiFactorGenerator.assertionForSignIn(
-            hint.uid,
-            totpCode.trim()
-          );
+          TotpMultiFactorGenerator.assertionForSignIn(hint.uid, totpCode.trim());
         const userCredential =
           await multiFactorResolver.resolveSignIn(multiFactorAssertion);
+        
+        // Clear failed attempts on successful MFA login
+        if (emailValue) {
+          await clearLoginAttempts(emailValue);
+        }
+        
         await handleSuccessLogin(userCredential.user);
       }
     } catch (error: unknown) {
@@ -238,6 +416,7 @@ export function LoginForm({
                   value={emailValue}
                   onChange={(e) => setEmailValue(e.target.value)}
                   required
+                  disabled={isLocked}
                 />
               </Field>
               <Field>
@@ -294,11 +473,27 @@ export function LoginForm({
                     </DialogContent>
                   </Dialog>
                 </div>
-                <Input id="password" type="password" name="password" required />
+                <Input
+                  id="password"
+                  type="password"
+                  name="password"
+                  required
+                  disabled={isLocked}
+                />
               </Field>
 
+              {isLocked && (
+                <div className="text-sm text-red-600 text-center">
+                  Account locked. Try again in {formatTime(remainingTime)}
+                </div>
+              )}
+
               <Field>
-                <Button type="submit" disabled={loading} className="w-full">
+                <Button
+                  type="submit"
+                  disabled={loading || isLocked}
+                  className="w-full"
+                >
                   {loading ? "Logging In..." : "Login"}
                 </Button>
                 <FieldDescription className="text-center">
@@ -313,7 +508,6 @@ export function LoginForm({
         </CardContent>
       </Card>
 
-      {/* TOTP MFA Dialog */}
       <Dialog open={showTotpDialog} onOpenChange={setShowTotpDialog}>
         <DialogContent>
           <DialogHeader>

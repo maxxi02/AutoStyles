@@ -429,7 +429,8 @@ const AnalyticsPage: React.FC = () => {
                   {paintColors.filter((c) => Number(c.inventory || 0) < 50)
                     .length +
                     wheels.filter((w) => Number(w.inventory || 0) < 50).length +
-                    interiors.filter((i) => Number(i.inventory || 0) < 50).length}
+                    interiors.filter((i) => Number(i.inventory || 0) < 50)
+                      .length}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Items below threshold
@@ -647,17 +648,23 @@ const AnalyticsPage: React.FC = () => {
               <TabsList>
                 <TabsTrigger value="colors">
                   Paint Colors (
-                  {paintColors.filter((c) => Number(c.inventory || 0) < 50).length}
-                )
+                  {
+                    paintColors.filter((c) => Number(c.inventory || 0) < 50)
+                      .length
+                  }
+                  )
                 </TabsTrigger>
                 <TabsTrigger value="wheels">
-                  Wheels ({wheels.filter((w) => Number(w.inventory || 0) < 50).length}
-                )
+                  Wheels (
+                  {wheels.filter((w) => Number(w.inventory || 0) < 50).length})
                 </TabsTrigger>
                 <TabsTrigger value="interiors">
                   Interiors (
-                  {interiors.filter((i) => Number(i.inventory || 0) < 50).length}
-                )
+                  {
+                    interiors.filter((i) => Number(i.inventory || 0) < 50)
+                      .length
+                  }
+                  )
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="colors">
