@@ -346,7 +346,7 @@ const AnalyticsPage: React.FC = () => {
         <CardContent className="space-y-8">
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
+            <Card className="bg-slate-50 dark:bg-slate-900">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Total Items
@@ -362,7 +362,7 @@ const AnalyticsPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="bg-slate-50 dark:bg-slate-900">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Total Inventory Value
@@ -391,7 +391,7 @@ const AnalyticsPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="bg-slate-50 dark:bg-slate-900">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -408,7 +408,7 @@ const AnalyticsPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="bg-slate-50 dark:bg-slate-900">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Low Stock Alerts
@@ -431,7 +431,7 @@ const AnalyticsPage: React.FC = () => {
           {/* Sales Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Paint Colors Sales */}
-            <Card>
+            <Card className="bg-slate-100 dark:bg-slate-800">
               <CardHeader>
                 <CardTitle className="text-base">
                   Top Selling Paint Colors
@@ -458,6 +458,8 @@ const AnalyticsPage: React.FC = () => {
                       cx="50%"
                       cy="45%"
                       radius={90}
+                      stroke="#333"
+                      strokeWidth={1}
                     />
                     <ChartLegend
                       content={<ChartLegendContent nameKey="name" />}
@@ -475,7 +477,7 @@ const AnalyticsPage: React.FC = () => {
               </CardContent>
             </Card>
             {/* Wheels Sales */}
-            <Card>
+            <Card className="bg-slate-100 dark:bg-slate-800">
               <CardHeader>
                 <CardTitle className="text-base">Top Selling Wheels</CardTitle>
               </CardHeader>
@@ -506,6 +508,8 @@ const AnalyticsPage: React.FC = () => {
                       cx="50%"
                       cy="45%"
                       radius={90}
+                      stroke="#333"
+                      strokeWidth={1}
                     />
                     <ChartLegend
                       content={<ChartLegendContent nameKey="name" />}
@@ -523,7 +527,7 @@ const AnalyticsPage: React.FC = () => {
               </CardContent>
             </Card>
             {/* Interiors Sales */}
-            <Card>
+            <Card className="bg-slate-100 dark:bg-slate-800">
               <CardHeader>
                 <CardTitle className="text-base">
                   Top Selling Interiors
@@ -558,6 +562,8 @@ const AnalyticsPage: React.FC = () => {
                       cx="50%"
                       cy="45%"
                       radius={90}
+                      stroke="#333"
+                      strokeWidth={1}
                     />
                     <ChartLegend
                       content={<ChartLegendContent nameKey="name" />}
@@ -577,7 +583,7 @@ const AnalyticsPage: React.FC = () => {
           </div>
 
           {/* Inventory Levels Bar Chart */}
-          <Card>
+          <Card className="bg-slate-100 dark:bg-slate-800">
             <CardHeader>
               <CardTitle>Current Inventory Levels</CardTitle>
               <CardDescription>Stock levels for all items</CardDescription>
@@ -670,7 +676,7 @@ const AnalyticsPage: React.FC = () => {
                   {paintColors
                     .filter((c) => Number(c.inventory || 0) < 50)
                     .map((color) => (
-                      <Card key={color.id} className="border-red-200">
+                      <Card key={color.id} className="border-red-200 bg-slate-100 dark:bg-slate-800">
                         <CardHeader>
                           <div className="flex items-start justify-between">
                             <div>
@@ -736,7 +742,7 @@ const AnalyticsPage: React.FC = () => {
                   {wheels
                     .filter((w) => Number(w.inventory || 0) < 50)
                     .map((wheel) => (
-                      <Card key={wheel.id} className="border-red-200">
+                      <Card key={wheel.id} className="border-red-200 bg-slate-100 dark:bg-slate-800">
                         <CardHeader>
                           <CardTitle className="text-base">
                             {wheel.name}
@@ -794,7 +800,7 @@ const AnalyticsPage: React.FC = () => {
                   {interiors
                     .filter((i) => Number(i.inventory || 0) < 50)
                     .map((interior) => (
-                      <Card key={interior.id} className="border-red-200">
+                      <Card key={interior.id} className="border-red-200 bg-slate-100 dark:bg-slate-800">
                         <CardHeader>
                           <CardTitle className="text-base">
                             {interior.name}
