@@ -375,15 +375,24 @@ const ClientsTransactionPage: React.FC = () => {
   };
 
   useEffect(() => {
-    // Count all active bookings across all transactions
-    const activeBookings = transactions.filter(
-      (t) =>
-        t.status === "purchased" &&
-        t.customizationProgress?.overallStatus !== "completed"
-    ).length;
+    // Count all active bookings globally by fetching all transactions
+    const unsubscribeGlobalCheck = onSnapshot(
+      collection(db, "transactions"),
+      (snapshot) => {
+        const allActiveBookings = snapshot.docs.filter((doc) => {
+          const data = doc.data();
+          return (
+            data.status === "purchased" &&
+            data.customizationProgress?.overallStatus !== "completed"
+          );
+        }).length;
 
-    setMaxBookingsReached(activeBookings >= 10);
-  }, [transactions]);
+        setMaxBookingsReached(allActiveBookings >= 10);
+      }
+    );
+
+    return () => unsubscribeGlobalCheck();
+  }, []);
 
   useEffect(() => {
     console.log("Current User ID:", currentUserId);
