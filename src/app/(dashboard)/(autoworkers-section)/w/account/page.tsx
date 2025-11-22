@@ -801,53 +801,7 @@ const AccountPage = () => {
               </CardContent>
             </Card>
 
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">
-                  Legal & Support
-                </CardTitle>
-                <CardDescription className="text-muted-foreground">
-                  Access important links
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between">
-                  <Link
-                    href="/c/privacy"
-                    className="text-sm text-muted-foreground hover:text-foreground"
-                  >
-                    Privacy Policy
-                  </Link>
-                  <Button variant="ghost" size="sm">
-                    View
-                  </Button>
-                </div>
-                <div className="flex justify-between">
-                  <Link
-                    href="/c/terms"
-                    className="text-sm text-muted-foreground hover:text-foreground"
-                  >
-                    Terms of Service
-                  </Link>
-                  <Button variant="ghost" size="sm">
-                    View
-                  </Button>
-                </div>
-                <div className="flex justify-between">
-                  <Link
-                    href="/c/contact"
-                    className="text-sm text-muted-foreground hover:text-foreground"
-                  >
-                    Contact Support
-                  </Link>
-                  <Button variant="ghost" size="sm">
-                    <Bell className="h-4 w-4 mr-2" />
-                    Message
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
+          
             <Card className="bg-card border-border">
               <CardContent className="p-6">
                 <Button
