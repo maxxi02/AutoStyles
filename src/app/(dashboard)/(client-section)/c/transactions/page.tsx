@@ -1,57 +1,48 @@
 "use client";
-import React, { useState, useEffect, Suspense } from "react";
-import {
-  collection,
-  onSnapshot,
-  query,
-  addDoc,
-  doc,
-  updateDoc,
-  deleteDoc,
-  where,
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   CardDescription,
   CardFooter,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Clock,
-  DollarSign,
-  Calendar,
-  CheckCircle2,
-  Trash2,
-  Search,
-} from "lucide-react";
-import Image from "next/image";
-import { format } from "date-fns";
-import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { useSearchParams } from "next/navigation";
+import { auth, db } from "@/lib/firebase";
+import { format } from "date-fns";
 import { onAuthStateChanged } from "firebase/auth";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  updateDoc,
+} from "firebase/firestore";
+import {
+  Calendar,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Loader2,
+  Search,
+  Trash2,
+} from "lucide-react";
+import Image from "next/image";
+import React, { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface Transaction {
   id: string;
@@ -404,52 +395,81 @@ const ClientsTransactionPage: React.FC = () => {
     if (!currentUserId) return;
     const expectedSnapshots = 7; // transactions + appointments + 5 others
     
-    // Load transactions
+    // Load transactions - read all and filter client-side
     const q = query(
-      collection(db, "transactions"),
-      where("userId", "==", currentUserId)
+      collection(db, "transactions")
+      // Removed where clause due to Firebase internal assertion errors
     );
 
     const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs
-        .map((doc) => {
-          const docData = doc.data();
-          return {
-            id: doc.id,
-            ...docData,
-            timestamp: docData.timestamp.toDate(),
-            paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
-            customizationProgress: docData.customizationProgress
-              ? {
-                  ...docData.customizationProgress,
-                  paintCompletedAt:
-                    docData.customizationProgress.paintCompletedAt?.toDate() ||
-                    null,
-                  wheelsCompletedAt:
-                    docData.customizationProgress.wheelsCompletedAt?.toDate() ||
-                    null,
-                  interiorCompletedAt:
-                    docData.customizationProgress.interiorCompletedAt?.toDate() ||
-                    null,
-                }
-              : undefined,
-            feedback: docData.feedback
-              ? {
-                  ...docData.feedback,
-                  submittedAt: docData.feedback.submittedAt?.toDate(),
-                }
-              : undefined,
-          } as Transaction;
-        })
-        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      try {
+        const data = snapshot.docs
+          .map((doc) => {
+            try {
+              const docData = doc.data();
+              return {
+                id: doc.id,
+                ...docData,
+                timestamp: docData.timestamp?.toDate?.() || new Date(),
+                paymentVerifiedAt: docData.paymentVerifiedAt?.toDate?.(),
+                customizationProgress: docData.customizationProgress
+                  ? {
+                      ...docData.customizationProgress,
+                      paintCompletedAt:
+                        docData.customizationProgress.paintCompletedAt?.toDate?.() ||
+                        null,
+                      wheelsCompletedAt:
+                        docData.customizationProgress.wheelsCompletedAt?.toDate?.() ||
+                        null,
+                      interiorCompletedAt:
+                        docData.customizationProgress.interiorCompletedAt?.toDate?.() ||
+                        null,
+                    }
+                  : undefined,
+                feedback: docData.feedback
+                  ? {
+                      ...docData.feedback,
+                      submittedAt: docData.feedback.submittedAt?.toDate?.(),
+                    }
+                  : undefined,
+              } as Transaction;
+            } catch (docError) {
+              console.warn("Error mapping transaction:", doc.id);
+              return null;
+            }
+          })
+          .filter((item): item is Transaction => item !== null)
+          // Filter client-side: only transactions for current user
+          .filter((txn) => txn.userId === currentUserId)
+          .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-      setTransactions(data);
-      console.log(
-        "Transactions updated for user:",
-        currentUserId,
-        "count:",
-        data.length
-      );
+        setTransactions(data);
+        console.log(
+          "Transactions updated for user:",
+          currentUserId,
+          "count:",
+          data.length
+        );
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      } catch (snapshotError) {
+        console.error("Error processing transactions snapshot:", snapshotError);
+        setTransactions([]);
+        setSnapshotCount((prev) => {
+          const next = prev + 1;
+          if (next === expectedSnapshots) {
+            setIsDataLoading(false);
+          }
+          return next;
+        });
+      }
+    }, (error) => {
+      console.error("Transactions snapshot error:", error);
       setSnapshotCount((prev) => {
         const next = prev + 1;
         if (next === expectedSnapshots) {
@@ -1022,7 +1042,7 @@ const ClientsTransactionPage: React.FC = () => {
         </div>
       )}
       {getFilteredTransactions().length === 0 ? (
-        <Card className="text-center py-12">
+        <Card className="text-center py-12 bg-slate-100 dark:bg-slate-800">
           <CardContent>
             <p className="text-muted-foreground">
               No transactions yet. Start by saving a design!
@@ -1037,7 +1057,7 @@ const ClientsTransactionPage: React.FC = () => {
             const previewImage =
               color?.imageUrl || model?.imageUrl || "/placeholder-car.png";
             return (
-              <Card key={transaction.id}>
+              <Card key={transaction.id} className="bg-slate-100 dark:bg-slate-800">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">
@@ -1131,7 +1151,7 @@ const ClientsTransactionPage: React.FC = () => {
       )}
       {/* Details Modal */}
       <Dialog open={showModal} onOpenChange={handleCloseModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-slate-100 dark:bg-slate-800">
           <DialogHeader>
             <DialogTitle>Design Details</DialogTitle>
             <DialogDescription>Manage your saved design</DialogDescription>

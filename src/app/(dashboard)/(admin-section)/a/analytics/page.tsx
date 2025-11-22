@@ -1,46 +1,36 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   CardDescription,
   CardFooter,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2 } from "lucide-react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import Link from "next/link";
 import {
   ChartConfig,
   ChartContainer,
   ChartLegend,
   ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
 } from "@/components/ui/chart";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
+import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import React, { useEffect, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from "recharts";
 
 interface Transaction {
   id: string;
@@ -356,7 +346,7 @@ const AnalyticsPage: React.FC = () => {
         <CardContent className="space-y-8">
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
+            <Card className="bg-slate-50 dark:bg-slate-900">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Total Items
@@ -372,7 +362,7 @@ const AnalyticsPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="bg-slate-50 dark:bg-slate-900">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Total Inventory Value
@@ -401,7 +391,7 @@ const AnalyticsPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="bg-slate-50 dark:bg-slate-900">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -418,7 +408,7 @@ const AnalyticsPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="bg-slate-50 dark:bg-slate-900">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Low Stock Alerts
@@ -442,18 +432,18 @@ const AnalyticsPage: React.FC = () => {
           {/* Sales Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Paint Colors Sales */}
-            <Card>
+            <Card className="bg-slate-100 dark:bg-slate-800">
               <CardHeader>
                 <CardTitle className="text-base">
                   Top Selling Paint Colors
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-col items-center">
                 <ChartContainer
                   config={paintColorsChartConfig}
-                  className="mx-auto aspect-square max-h-[250px]"
+                  className="mx-auto aspect-square max-h-[320px] w-full"
                 >
-                  <PieChart>
+                  <PieChart margin={{ bottom: 60 }}>
                     <Pie
                       data={[...paintColors]
                         .filter((c) => (c.sold || 0) > 0)
@@ -463,14 +453,20 @@ const AnalyticsPage: React.FC = () => {
                           name: c.name,
                           value: c.sold || 0,
                           fill: c.hex,
-                          label: c.name,
                         }))}
                       dataKey="value"
                       nameKey="name"
+                      cx="50%"
+                      cy="45%"
+                      radius={90}
+                      stroke="#333"
+                      strokeWidth={1}
                     />
                     <ChartLegend
                       content={<ChartLegendContent nameKey="name" />}
-                      className="-translate-y-2 flex-wrap gap-2 [&>*]:basis-1/4 [&>*]:justify-center"
+                      className="flex-wrap gap-2 justify-center text-xs mt-4"
+                      verticalAlign="bottom"
+                      height={40}
                     />
                   </PieChart>
                 </ChartContainer>
@@ -482,17 +478,16 @@ const AnalyticsPage: React.FC = () => {
               </CardContent>
             </Card>
             {/* Wheels Sales */}
-            <Card>
+            <Card className="bg-slate-100 dark:bg-slate-800">
               <CardHeader>
                 <CardTitle className="text-base">Top Selling Wheels</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-col items-center">
                 <ChartContainer
                   config={wheelsChartConfig}
-                  className="[&_.recharts-pie-label-text]:fill-foreground mx-auto aspect-square max-h-[250px]"
+                  className="mx-auto aspect-square max-h-[320px] w-full"
                 >
-                  <PieChart>
-                    <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                  <PieChart margin={{ bottom: 60 }}>
                     <Pie
                       data={[...wheels]
                         .filter((w) => (w.sold || 0) > 0)
@@ -511,7 +506,17 @@ const AnalyticsPage: React.FC = () => {
                         }))}
                       dataKey="value"
                       nameKey="name"
-                      label
+                      cx="50%"
+                      cy="45%"
+                      radius={90}
+                      stroke="#333"
+                      strokeWidth={1}
+                    />
+                    <ChartLegend
+                      content={<ChartLegendContent nameKey="name" />}
+                      className="flex-wrap gap-2 justify-center text-xs mt-4"
+                      verticalAlign="bottom"
+                      height={40}
                     />
                   </PieChart>
                 </ChartContainer>
@@ -523,18 +528,18 @@ const AnalyticsPage: React.FC = () => {
               </CardContent>
             </Card>
             {/* Interiors Sales */}
-            <Card>
+            <Card className="bg-slate-100 dark:bg-slate-800">
               <CardHeader>
                 <CardTitle className="text-base">
                   Top Selling Interiors
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-col items-center">
                 <ChartContainer
                   config={interiorsChartConfig}
-                  className="mx-auto aspect-square max-h-[250px]"
+                  className="mx-auto aspect-square max-h-[320px] w-full"
                 >
-                  <PieChart>
+                  <PieChart margin={{ bottom: 60 }}>
                     <Pie
                       data={[...interiors]
                         .filter((i) => (i.sold || 0) > 0)
@@ -552,14 +557,20 @@ const AnalyticsPage: React.FC = () => {
                               "#FF8042",
                               "#8884d8",
                             ][idx],
-                          label: i.name,
                         }))}
                       dataKey="value"
                       nameKey="name"
+                      cx="50%"
+                      cy="45%"
+                      radius={90}
+                      stroke="#333"
+                      strokeWidth={1}
                     />
                     <ChartLegend
                       content={<ChartLegendContent nameKey="name" />}
-                      className="-translate-y-2 flex-wrap gap-2 [&>*]:basis-1/4 [&>*]:justify-center"
+                      className="flex-wrap gap-2 justify-center text-xs mt-4"
+                      verticalAlign="bottom"
+                      height={40}
                     />
                   </PieChart>
                 </ChartContainer>
@@ -573,7 +584,7 @@ const AnalyticsPage: React.FC = () => {
           </div>
 
           {/* Inventory Levels Bar Chart */}
-          <Card>
+          <Card className="bg-slate-100 dark:bg-slate-800">
             <CardHeader>
               <CardTitle>Current Inventory Levels</CardTitle>
               <CardDescription>Stock levels for all items</CardDescription>
@@ -672,7 +683,7 @@ const AnalyticsPage: React.FC = () => {
                   {paintColors
                     .filter((c) => Number(c.inventory || 0) < 50)
                     .map((color) => (
-                      <Card key={color.id} className="border-red-200">
+                      <Card key={color.id} className="border-red-200 bg-slate-100 dark:bg-slate-800">
                         <CardHeader>
                           <div className="flex items-start justify-between">
                             <div>
@@ -718,8 +729,9 @@ const AnalyticsPage: React.FC = () => {
                             size="sm"
                             className="w-full"
                             variant="outline"
+                            asChild
                           >
-                            <Link href={"/a/inventory"}>View in Inventory</Link>
+                            <Link href={`/a/inventory?tab=customize&subTab=paint-colors&itemId=${color.id}`}>View in Inventory</Link>
                           </Button>
                         </CardFooter>
                       </Card>
@@ -737,7 +749,7 @@ const AnalyticsPage: React.FC = () => {
                   {wheels
                     .filter((w) => Number(w.inventory || 0) < 50)
                     .map((wheel) => (
-                      <Card key={wheel.id} className="border-red-200">
+                      <Card key={wheel.id} className="border-red-200 bg-slate-100 dark:bg-slate-800">
                         <CardHeader>
                           <CardTitle className="text-base">
                             {wheel.name}
@@ -775,8 +787,9 @@ const AnalyticsPage: React.FC = () => {
                             size="sm"
                             className="w-full"
                             variant="outline"
+                            asChild
                           >
-                            <Link href={"/a/inventory"}>View in Inventory</Link>
+                            <Link href={`/a/inventory?tab=customize&subTab=wheels&itemId=${wheel.id}`}>View in Inventory</Link>
                           </Button>
                         </CardFooter>
                       </Card>
@@ -794,7 +807,7 @@ const AnalyticsPage: React.FC = () => {
                   {interiors
                     .filter((i) => Number(i.inventory || 0) < 50)
                     .map((interior) => (
-                      <Card key={interior.id} className="border-red-200">
+                      <Card key={interior.id} className="border-red-200 bg-slate-100 dark:bg-slate-800">
                         <CardHeader>
                           <CardTitle className="text-base">
                             {interior.name}
@@ -832,8 +845,9 @@ const AnalyticsPage: React.FC = () => {
                             size="sm"
                             className="w-full"
                             variant="outline"
+                            asChild
                           >
-                            <Link href={"/a/inventory"}>View in Inventory</Link>
+                            <Link href={`/a/inventory?tab=customize&subTab=interiors&itemId=${interior.id}`}>View in Inventory</Link>
                           </Button>
                         </CardFooter>
                       </Card>

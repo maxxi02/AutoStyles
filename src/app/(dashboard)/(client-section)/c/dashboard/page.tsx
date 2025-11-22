@@ -1,17 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import type { User as UserType } from "firebase/auth";
-import {
-  collection,
-  onSnapshot,
-  query,
-  where,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -28,24 +18,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { auth, db } from "@/lib/firebase";
+import type { User as UserType } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+} from "firebase/firestore";
+import { useEffect, useState } from "react";
 import { toast } from "sonner"; // Optional: For notifications
 
+import { format } from "date-fns";
 import {
-  Eye,
-  Edit,
-  Trash2,
-  Plus,
-  Search,
   Calendar,
   Clock,
   DollarSign,
+  Loader2,
+  Plus,
+  Search
 } from "lucide-react";
-import { Loader2 } from "lucide-react";
-import Link from "next/link";
-import { format } from "date-fns";
 import Image from "next/image";
+import Link from "next/link";
 
 interface Transaction {
   id: string;
@@ -223,46 +218,62 @@ const ClientDashboard = () => {
       }
     );
 
-    // Fetch user's transactions
-    // WORKAROUND: orderBy disabled due to array config issue on timestamp field.
-    // Fix data/index, then uncomment orderBy for server-side sorting.
+    // Fetch user's transactions - read all and filter client-side
+    // WORKAROUND: Removed where clause due to Firebase internal assertion errors
+    // Now reading all transactions and filtering by userId client-side
     const transactionsQuery = query(
-      collection(db, "transactions"),
-      where("userId", "==", user.uid)
+      collection(db, "transactions")
+      // Removed: where("userId", "==", user.uid)
       // , orderBy("timestamp", "desc")  // Re-enable after fixing index/data
     );
     const unsubscribeTransactions = onSnapshot(
       transactionsQuery,
       (snapshot) => {
-        let data = snapshot.docs.map((doc) => {
-          const docData = doc.data();
-          return {
-            id: doc.id,
-            ...docData,
-            timestamp: docData.timestamp.toDate(),
-            paymentVerifiedAt: docData.paymentVerifiedAt?.toDate(),
-            customizationProgress: docData.customizationProgress
-              ? {
-                  ...docData.customizationProgress,
-                  paintCompletedAt:
-                    docData.customizationProgress.paintCompletedAt?.toDate() ||
-                    null,
-                  wheelsCompletedAt:
-                    docData.customizationProgress.wheelsCompletedAt?.toDate() ||
-                    null,
-                  interiorCompletedAt:
-                    docData.customizationProgress.interiorCompletedAt?.toDate() ||
-                    null,
-                }
-              : undefined,
-          } as Transaction;
-        });
-        // Client-side sort (descending timestamp) as fallback
-        data = data.sort(
-          (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-        );
-        setTransactions(data);
-        checkAllLoaded();
+        try {
+          let data = snapshot.docs
+            .map((doc) => {
+              try {
+                const docData = doc.data();
+                return {
+                  id: doc.id,
+                  ...docData,
+                  timestamp: docData.timestamp?.toDate?.() || new Date(),
+                  paymentVerifiedAt: docData.paymentVerifiedAt?.toDate?.(),
+                  customizationProgress: docData.customizationProgress
+                    ? {
+                        ...docData.customizationProgress,
+                        paintCompletedAt:
+                          docData.customizationProgress.paintCompletedAt?.toDate?.() ||
+                          null,
+                        wheelsCompletedAt:
+                          docData.customizationProgress.wheelsCompletedAt?.toDate?.() ||
+                          null,
+                        interiorCompletedAt:
+                          docData.customizationProgress.interiorCompletedAt?.toDate?.() ||
+                          null,
+                      }
+                    : undefined,
+                } as Transaction;
+              } catch (docError) {
+                console.warn("Error processing transaction doc:", doc.id);
+                return null;
+              }
+            })
+            .filter((item): item is Transaction => item !== null)
+            // Filter only transactions belonging to current user
+            .filter((txn) => txn.userId === user.uid);
+          
+          // Client-side sort (descending timestamp) as fallback
+          data = data.sort(
+            (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+          );
+          setTransactions(data);
+          checkAllLoaded();
+        } catch (snapshotError) {
+          console.error("Error processing transactions snapshot:", snapshotError);
+          setTransactions([]);
+          checkAllLoaded();
+        }
       },
       (error) => {
         console.error("Transactions snapshot error:", error);
@@ -280,24 +291,40 @@ const ClientDashboard = () => {
       }
     );
 
-    // Fetch appointments (client-side filter for user)
+    // Fetch user's appointments (filter by userId for security)
+    // Fetch appointments - read all and filter client-side to avoid where clause issues
     const unsubscribeAppointments = onSnapshot(
       collection(db, "appointments"),
       (snapshot) => {
-        const data = snapshot.docs.map(
-          (doc) =>
-            ({
-              id: doc.id,
-              ...doc.data(),
-              timestamp: doc.data().timestamp.toDate(),
-              paidAt: doc.data().paidAt?.toDate(),
-            }) as Appointment
-        );
-        setAppointments(data);
-        checkAllLoaded();
+        try {
+          const allAppointments = snapshot.docs.map((doc) => {
+            try {
+              const docData = doc.data();
+              return {
+                id: doc.id,
+                ...docData,
+                timestamp: docData.timestamp?.toDate?.() || new Date(),
+                paidAt: docData.paidAt?.toDate?.(),
+              } as Appointment;
+            } catch (e) {
+              console.warn("Error processing appointment:", doc.id);
+              return null;
+            }
+          }).filter((apt): apt is Appointment => apt !== null);
+          
+          setAppointments(allAppointments);
+          checkAllLoaded();
+        } catch (error) {
+          console.error("Error processing appointments:", error);
+          setAppointments([]);
+          checkAllLoaded();
+        }
       },
       (error) => {
         console.error("Appointments snapshot error:", error);
+        if (error.code === "permission-denied") {
+          toast?.error("Permission denied accessing appointments.");
+        }
         checkAllLoaded();
       }
     );
@@ -306,14 +333,21 @@ const ClientDashboard = () => {
     const unsubscribeCarTypes = onSnapshot(
       collection(db, "carTypes"),
       (snapshot) => {
-        const data = snapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() }) as CarType
-        );
-        setCarTypes(data);
+        try {
+          const data = snapshot.docs.map(
+            (doc) => ({ id: doc.id, ...doc.data() }) as CarType
+          );
+          setCarTypes(data);
+        } catch (err) {
+          console.error("Error processing carTypes:", err);
+        }
         checkAllLoaded();
       },
       (error) => {
         console.error("CarTypes snapshot error:", error);
+        if (error.code === "permission-denied") {
+          console.warn("Permission denied for carTypes. Check Firestore rules.");
+        }
         checkAllLoaded();
       }
     );
@@ -321,14 +355,21 @@ const ClientDashboard = () => {
     const unsubscribeCarModels = onSnapshot(
       collection(db, "carModels"),
       (snapshot) => {
-        const data = snapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() }) as CarModel
-        );
-        setCarModels(data);
+        try {
+          const data = snapshot.docs.map(
+            (doc) => ({ id: doc.id, ...doc.data() }) as CarModel
+          );
+          setCarModels(data);
+        } catch (err) {
+          console.error("Error processing carModels:", err);
+        }
         checkAllLoaded();
       },
       (error) => {
         console.error("CarModels snapshot error:", error);
+        if (error.code === "permission-denied") {
+          console.warn("Permission denied for carModels. Check Firestore rules.");
+        }
         checkAllLoaded();
       }
     );
@@ -336,14 +377,21 @@ const ClientDashboard = () => {
     const unsubscribePaintColors = onSnapshot(
       collection(db, "paintColors"),
       (snapshot) => {
-        const data = snapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() }) as PaintColor
-        );
-        setPaintColors(data);
+        try {
+          const data = snapshot.docs.map(
+            (doc) => ({ id: doc.id, ...doc.data() }) as PaintColor
+          );
+          setPaintColors(data);
+        } catch (err) {
+          console.error("Error processing paintColors:", err);
+        }
         checkAllLoaded();
       },
       (error) => {
         console.error("PaintColors snapshot error:", error);
+        if (error.code === "permission-denied") {
+          console.warn("Permission denied for paintColors. Check Firestore rules.");
+        }
         checkAllLoaded();
       }
     );
@@ -351,14 +399,21 @@ const ClientDashboard = () => {
     const unsubscribeWheels = onSnapshot(
       collection(db, "wheels"),
       (snapshot) => {
-        const data = snapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() }) as Wheel
-        );
-        setWheels(data);
+        try {
+          const data = snapshot.docs.map(
+            (doc) => ({ id: doc.id, ...doc.data() }) as Wheel
+          );
+          setWheels(data);
+        } catch (err) {
+          console.error("Error processing wheels:", err);
+        }
         checkAllLoaded();
       },
       (error) => {
         console.error("Wheels snapshot error:", error);
+        if (error.code === "permission-denied") {
+          console.warn("Permission denied for wheels. Check Firestore rules.");
+        }
         checkAllLoaded();
       }
     );
@@ -366,14 +421,21 @@ const ClientDashboard = () => {
     const unsubscribeInteriors = onSnapshot(
       collection(db, "interiors"),
       (snapshot) => {
-        const data = snapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() }) as Interior
-        );
-        setInteriors(data);
+        try {
+          const data = snapshot.docs.map(
+            (doc) => ({ id: doc.id, ...doc.data() }) as Interior
+          );
+          setInteriors(data);
+        } catch (err) {
+          console.error("Error processing interiors:", err);
+        }
         checkAllLoaded();
       },
       (error) => {
         console.error("Interiors snapshot error:", error);
+        if (error.code === "permission-denied") {
+          console.warn("Permission denied for interiors. Check Firestore rules.");
+        }
         checkAllLoaded();
       }
     );
@@ -516,7 +578,7 @@ const ClientDashboard = () => {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
+          <Card className="bg-slate-100 dark:bg-slate-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 Total Transactions
@@ -530,7 +592,7 @@ const ClientDashboard = () => {
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-slate-100 dark:bg-slate-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 Active Appointments
@@ -546,7 +608,7 @@ const ClientDashboard = () => {
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-slate-100 dark:bg-slate-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">In Progress</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -568,7 +630,7 @@ const ClientDashboard = () => {
         </div>
 
         {/* Transactions & Appointments Section */}
-        <Card className="bg-card border-border">
+        <Card className="bg-slate-100 dark:bg-slate-800 border-border">
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>

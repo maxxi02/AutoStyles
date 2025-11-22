@@ -1,9 +1,24 @@
 "use client";
-import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -12,37 +27,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { db } from "@/lib/firebase";
 import { Sketch } from "@uiw/react-color";
 import colorNameToHex from "@uiw/react-color-name";
 import {
-  collection,
-  doc,
   addDoc,
-  updateDoc,
+  collection,
   deleteDoc,
+  doc,
   onSnapshot,
+  updateDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
+import React, { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface CarType {
   id: string;
@@ -127,8 +128,10 @@ const uploadToCloudinary = async (file: File): Promise<string> => {
   return data.secure_url;
 };
 
-const InventoryPage: React.FC = () => {
+const InventoryContent: React.FC = () => {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("car-models");
+  const [activeSubTab, setActiveSubTab] = useState("paint-colors");
   const [carTypes, setCarTypes] = useState<CarType[]>([]);
   const [carModels, setCarModels] = useState<CarModel[]>([]);
   const [paintColors, setPaintColors] = useState<PaintColor[]>([]);
@@ -281,6 +284,44 @@ const InventoryPage: React.FC = () => {
       unsubscribeInteriors();
     };
   }, []);
+
+  // Handle URL query parameters for navigation to specific items
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    const subTab = searchParams.get("subTab");
+    const itemId = searchParams.get("itemId");
+
+    if (tab === "customize" && subTab && itemId) {
+      setActiveTab(tab);
+      setActiveSubTab(subTab);
+      // Set a longer timeout to allow nested tabs to render before scrolling
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`item-${itemId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+          // Highlight the element briefly
+          element.classList.add("ring-2", "ring-blue-500", "rounded");
+          setTimeout(() => {
+            element.classList.remove("ring-2", "ring-blue-500", "rounded");
+          }, 2000);
+        } else {
+          // If element not found, try again after a longer delay
+          const retryTimer = setTimeout(() => {
+            const retryElement = document.getElementById(`item-${itemId}`);
+            if (retryElement) {
+              retryElement.scrollIntoView({ behavior: "smooth", block: "start" });
+              retryElement.classList.add("ring-2", "ring-blue-500", "rounded");
+              setTimeout(() => {
+                retryElement.classList.remove("ring-2", "ring-blue-500", "rounded");
+              }, 2000);
+            }
+          }, 300);
+          return () => clearTimeout(retryTimer);
+        }
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
 
   const handleAddOrUpdateCarType = async () => {
     setCarTypePending(true);
@@ -1013,7 +1054,7 @@ const InventoryPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="customize">
-          <Tabs defaultValue="paint-colors">
+          <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
             <TabsList>
               <TabsTrigger value="paint-colors">Paint Colors</TabsTrigger>
               <TabsTrigger value="wheels">Wheels</TabsTrigger>
@@ -1296,7 +1337,7 @@ const InventoryPage: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                     {filteredPaintColors.map((color) => (
-                      <Card key={color.id}>
+                      <Card key={color.id} id={`item-${color.id}`}>
                         <CardHeader>
                           <CardTitle>{color.name}</CardTitle>
                           <CardDescription>
@@ -1565,7 +1606,7 @@ const InventoryPage: React.FC = () => {
                   </Dialog>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                     {wheels.map((wheel) => (
-                      <Card key={wheel.id}>
+                      <Card key={wheel.id} id={`item-${wheel.id}`}>
                         <CardHeader>
                           <CardTitle>{wheel.name}</CardTitle>
                           <CardDescription>
@@ -1842,7 +1883,7 @@ const InventoryPage: React.FC = () => {
                   </Dialog>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                     {interiors.map((interior) => (
-                      <Card key={interior.id}>
+                      <Card key={interior.id} id={`item-${interior.id}`}>
                         <CardHeader>
                           <CardTitle>{interior.name}</CardTitle>
                           <CardDescription>
@@ -1929,6 +1970,23 @@ const InventoryPage: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+  );
+};
+
+const InventoryPage: React.FC = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto p-4 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <Loader2 className="h-8 w-8 animate-spin mb-2" />
+            <p>Loading inventory...</p>
+          </div>
+        </div>
+      }
+    >
+      <InventoryContent />
+    </Suspense>
   );
 };
 

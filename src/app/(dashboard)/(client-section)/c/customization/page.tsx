@@ -1,6 +1,14 @@
 "use client";
-import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -9,33 +17,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  collection,
   addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  increment,
   onSnapshot,
   query,
-  where,
-  getDocs,
-  doc,
   updateDoc,
-  increment,
-  getDoc,
+  where,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Loader2, MessageCircleWarning } from "lucide-react";
-import { toast } from "sonner";
 import Image from "next/image";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 interface CarType {
   id: string;
   name: string;
@@ -538,7 +537,7 @@ const CustomizationPage: React.FC = () => {
         <TabsContent value="customize">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Selections Sidebar */}
-            <Card className="lg:col-span-1">
+            <Card className="lg:col-span-1 bg-slate-100 dark:bg-slate-800">
               <CardHeader>
                 <CardTitle>Customize Your Car</CardTitle>
               </CardHeader>
@@ -973,7 +972,7 @@ const CustomizationPage: React.FC = () => {
               </CardFooter>
             </Card>
             {/* Preview Area */}
-            <Card className="lg:col-span-3">
+            <Card className="lg:col-span-3 bg-slate-100 dark:bg-slate-800">
               <CardHeader>
                 <CardTitle>2D Preview</CardTitle>
                 <CardDescription>Preview your customized car</CardDescription>
@@ -1178,7 +1177,7 @@ const CustomizationPage: React.FC = () => {
           </div>
         </TabsContent>
         <TabsContent value="models">
-          <Card>
+          <Card className="bg-slate-100 dark:bg-slate-800">
             <CardHeader>
               <CardTitle>All Car Models</CardTitle>
             </CardHeader>
@@ -1199,7 +1198,7 @@ const CustomizationPage: React.FC = () => {
                       (t) => t.id === model.carTypeId
                     );
                     return (
-                      <Card key={model.id}>
+                      <Card key={model.id} className="bg-slate-100 dark:bg-slate-800">
                         <CardHeader>
                           <CardTitle>{model.name}</CardTitle>
                           <CardDescription>
