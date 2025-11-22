@@ -170,7 +170,9 @@ const StarRating: React.FC<{
 const ClientsTransactionPage: React.FC = () => {
   // feedback functions
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackTransactionId, setFeedbackTransactionId] = useState<string | null>(null);
+  const [feedbackTransactionId, setFeedbackTransactionId] = useState<
+    string | null
+  >(null);
   const [rating, setRating] = useState(0);
   const [feedbackComment, setFeedbackComment] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
@@ -183,12 +185,16 @@ const ClientsTransactionPage: React.FC = () => {
   const [interiors, setInteriors] = useState<Interior[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [snapshotCount, setSnapshotCount] = useState(0);
-  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<
+    string | null
+  >(null);
   const [showModal, setShowModal] = useState(false);
   const [appointmentDate, setAppointmentDate] = useState("");
   const [appointmentTime, setAppointmentTime] = useState("");
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
+  const [editingAppointmentId, setEditingAppointmentId] = useState<
+    string | null
+  >(null);
   const [editDate, setEditDate] = useState("");
   const [editTime, setEditTime] = useState("");
   const [editAvailableTimes, setEditAvailableTimes] = useState<string[]>([]);
@@ -196,7 +202,9 @@ const ClientsTransactionPage: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   // Refund modal state
   const [showRefundModal, setShowRefundModal] = useState(false);
-  const [appointmentToRefund, setAppointmentToRefund] = useState<Appointment | null>(null);
+  const [appointmentToRefund, setAppointmentToRefund] =
+    useState<Appointment | null>(null);
+  const [maxBookingsReached, setMaxBookingsReached] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState<"cash">("cash");
 
@@ -367,6 +375,17 @@ const ClientsTransactionPage: React.FC = () => {
   };
 
   useEffect(() => {
+    // Count all active bookings across all transactions
+    const activeBookings = transactions.filter(
+      (t) =>
+        t.status === "purchased" &&
+        t.customizationProgress?.overallStatus !== "completed"
+    ).length;
+
+    setMaxBookingsReached(activeBookings >= 10);
+  }, [transactions]);
+
+  useEffect(() => {
     console.log("Current User ID:", currentUserId);
     console.log("Transactions count:", transactions.length);
     console.log("Appointments count:", appointments.length);
@@ -394,72 +413,88 @@ const ClientsTransactionPage: React.FC = () => {
   useEffect(() => {
     if (!currentUserId) return;
     const expectedSnapshots = 7; // transactions + appointments + 5 others
-    
+
     // Load transactions - read all and filter client-side
     const q = query(
       collection(db, "transactions")
       // Removed where clause due to Firebase internal assertion errors
     );
 
-    const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
-      try {
-        const data = snapshot.docs
-          .map((doc) => {
-            try {
-              const docData = doc.data();
-              return {
-                id: doc.id,
-                ...docData,
-                timestamp: docData.timestamp?.toDate?.() || new Date(),
-                paymentVerifiedAt: docData.paymentVerifiedAt?.toDate?.(),
-                customizationProgress: docData.customizationProgress
-                  ? {
-                      ...docData.customizationProgress,
-                      paintCompletedAt:
-                        docData.customizationProgress.paintCompletedAt?.toDate?.() ||
-                        null,
-                      wheelsCompletedAt:
-                        docData.customizationProgress.wheelsCompletedAt?.toDate?.() ||
-                        null,
-                      interiorCompletedAt:
-                        docData.customizationProgress.interiorCompletedAt?.toDate?.() ||
-                        null,
-                    }
-                  : undefined,
-                feedback: docData.feedback
-                  ? {
-                      ...docData.feedback,
-                      submittedAt: docData.feedback.submittedAt?.toDate?.(),
-                    }
-                  : undefined,
-              } as Transaction;
-            } catch (docError) {
-              console.warn("Error mapping transaction:", doc.id);
-              return null;
-            }
-          })
-          .filter((item): item is Transaction => item !== null)
-          // Filter client-side: only transactions for current user
-          .filter((txn) => txn.userId === currentUserId)
-          .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    const unsubscribeTransactions = onSnapshot(
+      q,
+      (snapshot) => {
+        try {
+          const data = snapshot.docs
+            .map((doc) => {
+              try {
+                const docData = doc.data();
+                return {
+                  id: doc.id,
+                  ...docData,
+                  timestamp: docData.timestamp?.toDate?.() || new Date(),
+                  paymentVerifiedAt: docData.paymentVerifiedAt?.toDate?.(),
+                  customizationProgress: docData.customizationProgress
+                    ? {
+                        ...docData.customizationProgress,
+                        paintCompletedAt:
+                          docData.customizationProgress.paintCompletedAt?.toDate?.() ||
+                          null,
+                        wheelsCompletedAt:
+                          docData.customizationProgress.wheelsCompletedAt?.toDate?.() ||
+                          null,
+                        interiorCompletedAt:
+                          docData.customizationProgress.interiorCompletedAt?.toDate?.() ||
+                          null,
+                      }
+                    : undefined,
+                  feedback: docData.feedback
+                    ? {
+                        ...docData.feedback,
+                        submittedAt: docData.feedback.submittedAt?.toDate?.(),
+                      }
+                    : undefined,
+                } as Transaction;
+              } catch (docError) {
+                console.warn("Error mapping transaction:", doc.id);
+                return null;
+              }
+            })
+            .filter((item): item is Transaction => item !== null)
+            // Filter client-side: only transactions for current user
+            .filter((txn) => txn.userId === currentUserId)
+            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-        setTransactions(data);
-        console.log(
-          "Transactions updated for user:",
-          currentUserId,
-          "count:",
-          data.length
-        );
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === expectedSnapshots) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
-      } catch (snapshotError) {
-        console.error("Error processing transactions snapshot:", snapshotError);
-        setTransactions([]);
+          setTransactions(data);
+          console.log(
+            "Transactions updated for user:",
+            currentUserId,
+            "count:",
+            data.length
+          );
+          setSnapshotCount((prev) => {
+            const next = prev + 1;
+            if (next === expectedSnapshots) {
+              setIsDataLoading(false);
+            }
+            return next;
+          });
+        } catch (snapshotError) {
+          console.error(
+            "Error processing transactions snapshot:",
+            snapshotError
+          );
+          setTransactions([]);
+          setSnapshotCount((prev) => {
+            const next = prev + 1;
+            if (next === expectedSnapshots) {
+              setIsDataLoading(false);
+            }
+            return next;
+          });
+        }
+      },
+      (error) => {
+        console.error("Transactions snapshot error:", error);
         setSnapshotCount((prev) => {
           const next = prev + 1;
           if (next === expectedSnapshots) {
@@ -468,16 +503,7 @@ const ClientsTransactionPage: React.FC = () => {
           return next;
         });
       }
-    }, (error) => {
-      console.error("Transactions snapshot error:", error);
-      setSnapshotCount((prev) => {
-        const next = prev + 1;
-        if (next === expectedSnapshots) {
-          setIsDataLoading(false);
-        }
-        return next;
-      });
-    });
+    );
 
     // Load appointments
     const unsubscribeAppointments = onSnapshot(
@@ -1014,9 +1040,22 @@ const ClientsTransactionPage: React.FC = () => {
   };
 
   const latestTransaction = getLatestTransaction();
-  
+
   return (
     <div className="flex flex-col gap-4 mb-6">
+      {maxBookingsReached && (
+        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Badge variant="destructive">Booking Limit Reached</Badge>
+              <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Maximum of 10 active bookings reached. New bookings are
+                temporarily disabled until some are completed.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Transactions</h1>
         <Badge
@@ -1057,7 +1096,10 @@ const ClientsTransactionPage: React.FC = () => {
             const previewImage =
               color?.imageUrl || model?.imageUrl || "/placeholder-car.png";
             return (
-              <Card key={transaction.id} className="bg-slate-100 dark:bg-slate-800">
+              <Card
+                key={transaction.id}
+                className="bg-slate-100 dark:bg-slate-800"
+              >
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">
@@ -1223,10 +1265,7 @@ const ClientsTransactionPage: React.FC = () => {
                                   "MMM dd, yyyy"
                                 )}
                               </p>
-                              <Badge
-                                variant="secondary"
-                                className="mt-2"
-                              >
+                              <Badge variant="secondary" className="mt-2">
                                 Cash Payment
                               </Badge>
                               <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
@@ -1460,9 +1499,13 @@ const ClientsTransactionPage: React.FC = () => {
                           <Button
                             onClick={handleCashPayment}
                             className="w-full"
-                            disabled={!hasActiveAppointment}
+                            disabled={
+                              !hasActiveAppointment || maxBookingsReached
+                            } // Add maxBookingsReached
                           >
-                            Confirm Cash Payment
+                            {maxBookingsReached
+                              ? "Booking Limit Reached"
+                              : "Confirm Cash Payment"}
                           </Button>
 
                           {!hasActiveAppointment && (
@@ -1660,64 +1703,76 @@ const ClientsTransactionPage: React.FC = () => {
                                             </Button>
                                           </>
                                         )}
-                                        <Button
-                                          variant="destructive"
-                                          size="sm"
-                                          onClick={() => {
-                                            if (apt.paymentStatus === "paid") {
-                                              // Check 24-hour restriction before opening modal
-                                              const appointmentDateTime =
-                                                new Date(
-                                                  `${apt.date}T${apt.time}`
-                                                );
-                                              const now = new Date();
-                                              const hoursDifference =
-                                                (appointmentDateTime.getTime() -
-                                                  now.getTime()) /
-                                                (1000 * 60 * 60);
-                                              if (
-                                                hoursDifference < 24 &&
-                                                appointmentDateTime > now
-                                              ) {
-                                                toast.error(
-                                                  "Cannot cancel within 24 hours of appointment time"
-                                                );
-                                                return;
+                                        {!isPast &&
+                                          overallStatus !== "completed" && (
+                                            <Button
+                                              variant="destructive"
+                                              size="sm"
+                                              onClick={() => {
+                                                if (
+                                                  apt.paymentStatus === "paid"
+                                                ) {
+                                                  const appointmentDateTime =
+                                                    new Date(
+                                                      `${apt.date}T${apt.time}`
+                                                    );
+                                                  const now = new Date();
+                                                  const hoursDifference =
+                                                    (appointmentDateTime.getTime() -
+                                                      now.getTime()) /
+                                                    (1000 * 60 * 60);
+                                                  if (
+                                                    hoursDifference < 24 &&
+                                                    appointmentDateTime > now
+                                                  ) {
+                                                    toast.error(
+                                                      "Cannot cancel within 24 hours of appointment time"
+                                                    );
+                                                    return;
+                                                  }
+                                                  setAppointmentToRefund(apt);
+                                                  setShowRefundModal(true);
+                                                } else {
+                                                  handleCancelAppointment(
+                                                    apt.id
+                                                  );
+                                                }
+                                              }}
+                                              disabled={
+                                                apt.paymentStatus === "paid" &&
+                                                (() => {
+                                                  const appointmentDateTime =
+                                                    new Date(
+                                                      `${apt.date}T${apt.time}`
+                                                    );
+                                                  const now = new Date();
+                                                  const hoursDifference =
+                                                    (appointmentDateTime.getTime() -
+                                                      now.getTime()) /
+                                                    (1000 * 60 * 60);
+                                                  return (
+                                                    hoursDifference < 24 &&
+                                                    appointmentDateTime > now
+                                                  );
+                                                })()
                                               }
-                                              setAppointmentToRefund(apt);
-                                              setShowRefundModal(true);
-                                            } else {
-                                              handleCancelAppointment(apt.id);
-                                            }
-                                          }}
-                                          disabled={
-                                            apt.paymentStatus === "paid" &&
-                                            (() => {
-                                              const appointmentDateTime =
-                                                new Date(
-                                                  `${apt.date}T${apt.time}`
-                                                );
-                                              const now = new Date();
-                                              const hoursDifference =
-                                                (appointmentDateTime.getTime() -
-                                                  now.getTime()) /
-                                                (1000 * 60 * 60);
-                                              return (
-                                                hoursDifference < 24 &&
-                                                appointmentDateTime > now
-                                              );
-                                            })()
-                                          }
-                                          className={
-                                            apt.paymentStatus === "paid"
-                                              ? "w-full"
-                                              : "flex-1"
-                                          }
-                                        >
-                                          Cancel{" "}
-                                          {apt.paymentStatus === "paid" &&
-                                            "(with Refund)"}
-                                        </Button>
+                                              className={
+                                                apt.paymentStatus === "paid"
+                                                  ? "w-full"
+                                                  : "flex-1"
+                                              }
+                                            >
+                                              Cancel Booking
+                                              {apt.paymentStatus === "paid" &&
+                                                " (with Refund)"}
+                                            </Button>
+                                          )}
+                                        {overallStatus === "completed" && (
+                                          <div className="text-xs text-muted-foreground text-center p-2 bg-muted rounded">
+                                            Customization completed.
+                                            Cancellation not available.
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                     {apt.status === "cancelled" && (
@@ -1817,10 +1872,13 @@ const ClientsTransactionPage: React.FC = () => {
                             disabled={
                               !appointmentDate ||
                               !appointmentTime ||
-                              availableTimes.length === 0
+                              availableTimes.length === 0 ||
+                              maxBookingsReached // Add this line
                             }
                           >
-                            Book Appointment
+                            {maxBookingsReached
+                              ? "Booking Limit Reached"
+                              : "Book Appointment"}
                           </Button>
                         </div>
                       )}
