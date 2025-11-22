@@ -476,7 +476,6 @@ const CustomizationPage: React.FC = () => {
           inventory: increment(-1),
           sold: increment(1),
         });
-        toast.info(`Deducted 1 from ${selectedColor.name} inventory`);
       }
       if (selectedWheelId && selectedWheel && selectedWheel.inventory > 0) {
         await updateDoc(doc(db, "wheels", selectedWheelId), {
