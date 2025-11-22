@@ -42,7 +42,7 @@ import {
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 interface CarType {
@@ -128,7 +128,7 @@ const uploadToCloudinary = async (file: File): Promise<string> => {
   return data.secure_url;
 };
 
-const InventoryPage: React.FC = () => {
+const InventoryContent: React.FC = () => {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("car-models");
   const [activeSubTab, setActiveSubTab] = useState("paint-colors");
@@ -1970,6 +1970,23 @@ const InventoryPage: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+  );
+};
+
+const InventoryPage: React.FC = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto p-4 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <Loader2 className="h-8 w-8 animate-spin mb-2" />
+            <p>Loading inventory...</p>
+          </div>
+        </div>
+      }
+    >
+      <InventoryContent />
+    </Suspense>
   );
 };
 
