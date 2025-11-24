@@ -1,16 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Simple device session manager using a Map (in-memory on this server instance)
- * This is a fallback for when Firestore is not available
- * Note: In production with multiple servers, this won't sync across instances
+ * Device session manager using a Map (in-memory on this server instance)
+ * Fallback for when Firestore is not available
+ * Structure: userId -> deviceId -> session data
  */
 const deviceSessions = new Map<string, Map<string, { timestamp: number; isActive: boolean; invalidatedAt?: number }>>();
 
 /**
+ * Simple JWT decoder - extracts basic info without verification
+ * Note: This is fallback only - real Firebase Admin verification preferred
+ */
+function extractUserIdFromToken(token: string): string | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    const decoded = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    return decoded.sub || decoded.uid || null;
+  } catch (error) {
+    console.error("[Fallback] Error decoding token:", error);
+    return null;
+  }
+}
+
+/**
  * GET /api/device-session-fallback
  * Fallback endpoint when Firebase Admin SDK is not initialized
- * Uses in-memory storage on the server
+ * Uses in-memory storage with proper user separation
  */
 export async function GET(request: NextRequest) {
   try {
@@ -25,13 +42,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Extract user ID from token (this is a simple check, not a real verification)
-    // In production, you'd verify this properly
-    const userDeviceSessions = deviceSessions.get("fallback") || new Map();
+    // Extract user ID from token
+    const userId = extractUserIdFromToken(token);
+    if (!userId) {
+      console.warn("[Fallback] Could not extract user ID from token");
+      return NextResponse.json(
+        { error: "Invalid token", isValid: false },
+        { status: 401 }
+      );
+    }
+
+    // Get sessions for this specific user
+    const userDeviceSessions = deviceSessions.get(userId) || new Map();
     const session = userDeviceSessions.get(deviceId);
 
     if (!session || !session.isActive) {
-      console.log("[Fallback] Session invalidated for device:", deviceId);
+      console.log("[Fallback] Session invalidated for device:", deviceId, "user:", userId);
       return NextResponse.json(
         {
           error: "Session is not active",
@@ -49,7 +75,7 @@ export async function GET(request: NextRequest) {
       {
         success: true,
         isValid: true,
-        uid: "fallback-user",
+        uid: userId,
       },
       { status: 200 }
     );
@@ -78,12 +104,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Invalidate all other devices for this user (using a fixed key for fallback)
-    const userKey = "fallback";
-    const userSessions = deviceSessions.get(userKey) || new Map();
+    // Extract user ID from token
+    const userId = extractUserIdFromToken(token);
+    if (!userId) {
+      console.warn("[Fallback] Could not extract user ID from token");
+      return NextResponse.json(
+        { error: "Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    // Get sessions for THIS user only
+    const userSessions = deviceSessions.get(userId) || new Map();
     let invalidatedCount = 0;
 
-    // Mark all other sessions as inactive immediately
+    // Mark all OTHER sessions for THIS user as inactive
     userSessions.forEach((session) => {
       if (session.isActive) {
         session.isActive = false;
@@ -92,15 +127,15 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Add new session
+    // Add new session for this user
     userSessions.set(deviceId, {
       timestamp: Date.now(),
       isActive: true,
     });
 
-    deviceSessions.set(userKey, userSessions);
+    deviceSessions.set(userId, userSessions);
 
-    console.log("[Fallback] Registered device session:", deviceId, "- Invalidated", invalidatedCount, "others");
+    console.log("[Fallback] Registered device session:", deviceId, "for user:", userId, "- Invalidated", invalidatedCount, "others");
 
     return NextResponse.json(
       {
@@ -126,7 +161,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json();
-    const { deviceId } = body;
+    const { deviceId, token } = body;
 
     if (!deviceId) {
       return NextResponse.json(
@@ -135,13 +170,22 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const userKey = "fallback";
-    const userSessions = deviceSessions.get(userKey) || new Map();
+    // Extract user ID from token
+    const userId = token ? extractUserIdFromToken(token) : null;
+    if (!userId) {
+      console.warn("[Fallback] Could not extract user ID for logout");
+      return NextResponse.json(
+        { error: "Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const userSessions = deviceSessions.get(userId) || new Map();
     const session = userSessions.get(deviceId);
 
     if (session) {
       session.isActive = false;
-      console.log("[Fallback] Logged out device:", deviceId);
+      console.log("[Fallback] Logged out device:", deviceId, "for user:", userId);
     }
 
     return NextResponse.json(
