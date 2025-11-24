@@ -11,6 +11,8 @@ interface DeviceSession {
   loginTime: number;
   lastActivityTime: number;
   isActive: boolean;
+  pendingInvalidation?: boolean; // Flag for devices waiting to be invalidated
+  invalidationScheduledAt?: number; // When the invalidation was scheduled
 }
 
 /**
@@ -78,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     // ONLY invalidate other active sessions if this is a NEW device (not a refresh)
     const updatedSessions: { [key: string]: DeviceSession } = {};
-    let invalidatedCount = 0;
+    const invalidatedDevices: string[] = [];
     
     if (isRefresh) {
       // Device already registered - just update activity time, don't invalidate others
@@ -88,18 +90,23 @@ export async function POST(request: NextRequest) {
       updatedSessions[deviceId] = newSession;
       console.log("[Device Session] Device", deviceId, "is refreshing for user", uid, "- NOT invalidating others (already registered)");
     } else {
-      // New device - invalidate all other active sessions
-      // But mark them with a 5-second delay to allow current device to settle in
+      // New device - mark all other active sessions as PENDING invalidation
+      // This allows them to continue functioning until the 5-second grace period expires
       Object.entries(existingSessions).forEach(([key, session]) => {
-        if (key !== deviceId) {
-          updatedSessions[key] = { ...session, isActive: false, loginTime: session.loginTime };
-          invalidatedCount++;
+        if (key !== deviceId && session.isActive) {
+          // Mark as pending invalidation but keep active
+          invalidatedDevices.push(key);
+          updatedSessions[key] = { 
+            ...session, 
+            pendingInvalidation: true,
+            invalidationScheduledAt: Date.now(),
+          };
         } else {
           updatedSessions[key] = session;
         }
       });
       updatedSessions[deviceId] = newSession;
-      console.log("[Device Session] NEW device", deviceId, "registered for user", uid, "- Will invalidate", invalidatedCount, "others after 5s delay");
+      console.log("[Device Session] NEW device", deviceId, "registered for user", uid, "- Marked", invalidatedDevices.length, "devices for delayed invalidation");
     }
 
     // Update Firestore immediately without merge
@@ -110,25 +117,53 @@ export async function POST(request: NextRequest) {
     // Send real-time notifications to invalidated devices AFTER a delay
     // This gives the new device time to establish SSE connection
     // ONLY if we actually invalidated devices (not a refresh)
-    if (invalidatedCount > 0) {
+    if (invalidatedDevices.length > 0) {
       // Send notifications after 5 seconds to give new device time to connect
       setTimeout(() => {
-        fetch(
-          new URL("/api/device-session-notify", request.url),
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: uid,
-              excludeDeviceId: deviceId, // IMPORTANT: Exclude the newly registered device
-            }),
-          }
-        ).then((res) => {
-          res.json().then((data) => {
-            console.log("[Device Session] Notifications sent:", data.notifiedCount, "devices (excluding new:", deviceId, ") after 5s delay");
+        // Re-fetch to get latest state and only invalidate if still pending
+        userSessionsRef.get().then((doc) => {
+          if (!doc.exists) return;
+          const currentSessions = doc.data() || {};
+          
+          // Only invalidate devices that are still marked as pending for THIS user
+          const devicesToInvalidate = invalidatedDevices.filter(dId => {
+            const session = currentSessions[dId];
+            return session && session.pendingInvalidation;
           });
-        }).catch((error) => {
-          console.error("[Device Session] Error sending notifications:", error);
+
+          if (devicesToInvalidate.length === 0) {
+            console.log("[Device Session] No devices to invalidate after 5s delay for user", uid);
+            return;
+          }
+
+          // Mark devices as inactive in Firestore
+          const updates: Record<string, boolean | number> = {};
+          devicesToInvalidate.forEach(dId => {
+            updates[`${dId}.isActive`] = false;
+            updates[`${dId}.pendingInvalidation`] = false;
+          });
+          
+          userSessionsRef.update(updates).then(() => {
+            // Now send notifications
+            fetch(
+              new URL("/api/device-session-notify", request.url),
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  userId: uid,
+                  excludeDeviceId: deviceId, // IMPORTANT: Exclude the newly registered device
+                  targetDevices: devicesToInvalidate, // Only target these specific devices
+                }),
+              }
+            ).then((res) => {
+              res.json().then((data) => {
+                console.log("[Device Session] Invalidated and notified", data.notifiedCount, "devices after 5s delay for user", uid);
+              });
+            }).catch((error) => {
+              console.error("[Device Session] Error sending notifications:", error);
+            });
+          });
         });
       }, 5000);
     }
@@ -222,6 +257,8 @@ export async function GET(request: NextRequest) {
       userSessionsDoc.data() || {};
     const currentSession = sessions[deviceId];
 
+    // Check if session is active
+    // Note: pendingInvalidation does NOT make session invalid yet - it's still active!
     if (!currentSession || !currentSession.isActive) {
       console.log("[Device Session] Session invalidated for device", deviceId, "user", uid);
       return NextResponse.json(
@@ -232,6 +269,11 @@ export async function GET(request: NextRequest) {
         },
         { status: 401 }
       );
+    }
+
+    // Session is still valid even if pending invalidation (grace period)
+    if (currentSession.pendingInvalidation) {
+      console.log("[Device Session] Device", deviceId, "is in grace period (pending invalidation)");
     }
 
     // Update last activity time

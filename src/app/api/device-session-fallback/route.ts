@@ -119,21 +119,21 @@ export async function POST(request: NextRequest) {
     
     // Check if device is ALREADY registered (this is just a refresh, not a new login)
     const existingSession = userSessions.get(deviceId);
-    const isRefresh = existingSession && existingSession.isActive;
+    const isRefresh = existingSession && existingSession.isActive && !existingSession.pendingInvalidation;
 
-    let invalidatedCount = 0;
+    const invalidatedDevices: string[] = [];
 
     if (isRefresh) {
-      // Device already registered - just update timestamp, don't invalidate others
+      // Device already registered and not pending invalidation - just update timestamp
       existingSession.timestamp = Date.now();
       console.log("[Fallback] Device", deviceId, "is refreshing for user", userId, "- NOT invalidating others (already registered)");
     } else {
-      // New device - mark all OTHER sessions for THIS user as inactive
-      userSessions.forEach((session) => {
-        if (session.isActive) {
-          session.isActive = false;
+      // New device - mark all OTHER ACTIVE sessions for THIS user as PENDING invalidation
+      userSessions.forEach((session, dId) => {
+        if (session.isActive && dId !== deviceId) {
+          session.pendingInvalidation = true;
           session.invalidatedAt = Date.now();
-          invalidatedCount++;
+          invalidatedDevices.push(dId);
         }
       });
 
@@ -143,29 +143,48 @@ export async function POST(request: NextRequest) {
         isActive: true,
       });
 
-      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- Will invalidate", invalidatedCount, "others after 5s delay");
+      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- Marked", invalidatedDevices.length, "devices for delayed invalidation");
     }
 
     deviceSessions.set(userId, userSessions);
 
     // Send delayed invalidation notifications for new device
     // This gives the new device time to establish connection before old devices are kicked out
-    if (invalidatedCount > 0) {
+    if (invalidatedDevices.length > 0) {
       setTimeout(() => {
-        fetch(new URL("/api/device-session-notify", request.url), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: userId,
-            excludeDeviceId: deviceId,
-          }),
-        }).then((res) => {
-          res.json().then((data) => {
-            console.log("[Fallback] Notifications sent:", data.notifiedCount, "devices after 5s delay");
-          });
-        }).catch((error) => {
-          console.error("[Fallback] Error sending notifications:", error);
+        // Verify devices are still pending invalidation before notifying
+        const userSessNow = deviceSessions.get(userId) || new Map();
+        const devicesToInvalidate = invalidatedDevices.filter(dId => {
+          const sess = userSessNow.get(dId);
+          return sess && sess.pendingInvalidation;
         });
+
+        if (devicesToInvalidate.length > 0) {
+          // Mark as inactive now
+          devicesToInvalidate.forEach(dId => {
+            const sess = userSessNow.get(dId);
+            if (sess) {
+              sess.isActive = false;
+              sess.pendingInvalidation = false;
+            }
+          });
+
+          fetch(new URL("/api/device-session-notify", request.url), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: userId,
+              excludeDeviceId: deviceId,
+              targetDevices: devicesToInvalidate,
+            }),
+          }).then((res) => {
+            res.json().then((data) => {
+              console.log("[Fallback] Invalidated and notified", data.notifiedCount, "devices after 5s delay for user", userId);
+            });
+          }).catch((error) => {
+            console.error("[Fallback] Error sending notifications:", error);
+          });
+        }
       }, 5000);
     }
 

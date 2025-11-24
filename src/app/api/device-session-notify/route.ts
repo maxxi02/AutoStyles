@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId, excludeDeviceId } = await request.json();
+    const { userId, excludeDeviceId, targetDevices } = await request.json();
 
     if (!userId) {
       return NextResponse.json(
@@ -209,13 +209,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[SSE] Broadcasting invalidation for user:", userId, "excluding device:", excludeDeviceId);
+    console.log("[SSE] Broadcasting invalidation for user:", userId, "excluding device:", excludeDeviceId, "targets:", targetDevices);
 
     // Notify all connected devices for this user (except the one that triggered the invalidation)
     let notifiedCount = 0;
     activeConnections.forEach((connection, connectionKey) => {
-      // Only notify if it's the same user AND NOT the excluded device
-      if (connection.userId === userId && connection.deviceId !== excludeDeviceId) {
+      // Only notify if:
+      // 1. Same user
+      // 2. NOT the excluded device (new login)
+      // 3. Either no targetDevices specified OR device is in targetDevices list
+      const isTargeted = !targetDevices || targetDevices.length === 0 || targetDevices.includes(connection.deviceId);
+      
+      if (connection.userId === userId && connection.deviceId !== excludeDeviceId && isTargeted) {
         console.log("[SSE] Notifying connection:", connectionKey, "user:", userId, "device:", connection.deviceId, "(excluded:", excludeDeviceId, ")");
         const data = JSON.stringify({
           type: "SESSION_INVALIDATED",
@@ -226,6 +231,8 @@ export async function POST(request: NextRequest) {
         notifiedCount++;
       } else if (connection.deviceId === excludeDeviceId) {
         console.log("[SSE] Skipping excluded device:", excludeDeviceId, "key:", connectionKey);
+      } else if (!isTargeted && connection.userId === userId) {
+        console.log("[SSE] Skipping non-targeted device:", connection.deviceId, "key:", connectionKey);
       }
     });
 
