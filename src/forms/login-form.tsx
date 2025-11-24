@@ -3,26 +3,26 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-    Field,
-    FieldDescription,
-    FieldGroup,
-    FieldLabel,
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { getDeviceFingerprint, getOrCreateDeviceId } from "@/lib/device-session";
@@ -30,14 +30,14 @@ import { auth, db } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import { FirebaseError } from "firebase/app";
 import {
-    getMultiFactorResolver,
-    MultiFactorError,
-    MultiFactorResolver,
-    sendPasswordResetEmail,
-    signInWithEmailAndPassword,
-    signOut,
-    TotpMultiFactorGenerator,
-    User,
+  getMultiFactorResolver,
+  MultiFactorError,
+  MultiFactorResolver,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  TotpMultiFactorGenerator,
+  User,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { AlertCircle } from "lucide-react";
@@ -210,9 +210,13 @@ export function LoginForm({
     const expires = new Date(
       Date.now() + 7 * 24 * 60 * 60 * 1000
     ).toUTCString();
-    // Use SameSite=Lax for better compatibility, Secure for HTTPS
-    const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
-    document.cookie = `${name}=${value}; path=/; expires=${expires}; SameSite=Lax${isSecure}`;
+    // Use SameSite=Lax for better compatibility
+    let cookieStr = `${name}=${value}; path=/; expires=${expires}; SameSite=Lax`;
+    // Add Secure flag only for HTTPS
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      cookieStr += '; Secure';
+    }
+    document.cookie = cookieStr;
   };
 
   const handleSuccessLogin = async (user: User) => {

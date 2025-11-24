@@ -27,19 +27,22 @@ export function SessionCheck({
 
     try {
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) {
+        console.debug("No current user, skipping session check");
+        return;
+      }
 
       const token = await user.getIdToken();
-      const deviceId = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("deviceId="))
-        ?.split("=")[1];
+      const cookies = document.cookie.split("; ");
+      const deviceIdCookie = cookies.find((row) => row.startsWith("deviceId="));
+      const deviceId = deviceIdCookie?.split("=")[1];
 
       if (!deviceId) {
         console.debug("No device ID found in cookies");
         return;
       }
 
+      console.debug("[SessionCheck] Verifying session...");
       const response = await fetch("/api/device-session", {
         method: "GET",
         headers: {
@@ -50,9 +53,11 @@ export function SessionCheck({
       });
 
       const data = await response.json().catch(() => ({}));
+      console.debug("[SessionCheck] Response:", { status: response.status, data });
 
       // Check if session was invalidated
-      if (data.reason === "SESSION_INVALIDATED" || !response.ok) {
+      if (data.reason === "SESSION_INVALIDATED") {
+        console.warn("[SessionCheck] Session invalidated from another device");
         // Prevent multiple logout attempts
         hasLoggedOutRef.current = true;
 
@@ -76,6 +81,13 @@ export function SessionCheck({
         router.push("/login?message=logged_out_from_another_device");
         return;
       }
+
+      if (!response.ok) {
+        console.debug("[SessionCheck] Response not OK:", response.status);
+        return;
+      }
+
+      console.debug("[SessionCheck] Session valid");
     } catch (error) {
       // Log errors for debugging but don't interrupt user experience
       if (error instanceof Error) {
