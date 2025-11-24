@@ -225,10 +225,6 @@ export function LoginForm({
     const deviceId = getOrCreateDeviceId();
     const fingerprint = getDeviceFingerprint();
 
-    // Trigger logout transition overlay
-    const event = new CustomEvent("logout-transition-start");
-    window.dispatchEvent(event);
-
     // Register device session on the server
     try {
       const response = await fetch("/api/device-session", {
