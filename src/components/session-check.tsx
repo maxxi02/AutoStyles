@@ -144,20 +144,19 @@ export function SessionCheck({
   }, [handleLogout]);
 
   useEffect(() => {
-    // Delay initial check by 2 seconds to let new device fully register
+    // Delay initial check by 3 seconds to let new device fully register after refresh
     const initialDelay = setTimeout(() => {
       // Setup SSE immediately
       setupSSE();
 
-      // Start aggressive polling (1 second)
+      // Start aggressive polling (1 second) but NOT immediate check on mount
       console.log("[SessionCheck] Starting 1-second polling...");
       pollingIntervalRef.current = setInterval(() => {
         checkSessionImmediately();
       }, checkInterval);
 
-      // Also do immediate check on mount
-      checkSessionImmediately();
-    }, 2000);
+      // Don't do immediate check on mount - wait for first polling interval
+    }, 3000);
 
     return () => {
       clearTimeout(initialDelay);
