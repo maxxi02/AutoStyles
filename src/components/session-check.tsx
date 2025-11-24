@@ -11,11 +11,11 @@ interface SessionCheckProps {
 
 /**
  * SessionCheck Component
- * Real-time monitoring for session invalidation using SSE + aggressive polling
- * Ensures instant logout without refresh when another device logs in
+ * Session monitoring component - NO AUTOMATIC LOGOUT
+ * Only manual logout via DELETE endpoint
  */
 export function SessionCheck({
-  checkInterval = 1000, // Very aggressive 1-second polling
+  checkInterval = 1000,
 }: SessionCheckProps) {
   const router = useRouter();
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -85,10 +85,10 @@ export function SessionCheck({
 
       const data = await response.json().catch(() => ({}));
 
-      // Immediate logout if session invalid
-      if (data.reason === "SESSION_INVALIDATED" || !data.isValid) {
-        console.warn("[SessionCheck] Session invalid - logging out immediately");
-        await handleLogout();
+      // AUTOMATIC LOGOUT DISABLED - only manual logout allowed
+      // Session checks are for monitoring only, not for triggering logout
+      if (data.isValid) {
+        console.log("[SessionCheck] Session active for device", deviceId);
       }
     } catch (error) {
       console.debug("[SessionCheck] Check error:", error);
@@ -118,10 +118,10 @@ export function SessionCheck({
           `/api/device-session-notify?deviceId=${deviceId}&token=${encodeURIComponent(token)}`
         );
 
-        // Immediate logout on SSE invalidation event
+        // AUTOMATIC LOGOUT DISABLED - SSE connection open but no invalidation events processed
         sse.addEventListener("SESSION_INVALIDATED", () => {
-          console.log("[SessionCheck] 🔴 Received SESSION_INVALIDATED via SSE - instant logout");
-          handleLogout();
+          console.log("[SessionCheck] Received SESSION_INVALIDATED via SSE - ignored (auto-logout disabled)");
+          // Do NOT call handleLogout() - automatic logout is disabled
         });
 
         sse.addEventListener("CONNECTED", () => {

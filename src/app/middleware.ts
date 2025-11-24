@@ -12,34 +12,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Optionally verify token and device session with your API
-  try {
-    const response = await fetch(new URL("/api/device-session", request.url), {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        "x-device-id": deviceId || "unknown",
-      },
-    });
-
-    if (!response.ok) {
-      const data = await response.json();
-      
-      // If session is invalid, redirect to login
-      if (data.reason === "SESSION_INVALIDATED") {
-        return NextResponse.redirect(new URL("/login", request.url));
-      }
-      
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-
-    return NextResponse.next();
-  } catch (error) {
-    console.error("Error verifying device session:", error);
-    // Allow request on error to not block legitimate users
-    return NextResponse.next();
-  }
+  // Session validation disabled - allow all authenticated users
+  // No automatic logout based on session status
+  // Users can only be logged out by middleware when token is missing
+  return NextResponse.next();
 }
 
 // Specify which routes to protect
