@@ -79,6 +79,8 @@ export async function POST(request: NextRequest) {
       loginTime: isRefresh ? existingDeviceSession.loginTime : Date.now(), // Keep original login time if refresh
       lastActivityTime: Date.now(),
       isActive: true,
+      // IMPORTANT: Clear pending invalidation on refresh - this session is staying active
+      pendingInvalidation: false,
     };
 
     // ONLY invalidate other sessions if this is a NEW device (not a refresh)

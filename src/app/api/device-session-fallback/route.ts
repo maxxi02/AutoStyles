@@ -118,16 +118,18 @@ export async function POST(request: NextRequest) {
     const userSessions = deviceSessions.get(userId) || new Map();
     
     // Check if device is ALREADY registered (this is just a refresh, not a new login)
+    // IMPORTANT: Only check isActive, ignore pendingInvalidation flag
     const existingSession = userSessions.get(deviceId);
-    const isRefresh = existingSession && existingSession.isActive && !existingSession.pendingInvalidation;
+    const isRefresh = existingSession && existingSession.isActive;
 
     // Use composite key for session tracking
     const sessionKey = `${userId}:${deviceId}`;
     const invalidatedSessions: string[] = [];
 
     if (isRefresh) {
-      // Device already registered and not pending invalidation - just update timestamp
+      // Device already registered - just update timestamp and clear pending flag
       existingSession.timestamp = Date.now();
+      existingSession.pendingInvalidation = false; // Clear pending invalidation on refresh
       console.log("[Fallback] Device", deviceId, "is refreshing for user", userId, "- NOT invalidating others (already registered)");
     } else {
       // New device - mark all OTHER ACTIVE sessions for THIS user as PENDING invalidation
