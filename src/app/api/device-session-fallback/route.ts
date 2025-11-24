@@ -116,26 +116,37 @@ export async function POST(request: NextRequest) {
 
     // Get sessions for THIS user only
     const userSessions = deviceSessions.get(userId) || new Map();
+    
+    // Check if device is ALREADY registered (this is just a refresh, not a new login)
+    const existingSession = userSessions.get(deviceId);
+    const isRefresh = existingSession && existingSession.isActive;
+
     let invalidatedCount = 0;
 
-    // Mark all OTHER sessions for THIS user as inactive
-    userSessions.forEach((session) => {
-      if (session.isActive) {
-        session.isActive = false;
-        session.invalidatedAt = Date.now();
-        invalidatedCount++;
-      }
-    });
+    if (isRefresh) {
+      // Device already registered - just update timestamp, don't invalidate others
+      existingSession.timestamp = Date.now();
+      console.log("[Fallback] Device", deviceId, "is refreshing for user", userId, "- NOT invalidating others (already registered)");
+    } else {
+      // New device - mark all OTHER sessions for THIS user as inactive
+      userSessions.forEach((session) => {
+        if (session.isActive) {
+          session.isActive = false;
+          session.invalidatedAt = Date.now();
+          invalidatedCount++;
+        }
+      });
 
-    // Add new session for this user
-    userSessions.set(deviceId, {
-      timestamp: Date.now(),
-      isActive: true,
-    });
+      // Add new session for this user
+      userSessions.set(deviceId, {
+        timestamp: Date.now(),
+        isActive: true,
+      });
+
+      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- Invalidated", invalidatedCount, "others");
+    }
 
     deviceSessions.set(userId, userSessions);
-
-    console.log("[Fallback] Registered device session:", deviceId, "for user:", userId, "- Invalidated", invalidatedCount, "others");
 
     return NextResponse.json(
       {

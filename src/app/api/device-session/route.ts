@@ -61,36 +61,51 @@ export async function POST(request: NextRequest) {
     const existingSessions: { [key: string]: DeviceSession } =
       userSessionsDoc.exists ? userSessionsDoc.data() || {} : {};
 
+    // Check if this device is ALREADY registered (this is just a refresh, not a new login)
+    const existingDeviceSession = existingSessions[deviceId];
+    const isRefresh = existingDeviceSession && existingDeviceSession.isActive;
+
     // Create new session entry
     const newSession: DeviceSession = {
       uid,
       deviceId,
       fingerprint,
       userAgent,
-      loginTime: Date.now(),
+      loginTime: isRefresh ? existingDeviceSession.loginTime : Date.now(), // Keep original login time if refresh
       lastActivityTime: Date.now(),
       isActive: true,
     };
 
-    // Invalidate all other active sessions
+    // ONLY invalidate other active sessions if this is a NEW device (not a refresh)
     const updatedSessions: { [key: string]: DeviceSession } = {};
     let invalidatedCount = 0;
-    Object.entries(existingSessions).forEach(([key, session]) => {
-      if (key !== deviceId) {
-        updatedSessions[key] = { ...session, isActive: false, loginTime: session.loginTime };
-        invalidatedCount++;
-      }
-    });
-
-    // Add the new session
-    updatedSessions[deviceId] = newSession;
+    
+    if (isRefresh) {
+      // Device already registered - just update activity time, don't invalidate others
+      Object.entries(existingSessions).forEach(([key, session]) => {
+        updatedSessions[key] = session;
+      });
+      updatedSessions[deviceId] = newSession;
+      console.log("[Device Session] Device", deviceId, "is refreshing for user", uid, "- NOT invalidating others (already registered)");
+    } else {
+      // New device - invalidate all other active sessions
+      Object.entries(existingSessions).forEach(([key, session]) => {
+        if (key !== deviceId) {
+          updatedSessions[key] = { ...session, isActive: false, loginTime: session.loginTime };
+          invalidatedCount++;
+        }
+      });
+      updatedSessions[deviceId] = newSession;
+      console.log("[Device Session] NEW device", deviceId, "registered for user", uid, "- Invalidated", invalidatedCount, "others");
+    }
 
     // Update Firestore immediately without merge
     await userSessionsRef.set(updatedSessions);
 
-    console.log("[Device Session] Registered device", deviceId, "for user", uid, "- Invalidated", invalidatedCount, "others");
+    console.log("[Device Session] Registered device", deviceId, "for user", uid);
 
     // Send real-time notifications to invalidated devices immediately (synchronously)
+    // ONLY if we actually invalidated devices (not a refresh)
     if (invalidatedCount > 0) {
       try {
         const notifyResponse = await fetch(
