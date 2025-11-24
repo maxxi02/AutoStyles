@@ -33,6 +33,7 @@ import {
 } from "firebase/firestore";
 import { Loader2, MessageCircleWarning } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 interface CarType {
@@ -123,6 +124,7 @@ interface TransactionData {
   };
 }
 const CustomizationPage: React.FC = () => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"customize" | "models">(
     "customize"
   );
@@ -468,7 +470,14 @@ const CustomizationPage: React.FC = () => {
         collection(db, "transactions"),
         transactionData
       );
-      toast.success(`Design saved to transaction! ID: ${transactionRef.id}`);
+      toast.success("Design saved successfully!", {
+        description: "Redirecting to your transactions...",
+      });
+
+      // Navigate to transactions page after a short delay
+      setTimeout(() => {
+        router.push("./transactions");
+      }, 1500);
 
       // Deduct inventory for selected customizations (assuming save = purchase point)
       if (selectedColorId && selectedColor && selectedColor.inventory > 0) {
@@ -534,9 +543,9 @@ const CustomizationPage: React.FC = () => {
           <TabsTrigger value="models">All Models</TabsTrigger>
         </TabsList>
         <TabsContent value="customize">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
             {/* Selections Sidebar */}
-            <Card className="lg:col-span-1 bg-slate-100 dark:bg-slate-800">
+            <Card className="md:col-span-1 lg:col-span-1 bg-slate-100 dark:bg-slate-800 h-fit sticky top-4 max-h-[calc(100vh-100px)] overflow-y-auto md:max-h-none md:overflow-y-visible">
               <CardHeader>
                 <CardTitle>Customize Your Car</CardTitle>
               </CardHeader>
@@ -603,16 +612,16 @@ const CustomizationPage: React.FC = () => {
                         setSelectedColorId(value === "none" ? "" : value)
                       }
                     >
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        <div className="flex items-center p-2 border rounded-md hover:bg-muted">
+                      <div className="space-y-2 max-h-48 md:max-h-60 overflow-y-auto">
+                        <div className="flex items-center p-2 md:p-3 border rounded-md hover:bg-muted cursor-pointer gap-2">
                           <RadioGroupItem value="none" id="color-none" />
                           <label
                             htmlFor="color-none"
-                            className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                            className="flex items-center space-x-2 md:space-x-3 cursor-pointer flex-1"
                           >
-                            <div className="w-8 h-8 rounded border bg-muted" />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium">
+                            <div className="w-6 md:w-8 h-6 md:h-8 rounded border bg-muted flex-shrink-0" />
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-xs md:text-sm font-medium">
                                 No selection
                               </span>
                               <span className="text-xs text-muted-foreground">
@@ -624,7 +633,7 @@ const CustomizationPage: React.FC = () => {
                         {filteredColors.map((color) => (
                           <div
                             key={color.id}
-                            className="flex items-center p-2 border rounded-md hover:bg-muted"
+                            className="flex items-center p-2 md:p-3 border rounded-md hover:bg-muted cursor-pointer gap-2"
                           >
                             <RadioGroupItem
                               value={color.id}
@@ -633,14 +642,14 @@ const CustomizationPage: React.FC = () => {
                             />
                             <label
                               htmlFor={`color-${color.id}`}
-                              className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                              className="flex items-center space-x-2 md:space-x-3 cursor-pointer flex-1 min-w-0"
                             >
                               <div
-                                className="w-8 h-8 rounded border"
+                                className="w-6 md:w-8 h-6 md:h-8 rounded border flex-shrink-0"
                                 style={{ backgroundColor: color.hex }}
                               />
-                              <div className="flex flex-col flex-1">
-                                <span className="text-sm font-medium">
+                              <div className="flex flex-col flex-1 min-w-0">
+                                <span className="text-xs md:text-sm font-medium truncate">
                                   {color.name}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
@@ -658,7 +667,7 @@ const CustomizationPage: React.FC = () => {
                                 <Image
                                   src={color.images[0]}
                                   alt={color.name}
-                                  className="w-12 h-12 rounded object-cover ml-auto"
+                                  className="w-8 md:w-12 h-8 md:h-12 rounded object-cover flex-shrink-0"
                                   width={48}
                                   height={48}
                                 />
@@ -669,7 +678,7 @@ const CustomizationPage: React.FC = () => {
                       </div>
                     </RadioGroup>
                   ) : (
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-xs md:text-sm text-muted-foreground mt-1">
                       No colors available for this model.
                     </p>
                   )}
@@ -681,10 +690,10 @@ const CustomizationPage: React.FC = () => {
                   {selectedColor && (
                     <div className="flex items-center space-x-2 mt-2">
                       <div
-                        className="w-8 h-8 rounded"
+                        className="w-6 md:w-8 h-6 md:h-8 rounded"
                         style={{ backgroundColor: selectedColor.hex }}
                       />
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-xs md:text-sm text-muted-foreground">
                         {selectedColor.hex}
                       </span>
                     </div>
@@ -700,16 +709,16 @@ const CustomizationPage: React.FC = () => {
                         setSelectedWheelId(value === "none" ? "" : value)
                       }
                     >
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        <div className="flex items-center p-2 border rounded-md hover:bg-muted">
+                      <div className="space-y-2 max-h-48 md:max-h-60 overflow-y-auto">
+                        <div className="flex items-center p-2 md:p-3 border rounded-md hover:bg-muted cursor-pointer gap-2">
                           <RadioGroupItem value="none" id="wheel-none" />
                           <label
                             htmlFor="wheel-none"
-                            className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                            className="flex items-center space-x-2 md:space-x-3 cursor-pointer flex-1"
                           >
-                            <div className="w-12 h-12 rounded bg-muted" />
+                            <div className="w-8 md:w-12 h-8 md:h-12 rounded bg-muted flex-shrink-0" />
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium">
+                              <span className="text-xs md:text-sm font-medium">
                                 No selection
                               </span>
                             </div>
@@ -718,7 +727,7 @@ const CustomizationPage: React.FC = () => {
                         {filteredWheels.map((wheel) => (
                           <div
                             key={wheel.id}
-                            className="flex items-center p-2 border rounded-md hover:bg-muted"
+                            className="flex items-center p-2 md:p-3 border rounded-md hover:bg-muted cursor-pointer gap-2"
                           >
                             <RadioGroupItem
                               value={wheel.id}
@@ -727,21 +736,21 @@ const CustomizationPage: React.FC = () => {
                             />
                             <label
                               htmlFor={`wheel-${wheel.id}`}
-                              className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                              className="flex items-center space-x-2 md:space-x-3 cursor-pointer flex-1 min-w-0"
                             >
                               {wheel.imageUrl ? (
                                 <Image
                                   src={wheel.imageUrl}
                                   alt={wheel.name}
-                                  className="w-12 h-12 rounded object-cover"
+                                  className="w-8 md:w-12 h-8 md:h-12 rounded object-cover flex-shrink-0"
                                   width={48}
                                   height={48}
                                 />
                               ) : (
-                                <div className="w-12 h-12 rounded bg-muted" />
+                                <div className="w-8 md:w-12 h-8 md:h-12 rounded bg-muted flex-shrink-0" />
                               )}
-                              <div className="flex flex-col flex-1">
-                                <span className="text-sm font-medium">
+                              <div className="flex flex-col flex-1 min-w-0">
+                                <span className="text-xs md:text-sm font-medium truncate">
                                   {wheel.name}
                                 </span>
                                 <span
@@ -758,7 +767,7 @@ const CustomizationPage: React.FC = () => {
                       </div>
                     </RadioGroup>
                   ) : (
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-xs md:text-sm text-muted-foreground mt-1">
                       No wheels available for this model.
                     </p>
                   )}
@@ -796,7 +805,7 @@ const CustomizationPage: React.FC = () => {
                         {filteredInteriors.map((interior) => (
                           <div
                             key={interior.id}
-                            className="flex items-center p-2 border rounded-md hover:bg-muted"
+                            className="flex items-center p-2 md:p-3 border rounded-md hover:bg-muted cursor-pointer gap-2"
                           >
                             <RadioGroupItem
                               value={interior.id}
@@ -805,41 +814,36 @@ const CustomizationPage: React.FC = () => {
                             />
                             <label
                               htmlFor={`interior-${interior.id}`}
-                              className="flex items-center space-x-3 cursor-pointer flex-1 ml-2"
+                              className="flex items-center space-x-2 md:space-x-3 cursor-pointer flex-1 min-w-0"
                             >
                               {interior.imageUrl ? (
                                 <Image
                                   src={interior.imageUrl}
                                   alt={interior.name}
-                                  className="w-12 h-12 rounded object-cover"
+                                  className="w-8 md:w-12 h-8 md:h-12 rounded object-cover flex-shrink-0"
                                   width={48}
                                   height={48}
                                 />
                               ) : (
                                 <div
-                                  className="w-8 h-8 rounded border"
+                                  className="w-6 md:w-8 h-6 md:h-8 rounded border flex-shrink-0"
                                   style={{
                                     backgroundColor: interior.hex || "#000000",
                                   }}
                                 />
                               )}
-                              <div className="flex flex-col">
-                                <span className="text-sm font-medium">
+                              <div className="flex flex-col flex-1 min-w-0">
+                                <span className="text-xs md:text-sm font-medium truncate">
                                   {interior.name}
                                 </span>
-                              </div>
-                              {interior.hex && (
-                                <span className="text-xs text-muted-foreground ml-auto">
-                                  {interior.hex}
+                                <span
+                                  className={`text-xs ${interior.inventory === 0 ? "text-red-600" : interior.inventory <= 10 ? "text-orange-600" : "text-green-600"}`}
+                                >
+                                  {interior.inventory === 0
+                                    ? "Out of Stock"
+                                    : `Stock: ${interior.inventory}`}
                                 </span>
-                              )}
-                              <span
-                                className={`text-xs ml-2 ${interior.inventory === 0 ? "text-red-600" : interior.inventory <= 10 ? "text-orange-600" : "text-green-600"}`}
-                              >
-                                {interior.inventory === 0
-                                  ? "Out of Stock"
-                                  : `Stock: ${interior.inventory}`}
-                              </span>
+                              </div>
                             </label>
                           </div>
                         ))}
@@ -896,9 +900,9 @@ const CustomizationPage: React.FC = () => {
                 {/* Price */}
                 {(selectedColorId || selectedWheelId || selectedInteriorId) &&
                   subtotal > 0 && (
-                    <div className="p-3 bg-muted rounded-md">
+                    <div className="p-2 md:p-3 bg-muted rounded-md">
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs md:text-sm text-muted-foreground">
                           Price Breakdown:
                         </p>
                         {basePrice > 0 && (
@@ -922,7 +926,7 @@ const CustomizationPage: React.FC = () => {
                           </p>
                         )}
                         <hr className="my-2" />
-                        <p className="text-sm font-medium">
+                        <p className="text-xs md:text-sm font-medium">
                           Subtotal: ₱{subtotal.toLocaleString()}
                         </p>
                         {selectedPricingRule && (
@@ -934,18 +938,19 @@ const CustomizationPage: React.FC = () => {
                             <hr className="my-2" />
                           </>
                         )}
-                        <p className="text-lg font-bold">
+                        <p className="text-base md:text-lg font-bold">
                           Total: ₱{Math.round(calculatedPrice).toLocaleString()}
                         </p>
                       </div>
                     </div>
                   )}
               </CardContent>
-              <CardFooter className="flex flex-col items-start space-y-2">
+              <CardFooter className="flex flex-col gap-2 p-3 md:p-4">
                 <Button
                   onClick={handleUndo}
                   variant="outline"
                   disabled={history.length === 0}
+                  className="w-full text-xs md:text-sm"
                 >
                   Undo
                 </Button>
@@ -958,6 +963,7 @@ const CustomizationPage: React.FC = () => {
                       !selectedWheelId &&
                       !selectedInteriorId)
                   }
+                  className="w-full text-xs md:text-sm"
                 >
                   {isSaving ? (
                     <>
@@ -971,12 +977,12 @@ const CustomizationPage: React.FC = () => {
               </CardFooter>
             </Card>
             {/* Preview Area */}
-            <Card className="lg:col-span-3 bg-slate-100 dark:bg-slate-800">
-              <CardHeader>
-                <CardTitle>2D Preview</CardTitle>
-                <CardDescription>Preview your customized car</CardDescription>
+            <Card className="md:col-span-2 lg:col-span-3 bg-slate-100 dark:bg-slate-800">
+              <CardHeader className="pb-3 md:pb-4">
+                <CardTitle className="text-lg md:text-xl">2D Preview</CardTitle>
+                <CardDescription className="text-xs md:text-sm">Preview your customized car</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col items-start p-4 space-y-6">
+              <CardContent className="flex flex-col items-start p-3 md:p-4 space-y-4 md:space-y-6 overflow-x-hidden">
                 {/* Show message if no model is selected */}
                 {!selectedModelId ? (
                   <div className="w-full flex items-center justify-center min-h-[400px]">
@@ -988,7 +994,7 @@ const CustomizationPage: React.FC = () => {
                   <>
                     {/* Main Car Preview */}
                     <div className="w-full">
-                      <h3 className="text-sm font-medium mb-2">Exterior</h3>
+                      <h3 className="text-xs md:text-sm font-medium mb-2">Exterior</h3>
                       <div className="relative">
                         {selectedColorId &&
                         selectedColor?.images &&
@@ -1010,11 +1016,11 @@ const CustomizationPage: React.FC = () => {
                               height={600}
                             />
                             {/* Carousel Controls */}
-                            <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-4">
+                            <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-2 md:px-4">
                               <Button
                                 variant="secondary"
                                 size="icon"
-                                className="rounded-full shadow-lg"
+                                className="rounded-full shadow-lg h-8 w-8 md:h-10 md:w-10"
                                 onClick={() =>
                                   setCurrentImageIndex((prev) =>
                                     prev > 0
@@ -1028,7 +1034,7 @@ const CustomizationPage: React.FC = () => {
                               <Button
                                 variant="secondary"
                                 size="icon"
-                                className="rounded-full shadow-lg"
+                                className="rounded-full shadow-lg h-8 w-8 md:h-10 md:w-10"
                                 onClick={() =>
                                   setCurrentImageIndex((prev) =>
                                     prev < selectedColor.images!.length - 1
@@ -1041,14 +1047,14 @@ const CustomizationPage: React.FC = () => {
                               </Button>
                             </div>
                             {/* Indicators */}
-                            <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center space-x-2">
+                            <div className="absolute bottom-2 md:bottom-4 left-0 right-0 flex justify-center items-center space-x-1 md:space-x-2">
                               {selectedColor.images.map((_, index) => (
                                 <button
                                   key={index}
                                   onClick={() => setCurrentImageIndex(index)}
-                                  className={`w-2 h-2 rounded-full transition-all ${
+                                  className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full transition-all ${
                                     index === currentImageIndex
-                                      ? "bg-white w-8"
+                                      ? "bg-white w-6 md:w-8"
                                       : "bg-white/50 hover:bg-white/75"
                                   }`}
                                   aria-label={`View ${["Front", "Back", "Left", "Right"][index]}`}
@@ -1056,7 +1062,7 @@ const CustomizationPage: React.FC = () => {
                               ))}
                             </div>
                             {/* Image Label */}
-                            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                            <div className="absolute top-2 md:top-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-2 md:px-3 py-1 rounded-full text-xs md:text-sm">
                               {
                                 ["Front", "Back", "Left", "Right"][
                                   currentImageIndex
@@ -1078,14 +1084,14 @@ const CustomizationPage: React.FC = () => {
                       {selectedColorId ? (
                         selectedColor &&
                         selectedColor.description && (
-                          <div className="text-start mt-4">
-                            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                          <div className="text-start mt-2 md:mt-4">
+                            <p className="text-xs md:text-sm text-muted-foreground mt-2 max-w-md">
                               {selectedColor.description}
                             </p>
                           </div>
                         )
                       ) : (
-                        <p className="text-sm text-muted-foreground mt-2">
+                        <p className="text-xs md:text-sm text-muted-foreground mt-2">
                           No color selected - using default exterior
                         </p>
                       )}
@@ -1093,7 +1099,7 @@ const CustomizationPage: React.FC = () => {
                     {/* Wheels Preview */}
                     {selectedWheelId && selectedWheel?.imageUrl && (
                       <div className="w-full">
-                        <h3 className="text-sm font-medium mb-2">Wheels</h3>
+                        <h3 className="text-xs md:text-sm font-medium mb-2">Wheels</h3>
                         <Image
                           src={selectedWheel.imageUrl}
                           alt="Wheel Preview"
@@ -1102,8 +1108,8 @@ const CustomizationPage: React.FC = () => {
                           height={600}
                         />
                         {selectedWheel && selectedWheel.description && (
-                          <div className="text-start mt-4">
-                            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                          <div className="text-start mt-2 md:mt-4">
+                            <p className="text-xs md:text-sm text-muted-foreground mt-2 max-w-md">
                               {selectedWheel.description}
                             </p>
                           </div>
@@ -1112,8 +1118,8 @@ const CustomizationPage: React.FC = () => {
                     )}
                     {!selectedWheelId && (
                       <div className="w-full">
-                        <h3 className="text-sm font-medium mb-2">Wheels</h3>
-                        <p className="text-sm text-muted-foreground mt-2">
+                        <h3 className="text-xs md:text-sm font-medium mb-2">Wheels</h3>
+                        <p className="text-xs md:text-sm text-muted-foreground mt-2">
                           No wheels selected - using default wheels
                         </p>
                       </div>
@@ -1121,7 +1127,7 @@ const CustomizationPage: React.FC = () => {
                     {/* Interior Preview */}
                     {selectedInteriorId && selectedInterior && (
                       <div className="w-full">
-                        <h3 className="text-sm font-medium mb-2">Interior</h3>
+                        <h3 className="text-xs md:text-sm font-medium mb-2">Interior</h3>
                         <Image
                           src={
                             selectedInterior.imageUrl ||
@@ -1133,8 +1139,8 @@ const CustomizationPage: React.FC = () => {
                           height={600}
                         />
                         {selectedInterior && selectedInterior.description && (
-                          <div className="text-start mt-4">
-                            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                          <div className="text-start mt-2 md:mt-4">
+                            <p className="text-xs md:text-sm text-muted-foreground mt-2 max-w-md">
                               {selectedInterior.description}
                             </p>
                           </div>
@@ -1142,10 +1148,10 @@ const CustomizationPage: React.FC = () => {
                         {selectedInterior?.hex && (
                           <div className="flex items-center space-x-2 mt-2">
                             <div
-                              className="w-8 h-8 rounded border"
+                              className="w-6 md:w-8 h-6 md:h-8 rounded border"
                               style={{ backgroundColor: selectedInterior.hex }}
                             />
-                            <span className="text-sm text-muted-foreground">
+                            <span className="text-xs md:text-sm text-muted-foreground">
                               {selectedInterior.hex}
                             </span>
                           </div>
@@ -1154,8 +1160,8 @@ const CustomizationPage: React.FC = () => {
                     )}
                     {!selectedInteriorId && (
                       <div className="w-full">
-                        <h3 className="text-sm font-medium mb-2">Interior</h3>
-                        <p className="text-sm text-muted-foreground mt-2">
+                        <h3 className="text-xs md:text-sm font-medium mb-2">Interior</h3>
+                        <p className="text-xs md:text-sm text-muted-foreground mt-2">
                           No interior selected - using default interior
                         </p>
                       </div>
@@ -1164,7 +1170,7 @@ const CustomizationPage: React.FC = () => {
                       !selectedWheelId &&
                       !selectedInteriorId && (
                         <p className="text-xs mt-2 text-red-500 flex items-center gap-2">
-                          <MessageCircleWarning />
+                          <MessageCircleWarning className="h-3 w-3 md:h-4 md:w-4" />
                           Please select at least one customization option to
                           save your design
                         </p>

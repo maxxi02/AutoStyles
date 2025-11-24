@@ -1,7 +1,6 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { db } from "@/lib/firebase";
-import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,29 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Eye,
-  ArrowUpRight,
-  ArrowDownRight,
-  Clock,
-  CheckCircle2,
-  DollarSign,
-  FileText,
-  Loader2,
-  Trash2,
-  Calendar,
-  Search,
-} from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import type React from "react";
 import {
   Dialog,
   DialogContent,
@@ -40,17 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import Image from "next/image";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import {
-  collection,
-  onSnapshot,
-  doc,
-  updateDoc,
-  Timestamp,
-  deleteDoc,
-} from "firebase/firestore";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -58,8 +25,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { db } from "@/lib/firebase";
+import { format } from "date-fns";
+import {
+  Timestamp,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  updateDoc,
+} from "firebase/firestore";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Eye,
+  FileText,
+  Loader2,
+  Search,
+  Trash2,
+} from "lucide-react";
+import Image from "next/image";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 interface Transaction {
   id: string;
   typeId: string;
@@ -208,8 +208,9 @@ const AdminTransactionPage = () => {
   const [appointmentToRefund, setAppointmentToRefund] =
     useState<Appointment | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>("all");
+  const [filterProgress, setFilterProgress] = useState<string>("all");
 
   useEffect(() => {
     const expectedSnapshots = 7;
@@ -636,11 +637,36 @@ const AdminTransactionPage = () => {
   }, [transactions]);
 
   const filteredTransactions = useMemo(() => {
-    if (!searchQuery.trim()) return sortedTransactions;
+    let result = sortedTransactions;
+
+    // Apply status filter
+    if (filterStatus !== "all") {
+      result = result.filter((t) => t.status === filterStatus);
+    }
+
+    // Apply payment status filter
+    if (filterPaymentStatus !== "all") {
+      if (filterPaymentStatus === "paid") {
+        result = result.filter((t) => t.paymentVerifiedAt);
+      } else if (filterPaymentStatus === "pending") {
+        result = result.filter((t) => !t.paymentVerifiedAt);
+      }
+    }
+
+    // Apply progress filter
+    if (filterProgress !== "all") {
+      result = result.filter((t) => {
+        const progress = t.customizationProgress?.overallStatus || "pending";
+        return progress === filterProgress;
+      });
+    }
+
+    // Apply search query
+    if (!searchQuery.trim()) return result;
 
     const query = searchQuery.toLowerCase();
 
-    return sortedTransactions.filter((transaction) => {
+    return result.filter((transaction) => {
       // Get details inline without calling external function
       const type = carTypes.find((t) => t.id === transaction.typeId);
       const model = carModels.find((m) => m.id === transaction.modelId);
@@ -670,6 +696,9 @@ const AdminTransactionPage = () => {
   }, [
     sortedTransactions,
     searchQuery,
+    filterStatus,
+    filterPaymentStatus,
+    filterProgress,
     carTypes,
     carModels,
     paintColors,
@@ -1538,28 +1567,61 @@ const AdminTransactionPage = () => {
   function TransactionsTable() {
     return (
       <Card className="bg-card border-border">
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
-          <div>
-            <CardTitle className="text-foreground">All Transactions</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Manage and track customer orders
-            </CardDescription>
+        <CardHeader className="space-y-4 pb-4">
+          <div className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-foreground">All Transactions</CardTitle>
+              <CardDescription className="text-muted-foreground">
+                Manage and track customer orders
+              </CardDescription>
+            </div>
           </div>
-          {/* <div className="relative w-64">
+          {/* Search Bar */}
+          <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              ref={searchInputRef}
               type="text"
               placeholder="Search by customer, model, color, status, date, or price..."
-              defaultValue={searchQuery}
-              onChange={(e) => {
-                const value = e.target.value;
-                // Use setTimeout to defer state update
-                setTimeout(() => setSearchQuery(value), 0);
-              }}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
             />
-          </div> */}
+          </div>
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3">
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="saved">Saved</SelectItem>
+                <SelectItem value="purchased">Purchased</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterPaymentStatus} onValueChange={setFilterPaymentStatus}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by Payment" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Payment Status</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterProgress} onValueChange={setFilterProgress}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by Progress" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Progress</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in-progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -1736,20 +1798,9 @@ const AdminTransactionPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto p-6 space-y-6">
-        <div className="relative w-64 ml-auto">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search transactions..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
         <StatsCards />
         <TransactionsTable />
         <DetailsModal />
-        {/* search bar */}
         {/* Refund Confirmation Modal */}
         <Dialog open={showRefundModal} onOpenChange={setShowRefundModal}>
           <DialogContent>

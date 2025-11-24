@@ -35,10 +35,10 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  DollarSign,
+  Filter,
   Loader2,
   Search,
-  Trash2,
+  Trash2
 } from "lucide-react";
 import Image from "next/image";
 import React, { Suspense, useEffect, useState } from "react";
@@ -200,6 +200,8 @@ const ClientsTransactionPage: React.FC = () => {
   const [editAvailableTimes, setEditAvailableTimes] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<"" | "saved" | "purchased" | "cancelled">("");
   // Refund modal state
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [appointmentToRefund, setAppointmentToRefund] =
@@ -762,6 +764,11 @@ const ClientsTransactionPage: React.FC = () => {
   const getFilteredTransactions = () => {
     // Start with the current user's transactions (already filtered by Firestore query)
     return transactions.filter((transaction) => {
+      // Apply status filter
+      if (filterStatus && transaction.status !== filterStatus) {
+        return false;
+      }
+
       // Only apply search filter if there's a search query
       if (!searchQuery.trim()) return true;
 
@@ -1076,9 +1083,9 @@ const ClientsTransactionPage: React.FC = () => {
           {getFilteredTransactions().length !== 1 ? "s" : ""}
         </Badge>
       </div>
-      {/* Global Search Bar */}
-      {getFilteredTransactions().length > 0 && (
-        <div className="relative">
+      {/* Global Search Bar with Filter */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
@@ -1088,7 +1095,15 @@ const ClientsTransactionPage: React.FC = () => {
             className="pl-10"
           />
         </div>
-      )}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setShowFilterModal(!showFilterModal)}
+          title="Filter transactions"
+        >
+          <Filter className="h-4 w-4" />
+        </Button>
+      </div>
       {getFilteredTransactions().length === 0 ? (
         <Card className="text-center py-12 bg-slate-100 dark:bg-slate-800">
           <CardContent>
@@ -1169,7 +1184,6 @@ const ClientsTransactionPage: React.FC = () => {
                   </div>
                   {/* Price */}
                   <div className="flex items-center justify-between p-2 bg-muted rounded-md">
-                    <DollarSign className="h-4 w-4" />
                     <span className="text-lg font-bold">
                       ₱{transaction.price.toLocaleString()}
                     </span>
@@ -1908,41 +1922,43 @@ const ClientsTransactionPage: React.FC = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Cancellation with Refund</DialogTitle>
-            <DialogDescription>
-              {appointmentToRefund &&
-                (() => {
-                  const transaction = transactions.find(
-                    (t) => t.id === appointmentToRefund.transactionId
-                  );
-                  if (!transaction) return <p>Transaction not found.</p>;
-                  const refundAmount = transaction.price * 0.98;
-                  const deductionAmount = transaction.price * 0.02;
-                  const appointmentDateTime = new Date(
-                    `${appointmentToRefund.date}T${appointmentToRefund.time}`
-                  );
-                  const now = new Date();
-                  const hoursDifference =
-                    (appointmentDateTime.getTime() - now.getTime()) /
-                    (1000 * 60 * 60);
-                  if (hoursDifference < 24 && appointmentDateTime > now) {
-                    return (
-                      <p>Cannot cancel within 24 hours of appointment time.</p>
+            <DialogDescription asChild>
+              <div>
+                {appointmentToRefund &&
+                  (() => {
+                    const transaction = transactions.find(
+                      (t) => t.id === appointmentToRefund.transactionId
                     );
-                  }
-                  return (
-                    <>
-                      <p>
-                        This appointment is paid. Cancelling will process a
-                        refund of {refundAmount.toLocaleString()} (98% of the
-                        payment) with a 2% processing fee (
-                        {deductionAmount.toLocaleString()}).
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Do you want to proceed?
-                      </p>
-                    </>
-                  );
-                })()}
+                    if (!transaction) return <span>Transaction not found.</span>;
+                    const refundAmount = transaction.price * 0.98;
+                    const deductionAmount = transaction.price * 0.02;
+                    const appointmentDateTime = new Date(
+                      `${appointmentToRefund.date}T${appointmentToRefund.time}`
+                    );
+                    const now = new Date();
+                    const hoursDifference =
+                      (appointmentDateTime.getTime() - now.getTime()) /
+                      (1000 * 60 * 60);
+                    if (hoursDifference < 24 && appointmentDateTime > now) {
+                      return (
+                        <span>Cannot cancel within 24 hours of appointment time.</span>
+                      );
+                    }
+                    return (
+                      <>
+                        <p>
+                          This appointment is paid. Cancelling will process a
+                          refund of {refundAmount.toLocaleString()} (98% of the
+                          payment) with a 2% processing fee (
+                          {deductionAmount.toLocaleString()}).
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Do you want to proceed?
+                        </p>
+                      </>
+                    );
+                  })()}
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -2004,6 +2020,48 @@ const ClientsTransactionPage: React.FC = () => {
               ) : (
                 "Submit Feedback"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Filter Modal */}
+      <Dialog open={showFilterModal} onOpenChange={setShowFilterModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Filter Transactions</DialogTitle>
+            <DialogDescription>
+              Filter your transactions by status
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="filter-status">Status</Label>
+              <select
+                id="filter-status"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as "" | "saved" | "purchased" | "cancelled")}
+                className="w-full p-2 border border-gray-300 rounded-md bg-white text-gray-900 font-medium"
+                title="Filter by transaction status"
+              >
+                <option value="">All Statuses</option>
+                <option value="saved">Saved</option>
+                <option value="purchased">Booked</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowFilterModal(false);
+                setFilterStatus("");
+              }}
+            >
+              Clear Filters
+            </Button>
+            <Button onClick={() => setShowFilterModal(false)}>
+              Apply Filters
             </Button>
           </DialogFooter>
         </DialogContent>

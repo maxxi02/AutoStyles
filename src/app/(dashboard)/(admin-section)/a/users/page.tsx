@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -9,6 +9,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -16,18 +23,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { toast } from "sonner";
+import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface UserData {
   id: string;
@@ -113,7 +113,7 @@ const UsersManagement = () => {
                   <TableHead className="w-[200px]">Email</TableHead>
                   <TableHead className="w-[150px]">Username</TableHead>
                   <TableHead className="w-[150px]">Phone</TableHead>
-                  <TableHead>Address</TableHead>
+                  <TableHead className="w-[200px]">Address</TableHead>
                   <TableHead className="w-[120px]">Role</TableHead>
                 </TableRow>
               </TableHeader>
@@ -124,7 +124,7 @@ const UsersManagement = () => {
                     <TableCell>{user.email || "N/A"}</TableCell>
                     <TableCell>{user.username || "N/A"}</TableCell>
                     <TableCell>{user.phone || "N/A"}</TableCell>
-                    <TableCell className="max-w-xs truncate">{user.address || "N/A"}</TableCell>
+                    <TableCell className="max-w-[200px] truncate" title={user.address || "N/A"}>{user.address || "N/A"}</TableCell>
                     <TableCell>
                       <Select
                         value={user.role || "user"}

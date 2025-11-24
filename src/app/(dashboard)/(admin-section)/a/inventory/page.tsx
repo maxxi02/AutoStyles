@@ -128,6 +128,13 @@ const uploadToCloudinary = async (file: File): Promise<string> => {
   return data.secure_url;
 };
 
+// Validate car model name - should not be empty or contain only special characters
+const isValidCarModelName = (name: string): boolean => {
+  if (!name || name.trim().length === 0) return false;
+  // Must have at least one alphanumeric character
+  return /[a-zA-Z0-9]/.test(name);
+};
+
 const InventoryContent: React.FC = () => {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("car-models");
@@ -144,6 +151,10 @@ const InventoryContent: React.FC = () => {
   const [isPaintColorDialogOpen, setIsPaintColorDialogOpen] = useState(false);
   const [isWheelDialogOpen, setIsWheelDialogOpen] = useState(false);
   const [isInteriorDialogOpen, setIsInteriorDialogOpen] = useState(false);
+  const [isDeleteCarTypeDialogOpen, setIsDeleteCarTypeDialogOpen] = useState(false);
+  const [selectedCarTypeToDelete, setSelectedCarTypeToDelete] = useState("");
+  const [showDeleteCarTypeConfirm, setShowDeleteCarTypeConfirm] = useState(false);
+  const [carTypeToDeleteName, setCarTypeToDeleteName] = useState("");
 
   const [editingCarType, setEditingCarType] = useState<CarType | null>(null);
   const [editingCarModel, setEditingCarModel] = useState<CarModel | null>(null);
@@ -354,9 +365,58 @@ const InventoryContent: React.FC = () => {
     setIsCarTypeDialogOpen(true);
   };
 
+  const handleDeleteCarType = async (carTypeId: string) => {
+    try {
+      const carTypeToDelete = carTypes.find(ct => ct.id === carTypeId);
+      await deleteDoc(doc(db, "carTypes", carTypeId));
+      toast.success(`Car type "${carTypeToDelete?.name}" has been deleted successfully`);
+      setIsDeleteCarTypeDialogOpen(false);
+      setSelectedCarTypeToDelete("");
+      setShowDeleteCarTypeConfirm(false);
+    } catch (error) {
+      console.error("Error deleting car type:", error);
+      toast.error("Failed to delete car type");
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
+    
+    // Validate file exists
+    if (!file) {
+      toast.error("No file selected");
+      return;
+    }
+
+    // Validate file type (only images)
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files are allowed");
+      e.target.value = "";
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSizeInBytes) {
+      toast.error("File size must be less than 5MB");
+      e.target.value = "";
+      return;
+    }
+
+    // Validate file name is related to car (basic check)
+    const fileName = file.name.toLowerCase();
+    const carModelName = (newCarModel.name || "").toLowerCase().trim();
+    
+    if (carModelName && !fileName.includes(carModelName)) {
+      toast.warning(
+        `Filename should ideally contain the car model name "${newCarModel.name}" for organization purposes`,
+        {
+          duration: 4000,
+        }
+      );
+    }
+
+    if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
       try {
         const url = await uploadToCloudinary(file);
         setNewCarModel({ ...newCarModel, imageUrl: url });
@@ -374,66 +434,25 @@ const InventoryContent: React.FC = () => {
     e: React.ChangeEvent<HTMLInputElement>,
     index: number
   ) => {
-    const file = e.target.files?.[0];
-    if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
-      try {
-        const url = await uploadToCloudinary(file);
-        setNewPaintColor((prev) => {
-          const images = [...(prev.images || new Array(4).fill(undefined))];
-          images[index] = url;
-          return { ...prev, images };
-        });
-        const sides = ["Front", "Back", "Left", "Right"];
-        toast.success(`${sides[index]} image uploaded successfully`);
-      } catch (error) {
-        console.error("Upload error:", error);
-        toast.error("Failed to upload image");
-      }
-    } else {
-      toast.error("Cloudinary configuration missing");
-    }
+    toast.error("Image uploads are only allowed for car models");
+    // Clear the file input
+    e.target.value = "";
   };
 
   const handleWheelImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const file = e.target.files?.[0];
-    if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
-      try {
-        const url = await uploadToCloudinary(file);
-        setNewWheel({
-          ...newWheel,
-          imageUrl: url,
-        });
-        toast.success("Image uploaded successfully");
-      } catch (error) {
-        console.error("Upload error:", error);
-        toast.error("Failed to upload image");
-      }
-    } else {
-      toast.error("Cloudinary configuration missing");
-    }
+    toast.error("Image uploads are only allowed for car models");
+    // Clear the file input
+    e.target.value = "";
   };
 
   const handleInteriorImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const file = e.target.files?.[0];
-    if (file && CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
-      try {
-        const url = await uploadToCloudinary(file);
-        setNewInterior({
-          ...newInterior,
-          imageUrl: url,
-        });
-        toast.success("Image uploaded successfully");
-      } catch (error) {
-        console.error("Upload error:", error);
-        toast.error("Failed to upload image");
-      }
-    } else {
-      toast.error("Cloudinary configuration missing");
-    }
+    toast.error("Image uploads are only allowed for car models");
+    // Clear the file input
+    e.target.value = "";
   };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -455,10 +474,22 @@ const InventoryContent: React.FC = () => {
   };
 
   const handleAddOrUpdateCarModel = async () => {
+    // Validate car model name
+    if (!isValidCarModelName(newCarModel.name || "")) {
+      toast.error("Car model name must be a valid name with at least one letter or number");
+      return;
+    }
+
+    // Validate image is uploaded
+    if (!newCarModel.imageUrl) {
+      toast.error("Please upload a valid car model image");
+      return;
+    }
+
     setCarModelPending(true);
     try {
       const carModelData: CarModelData = {
-        name: newCarModel.name || "",
+        name: (newCarModel.name || "").trim(),
         carTypeId: newCarModel.carTypeId || "",
         ...(newCarModel.imageUrl && { imageUrl: newCarModel.imageUrl }),
       };
@@ -801,10 +832,76 @@ const InventoryContent: React.FC = () => {
         </Card>
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="car-models">Car Models</TabsTrigger>
-          <TabsTrigger value="customize">Customize</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="car-models">Car Models</TabsTrigger>
+            <TabsTrigger value="customize">Customize</TabsTrigger>
+          </TabsList>
+          <Dialog open={isDeleteCarTypeDialogOpen} onOpenChange={setIsDeleteCarTypeDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                Delete Car Type
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Car Type</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Select a car type to delete:
+                </p>
+                <Select value={selectedCarTypeToDelete} onValueChange={setSelectedCarTypeToDelete}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select car type to delete" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {carTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDeleteCarTypeDialogOpen(false)}>Cancel</Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={() => {
+                    const carTypeToDelete = carTypes.find(ct => ct.id === selectedCarTypeToDelete);
+                    setCarTypeToDeleteName(carTypeToDelete?.name || "");
+                    setShowDeleteCarTypeConfirm(true);
+                  }}
+                  disabled={!selectedCarTypeToDelete}
+                >
+                  Delete
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Delete Car Type Confirmation Dialog */}
+        <Dialog open={showDeleteCarTypeConfirm} onOpenChange={setShowDeleteCarTypeConfirm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Delete</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm">
+              Are you sure you want to delete the car type <strong>&quot;{carTypeToDeleteName}&quot;</strong>? This action cannot be undone.
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteCarTypeConfirm(false)}>Cancel</Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => handleDeleteCarType(selectedCarTypeToDelete)}
+              >
+                Yes, Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <TabsContent value="car-models">
           <Card>
@@ -834,9 +931,13 @@ const InventoryContent: React.FC = () => {
                     </DialogTitle>
                   </DialogHeader>
                   <div className="grid gap-4">
-                    <Label htmlFor="name">Name</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor="name">Name</Label>
+                      <p className="text-xs text-muted-foreground">Enter a legitimate car model name (e.g., &quot;Toyota Camry&quot;, &quot;Honda Civic&quot;)</p>
+                    </div>
                     <Input
                       id="name"
+                      placeholder="e.g., Toyota Camry, Honda Civic"
                       value={newCarModel.name ?? ""}
                       onChange={(e) =>
                         setNewCarModel({ ...newCarModel, name: e.target.value })
@@ -846,7 +947,8 @@ const InventoryContent: React.FC = () => {
                     <div className="space-y-2">
                       <Label htmlFor="carTypeId">Car Type</Label>
                       <Select
-                        value={newCarModel.carTypeId}
+                        key={newCarModel.carTypeId}
+                        value={newCarModel.carTypeId || ""}
                         onValueChange={(value) =>
                           setNewCarModel({
                             ...newCarModel,
@@ -871,52 +973,9 @@ const InventoryContent: React.FC = () => {
                           No car types available.
                         </p>
                       )}
-                      <Dialog
-                        open={isCarTypeDialogOpen}
-                        onOpenChange={setIsCarTypeDialogOpen}
-                      >
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="link"
-                            size="sm"
-                            onClick={openAddCarType}
-                          >
-                            + Add New Type
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Add Car Type</DialogTitle>
-                          </DialogHeader>
-                          <div className="grid gap-4">
-                            <Label htmlFor="typeName">Name</Label>
-                            <Input
-                              id="typeName"
-                              value={newCarType.name ?? ""}
-                              onChange={(e) =>
-                                setNewCarType({
-                                  ...newCarType,
-                                  name: e.target.value,
-                                })
-                              }
-                              disabled={carTypePending}
-                            />
-                          </div>
-                          <DialogFooter>
-                            <Button
-                              onClick={handleAddOrUpdateCarType}
-                              disabled={carTypePending || !newCarType.name}
-                            >
-                              {carTypePending && (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              )}
-                              Save
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
                     </div>
-                    <Label htmlFor="image">Default Car Image</Label>
+                    <Label htmlFor="image">Default Car Image *</Label>
+                    <p className="text-xs text-muted-foreground">Required: Upload an image related to the car model</p>
                     <Input
                       id="image"
                       type="file"
@@ -925,13 +984,16 @@ const InventoryContent: React.FC = () => {
                       disabled={carModelPending}
                     />
                     {newCarModel.imageUrl && (
-                      <Image
-                        src={newCarModel.imageUrl}
-                        alt="Preview"
-                        className="w-32 h-auto mt-2"
-                        width={500}
-                        height={500}
-                      />
+                      <div className="space-y-2">
+                        <Image
+                          src={newCarModel.imageUrl}
+                          alt="Preview"
+                          className="w-32 h-auto mt-2 rounded border"
+                          width={500}
+                          height={500}
+                        />
+                        <p className="text-xs text-green-600">✓ Image uploaded successfully</p>
+                      </div>
                     )}
                   </div>
                   <DialogFooter>
@@ -940,7 +1002,8 @@ const InventoryContent: React.FC = () => {
                       disabled={
                         carModelPending ||
                         !newCarModel.name ||
-                        !newCarModel.carTypeId
+                        !newCarModel.imageUrl ||
+                        !isValidCarModelName(newCarModel.name || "")
                       }
                     >
                       {carModelPending && (
@@ -1284,7 +1347,7 @@ const InventoryContent: React.FC = () => {
                                     onChange={(e) =>
                                       handleSideImageUpload(e, index)
                                     }
-                                    disabled={paintColorPending}
+                                    disabled={true}
                                   />
                                   {newPaintColor.images?.[index] && (
                                     <div className="flex items-center space-x-2">
@@ -1574,7 +1637,7 @@ const InventoryContent: React.FC = () => {
                             type="file"
                             accept="image/*"
                             onChange={handleWheelImageUpload}
-                            disabled={wheelPending}
+                            disabled={true}
                           />
                           {newWheel.imageUrl && (
                             <Image
@@ -1851,7 +1914,7 @@ const InventoryContent: React.FC = () => {
                             type="file"
                             accept="image/*"
                             onChange={handleInteriorImageUpload}
-                            disabled={interiorPending}
+                            disabled={true}
                           />
                           {newInterior.imageUrl && (
                             <Image

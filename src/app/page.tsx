@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Car,
   ChevronLeft,
@@ -21,8 +20,7 @@ import {
   Phone,
   Shield,
   Users,
-  Youtube,
-  Zap,
+  Zap
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -100,27 +98,27 @@ export default function Home() {
   const heroSlides = [
     {
       image:
-        "https://scontent.fmnl13-4.fna.fbcdn.net/v/t39.30808-6/490824927_1091246506371204_6664277804586216558_n.jpg?stp=cp6_dst-jpg_tt6&_nc_cat=107&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeGTuWLJJkKr9I4QNoGHr66kzccotENfZIfNxyi0Q19kh1zsFJIuSPYxXnonfhGOdQiGxCOcESODV3neVBjgtW6C&_nc_ohc=YF0Slnx1t2EQ7kNvwGH663d&_nc_oc=AdlUCtIwAx5qknyKQF5C90wn-dyldKTbLlnP7s3EIP1zW-DkY3WjAzXQf4X_BjTsqYk&_nc_zt=23&_nc_ht=scontent.fmnl13-4.fna&_nc_gid=QPCo1LtzFfFJJtHmwlMrLg&oh=00_AfhY1npsiQbbzl1wr-PyKdCM8n93bwMTXcH-xWwq5C1bFg&oe=692267B7",
+        "https://scontent.fmnl8-2.fna.fbcdn.net/v/t39.30808-6/484298628_29038464732435436_3159077720027614874_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=cc71e4&_nc_eui2=AeFkBpI7zJ_ezY0bBd4gJO9pXch3auaVh0ddyHdq5pWHRxt1Kj0NgMUBGGFShLiHd7Tup0J34DSvdKvAhAi_7U4j&_nc_ohc=l5Mz5gLIx8QQ7kNvwEh6BEX&_nc_oc=AdnT8tvhmc06yfD0-O-MF2C8zcRCHro4HlEpHpHrnmXNKyJM1SJg_SBhWk_GOhcMhS8&_nc_zt=23&_nc_ht=scontent.fmnl8-2.fna&_nc_gid=gqy2uoKaGVjbfoyVQdS2bw&oh=00_AficiWXauCbcjXzz2BPBKxEQT63Ej_XnDJUGPf67cP9R6A&oe=692A0975",
       alt: "AutoStyles customized car 1",
     },
     {
       image:
-        "https://scontent.fmnl13-2.fna.fbcdn.net/v/t39.30808-6/487940910_1081000847395770_8161891473151918147_n.jpg?stp=cp6_dst-jpg_tt6&_nc_cat=111&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeFcsAr9F5A42dQpCgn9xq1NaWyDPGYJa8xpbIM8ZglrzAdwb_cmcPi1l5Vu_DGJxOWjUNtQHIr-zTS0JFweWcXG&_nc_ohc=0QDJ_fO3GygQ7kNvwEIWFWK&_nc_oc=AdkA9E_XrS2GRO9ol6ld8sKgy067pM8rl9vYLmK9Jhq9O8lveMJKApCKliHm8L6oRHY&_nc_zt=23&_nc_ht=scontent.fmnl13-2.fna&_nc_gid=L4qnljJ4IncSkuOFQPYXZw&oh=00_AfirrVoB6pYZDpldflysQtdbDvl4ufBMbnirkelAXT8WIA&oe=692249A7",
+        "https://scontent.fmnl8-4.fna.fbcdn.net/v/t39.30808-6/482000458_28975415192073724_2252981353448231833_n.jpg?_nc_cat=107&ccb=1-7&_nc_sid=cc71e4&_nc_eui2=AeFXzAxmC7btyEqL0CO6xgiNHuGhflA1Czce4aF-UDULN3srE33NsEtta-ICLg7yvTCKHo-9OUsto-CTwa11eA1z&_nc_ohc=xsziWt7PKlMQ7kNvwFUwkZO&_nc_oc=AdmjDk_HkwRgcJSSWmV7Iw15NzXH2P0iq4EStoxFzPK-QU6gJuh0brPI8Wyt5EZustA&_nc_zt=23&_nc_ht=scontent.fmnl8-4.fna&_nc_gid=y3-bhLIKQlQ9HRB0xvd_-A&oh=00_AfgrcZmOpxHFxav36GEn6S2wgW6_8wah32c98RBYIvAdMg&oe=692A2220",
       alt: "AutoStyles customized car 2",
     },
     {
       image:
-        "https://scontent.fmnl13-2.fna.fbcdn.net/v/t39.30808-6/485911645_1070834321745756_1832389509894947724_n.jpg?stp=cp6_dst-jpg_tt6&_nc_cat=111&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeEXdNMnYfSAzXZx_08eJoCT7pg2W6LoWWbumDZbouhZZlYYgecZdfThvkvmWIfqj6bSnsoTbexKCsmDym-bmqe4&_nc_ohc=NKwDQXUMVqoQ7kNvwGQ-hmY&_nc_oc=Adkt8l6EPhdnG9fS9tFGWX_n9EXn8R0IPL-cx6louP128iTzZZXuIR2-WO0IvPTxbjM&_nc_zt=23&_nc_ht=scontent.fmnl13-2.fna&_nc_gid=M9vi6uKIWz5CfgoPAfb8kg&oh=00_AfiPoOVO77kq1Fiyulj13EjXq0hpyI1VLkEeA4KYVWdGmg&oe=69226BAB",
+        "https://scontent.fmnl8-3.fna.fbcdn.net/v/t39.30808-6/465023409_27655031144112142_3665967185021494388_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=86c6b0&_nc_eui2=AeEwbavyAMLECCXPo6ot_uxSmNrdVDSG0FCY2t1UNIbQUHycStCouvOs1_PbPReqOugfDGxDyUfpBpDhe--G0QCS&_nc_ohc=bcL6bXpZOTUQ7kNvwG307dm&_nc_oc=Adm9kiRDhGsyYJOlaXiHrupmVObtF2ey87rBHfqG2_eZgG7wrBApDHoT2f_V980iWGw&_nc_zt=23&_nc_ht=scontent.fmnl8-3.fna&_nc_gid=_H4-KDmTFnFTc-juEMTTOA&oh=00_AfhqJl3bqup7KRjxnRnemqx9XMJFsHm0lyJrh86CUYNx9g&oe=692A10EB",
       alt: "AutoStyles customized car 3",
     },
     {
       image:
-        "https://scontent.fmnl13-4.fna.fbcdn.net/v/t39.30808-6/481701454_1059612626201259_1222920101485924553_n.jpg?_nc_cat=109&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeH4tntA8i8_tl--VTE_jVA5vGVogGi9ML28ZWiAaL0wvfcrVl0J0v6s6QfZz1_Qd2A28XNuSGJDeVGGrkzlR2RC&_nc_ohc=Rv2mTn7ZPskQ7kNvwHFpEZL&_nc_oc=AdlrqdjLt_il84pM4qxS80ZaFjw4CdsSnNbZi-VZLET3x3pO5NEqKmkJH6z0dl3QaBk&_nc_zt=23&_nc_ht=scontent.fmnl13-4.fna&_nc_gid=dyXjQKsVc67vnFKy-xg48g&oh=00_Afgq7DtD4fuxjhBO0uybhorRgMmHYs12QayIftHY2rsUWg&oe=692249D6",
+        "https://scontent.fmnl8-5.fna.fbcdn.net/v/t39.30808-6/464791060_27619171911031399_689624190105239636_n.jpg?_nc_cat=109&ccb=1-7&_nc_sid=86c6b0&_nc_eui2=AeESva9e3ULaE3B1TMKvLplPdrUB4mDpxK12tQHiYOnErZDQOshl34OFqIJGvgZrkM_V5Rg08BPOsVjHvXf7NBs6&_nc_ohc=BKf9Si7WK_EQ7kNvwEcW73K&_nc_oc=AdlGst4fQgHqezeQjJ8R8lEAdl91_KEPaxl62ml19Vnp-71CzyY17qdusv86fHpz840&_nc_zt=23&_nc_ht=scontent.fmnl8-5.fna&_nc_gid=j72uIo2NjxH2UXSEt9BKDQ&oh=00_AfifMhuuvU6VVtPl4lSVe2KslDoyDD78zhTk4IFZGogX6A&oe=692A0DB4",
       alt: "AutoStyles customized car 4",
     },
     {
       image:
-        "https://scontent.fmnl13-3.fna.fbcdn.net/v/t39.30808-6/481081596_1052923300203525_303428817841296234_n.jpg?_nc_cat=102&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeH26HUnpUue8sZYSREbi77l6jPYlFso35PqM9iUWyjfk9ByiKPFCV8Slfz0qr6PgZ3Tfr1syQIPmt_UhD-gLQVh&_nc_ohc=c-YyzdvOcWoQ7kNvwFAoMXs&_nc_oc=AdnrvBuhiOiUSRnOuQ2WzG8FiVzr1PL-CWGfOJrpufENnMBWnoUP2R6rHwmiRid_-YE&_nc_zt=23&_nc_ht=scontent.fmnl13-3.fna&_nc_gid=qCy6hnMOVjmylcXg0yI4Lg&oh=00_AfglnDhBymbNPFaxRM-N-_k1A2VtKlVdEu71205Xkn5C9Q&oe=69226059",
+        "https://scontent.fmnl8-1.fna.fbcdn.net/v/t39.30808-6/464155834_27563311703284087_7897004082253006181_n.jpg?_nc_cat=106&ccb=1-7&_nc_sid=86c6b0&_nc_eui2=AeH9o21uxEUh_VzzsIqPFiVbusXXNZNe0ja6xdc1k17SNnV5j3vjfHxMemK-5BmcrjfVNgzTVzTdLhIgys0JOYHU&_nc_ohc=Z-rm0TwGhF0Q7kNvwFHkLFZ&_nc_oc=AdnmgdXo5d-XmEh1iV6EHgcq12M3f7uTDtmWCfK85iVVf11hAE8KfDd0EMECIL7C46Y&_nc_zt=23&_nc_ht=scontent.fmnl8-1.fna&_nc_gid=V40ZAGCeZhx1KuVDV33HtQ&oh=00_AfiNQBs6dPLTcTwYXNofAL9ktaq4TBf5N4bnNwa0CphmOg&oe=692A22A2",
       alt: "AutoStyles customized car 5",
     },
   ];
@@ -204,6 +202,12 @@ export default function Home() {
                         width={500}
                         height={375}
                         priority={index === 0}
+                        unoptimized={true}
+                        onError={(e) => {
+                          // Silently fallback to placeholder background
+                          (e.target as HTMLImageElement).style.backgroundColor = '#e5e7eb';
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
                       />
                     </div>
                   ))}
