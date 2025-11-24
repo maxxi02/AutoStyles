@@ -145,7 +145,6 @@ const CustomizationPage: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   // Loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
-  const [snapshotCount, setSnapshotCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   // pricing rules
@@ -161,6 +160,15 @@ const CustomizationPage: React.FC = () => {
   }, []);
   // Load data from Firestore
   useEffect(() => {
+    let loadedCount = 0;
+    
+    const checkAllLoaded = () => {
+      loadedCount += 1;
+      if (loadedCount === 6) {
+        setIsDataLoading(false);
+      }
+    };
+
     const unsubscribeCarTypes = onSnapshot(
       collection(db, "carTypes"),
       (snapshot) => {
@@ -168,13 +176,7 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as CarType
         );
         setCarTypes(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 5) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
+        checkAllLoaded();
       }
     );
     const unsubscribeCarModels = onSnapshot(
@@ -184,13 +186,7 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as CarModel
         );
         setCarModels(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 5) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
+        checkAllLoaded();
       }
     );
     const unsubscribePaintColors = onSnapshot(
@@ -200,13 +196,7 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as PaintColor
         );
         setPaintColors(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 5) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
+        checkAllLoaded();
       }
     );
     const unsubscribeWheels = onSnapshot(
@@ -216,13 +206,7 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as Wheel
         );
         setWheels(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 5) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
+        checkAllLoaded();
       }
     );
     const unsubscribeInteriors = onSnapshot(
@@ -232,13 +216,7 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as Interior
         );
         setInteriors(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 5) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
+        checkAllLoaded();
       }
     );
     const unsubscribePricingRules = onSnapshot(
@@ -249,13 +227,7 @@ const CustomizationPage: React.FC = () => {
         );
         // Only show active rules to customers
         setPricingRules(data.filter((rule) => rule.isActive));
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 6) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
+        checkAllLoaded();
       }
     );
     return () => {
