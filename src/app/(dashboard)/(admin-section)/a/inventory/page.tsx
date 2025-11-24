@@ -146,7 +146,6 @@ const InventoryContent: React.FC = () => {
   const [interiors, setInteriors] = useState<Interior[]>([]);
 
   // State for modals
-  const [isCarTypeDialogOpen, setIsCarTypeDialogOpen] = useState(false);
   const [isCarModelDialogOpen, setIsCarModelDialogOpen] = useState(false);
   const [isPaintColorDialogOpen, setIsPaintColorDialogOpen] = useState(false);
   const [isWheelDialogOpen, setIsWheelDialogOpen] = useState(false);
@@ -165,7 +164,6 @@ const InventoryContent: React.FC = () => {
   const [editingInterior, setEditingInterior] = useState<Interior | null>(null);
 
   // Loading states for operations
-  const [carTypePending, setCarTypePending] = useState(false);
   const [carModelPending, setCarModelPending] = useState(false);
   const [paintColorPending, setPaintColorPending] = useState(false);
   const [wheelPending, setWheelPending] = useState(false);
@@ -193,7 +191,6 @@ const InventoryContent: React.FC = () => {
 
   // Initial data loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
-  const [snapshotCount, setSnapshotCount] = useState(0);
 
   const getStockStatus = (inventory: number) => {
     if (inventory === 0) return { text: "Out of Stock", color: "text-red-600" };
@@ -209,13 +206,7 @@ const InventoryContent: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as CarType
         );
         setCarTypes(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 4) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
+        setIsDataLoading(false);
       }
     );
 
@@ -226,13 +217,6 @@ const InventoryContent: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as CarModel
         );
         setCarModels(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 4) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
       }
     );
 
@@ -243,13 +227,6 @@ const InventoryContent: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as PaintColor
         );
         setPaintColors(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 4) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
       }
     );
 
@@ -260,13 +237,6 @@ const InventoryContent: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as Wheel
         );
         setWheels(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 4) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
       }
     );
 
@@ -277,13 +247,6 @@ const InventoryContent: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as Interior
         );
         setInteriors(data);
-        setSnapshotCount((prev) => {
-          const next = prev + 1;
-          if (next === 4) {
-            setIsDataLoading(false);
-          }
-          return next;
-        });
       }
     );
 
@@ -333,37 +296,6 @@ const InventoryContent: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [searchParams]);
-
-  const handleAddOrUpdateCarType = async () => {
-    setCarTypePending(true);
-    try {
-      const carTypeData: CarTypeData = {
-        name: newCarType.name || "",
-      };
-      if (editingCarType) {
-        const carTypeRef = doc(db, "carTypes", editingCarType.id);
-        await updateDoc(carTypeRef, carTypeData);
-        toast.success("Car type updated successfully");
-      } else {
-        await addDoc(collection(db, "carTypes"), carTypeData);
-        toast.success("Car type added successfully");
-      }
-      setIsCarTypeDialogOpen(false);
-      setNewCarType({});
-      setEditingCarType(null);
-    } catch (error) {
-      console.error("Error adding/updating car type:", error);
-      toast.error("Failed to add/update car type");
-    } finally {
-      setCarTypePending(false);
-    }
-  };
-
-  const openAddCarType = () => {
-    setEditingCarType(null);
-    setNewCarType({});
-    setIsCarTypeDialogOpen(true);
-  };
 
   const handleDeleteCarType = async (carTypeId: string) => {
     try {
@@ -431,8 +363,7 @@ const InventoryContent: React.FC = () => {
   };
 
   const handleSideImageUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    index: number
+    e: React.ChangeEvent<HTMLInputElement>
   ) => {
     toast.error("Image uploads are only allowed for car models");
     // Clear the file input
