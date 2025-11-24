@@ -11,8 +11,6 @@ interface DeviceSession {
   loginTime: number;
   lastActivityTime: number;
   isActive: boolean;
-  pendingInvalidation?: boolean; // Flag for devices waiting to be invalidated
-  invalidationScheduledAt?: number; // When the invalidation was scheduled
 }
 
 /**
@@ -80,8 +78,6 @@ export async function POST(request: NextRequest) {
       loginTime: isRefresh ? existingDeviceSession.loginTime : Date.now(), // Keep original login time if refresh
       lastActivityTime: Date.now(),
       isActive: true,
-      // IMPORTANT: Clear pending invalidation on refresh - this session is staying active
-      pendingInvalidation: false,
     };
 
     // ONLY invalidate other sessions if this is a NEW device (not a refresh)
@@ -206,12 +202,11 @@ export async function GET(request: NextRequest) {
     const currentSession = sessions[sessionKey];
 
     // Check if session is active
-    // Note: pendingInvalidation does NOT make session invalid yet - it's still active!
     if (!currentSession || !currentSession.isActive) {
-      console.log("[Device Session] Session invalidated for device", deviceId, "user", uid);
+      console.log("[Device Session] Session not found or inactive for device", deviceId, "user", uid);
       return NextResponse.json(
         {
-          error: "Session is not active. You have been logged out from another device.",
+          error: "Session is not active.",
           isValid: false,
           reason: "SESSION_INVALIDATED",
         },
@@ -219,10 +214,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Session is still valid even if pending invalidation (grace period)
-    if (currentSession.pendingInvalidation) {
-      console.log("[Device Session] Device", deviceId, "user", uid, "is in grace period (pending invalidation)");
-    }
+    // Session is valid
+    console.log("[Device Session] Session valid for device", deviceId, "user", uid);
 
     // Update last activity time
     await userSessionsRef.update({

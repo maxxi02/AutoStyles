@@ -123,10 +123,9 @@ export async function POST(request: NextRequest) {
     const isRefresh = existingSession && existingSession.isActive;
 
     if (isRefresh) {
-      // Device already registered - just update timestamp and clear pending flag
+      // Device already registered - just update timestamp
       existingSession.timestamp = Date.now();
-      existingSession.pendingInvalidation = false; // Clear pending invalidation on refresh
-      console.log("[Fallback] Device", deviceId, "is refreshing for user", userId, "- NOT invalidating others (already registered)");
+      console.log("[Fallback] Device", deviceId, "is refreshing for user", userId);
     } else {
       // New device - just register it without invalidating other devices
       // AUTOMATIC LOGOUT DISABLED - all devices of same user can stay active simultaneously
@@ -135,7 +134,7 @@ export async function POST(request: NextRequest) {
         isActive: true,
       });
 
-      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- All other devices remain active (auto-logout disabled)");
+      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- All other devices remain active");
     }
 
     deviceSessions.set(userId, userSessions);
