@@ -3,13 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// Store active SSE connections: deviceId -> ResponseWithContext
+// Store active SSE connections: userId:deviceId -> ResponseWithContext
+// Using composite key to prevent different users with same deviceId from colliding
 const activeConnections = new Map<
   string,
   {
     respond: (data: string) => void;
     close: () => void;
     userId: string;
+    deviceId: string;
   }
 >();
 
@@ -133,12 +135,14 @@ export async function GET(request: NextRequest) {
           },
         };
 
-        activeConnections.set(deviceId, {
+        const connectionKey = `${userId}:${deviceId}`;
+        activeConnections.set(connectionKey, {
           ...connection,
           userId: userId!,
+          deviceId: deviceId!,
         });
 
-        console.log("[SSE] New connection established for device:", deviceId, "user:", userId);
+        console.log("[SSE] New connection established for user:", userId, "device:", deviceId, "key:", connectionKey);
 
         // Send heartbeat to keep connection alive
         const heartbeatInterval = setInterval(() => {
@@ -149,20 +153,20 @@ export async function GET(request: NextRequest) {
               console.error("[SSE] Heartbeat error:", error);
               isConnected = false;
               clearInterval(heartbeatInterval);
-              activeConnections.delete(deviceId);
+              activeConnections.delete(connectionKey);
             }
           } else {
             clearInterval(heartbeatInterval);
-            activeConnections.delete(deviceId);
+            activeConnections.delete(connectionKey);
           }
         }, 30000); // Heartbeat every 30 seconds
 
         // Handle client disconnect
         request.signal.addEventListener("abort", () => {
-          console.log("[SSE] Client disconnected:", deviceId);
+          console.log("[SSE] Client disconnected - user:", userId, "device:", deviceId, "key:", connectionKey);
           isConnected = false;
           clearInterval(heartbeatInterval);
-          activeConnections.delete(deviceId);
+          activeConnections.delete(connectionKey);
           try {
             controller.close();
           } catch (error) {
@@ -209,10 +213,10 @@ export async function POST(request: NextRequest) {
 
     // Notify all connected devices for this user (except the one that triggered the invalidation)
     let notifiedCount = 0;
-    activeConnections.forEach((connection, deviceId) => {
-      // Skip if it's the device that just logged in (should be excluded)
-      if (connection.userId === userId && deviceId !== excludeDeviceId) {
-        console.log("[SSE] Notifying device:", deviceId, "userId:", userId, "(excluded:", excludeDeviceId, ")");
+    activeConnections.forEach((connection, connectionKey) => {
+      // Only notify if it's the same user AND NOT the excluded device
+      if (connection.userId === userId && connection.deviceId !== excludeDeviceId) {
+        console.log("[SSE] Notifying connection:", connectionKey, "user:", userId, "device:", connection.deviceId, "(excluded:", excludeDeviceId, ")");
         const data = JSON.stringify({
           type: "SESSION_INVALIDATED",
           message: "Your session has been invalidated from another device",
@@ -220,12 +224,12 @@ export async function POST(request: NextRequest) {
         });
         connection.respond(data);
         notifiedCount++;
-      } else if (deviceId === excludeDeviceId) {
-        console.log("[SSE] Skipping excluded device:", excludeDeviceId);
+      } else if (connection.deviceId === excludeDeviceId) {
+        console.log("[SSE] Skipping excluded device:", excludeDeviceId, "key:", connectionKey);
       }
     });
 
-    console.log("[SSE] Notified", notifiedCount, "connected devices (excluded:", excludeDeviceId, ")");
+    console.log("[SSE] Notified", notifiedCount, "connected devices for user", userId, "(excluded:", excludeDeviceId, ")");
 
     return NextResponse.json(
       {
