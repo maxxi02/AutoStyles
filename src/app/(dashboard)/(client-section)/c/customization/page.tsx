@@ -227,17 +227,19 @@ const CustomizationPage: React.FC = () => {
 
   // Check when all data is loaded
   useEffect(() => {
-    if (
+    // Only mark as loaded when we have actual data from collections
+    // pricingRules can be empty (no active rules), so just check it's not undefined
+    const allDataLoaded =
       carTypes.length > 0 &&
       carModels.length > 0 &&
       paintColors.length > 0 &&
       wheels.length > 0 &&
-      interiors.length > 0 &&
-      pricingRules.length >= 0
-    ) {
+      interiors.length > 0;
+
+    if (allDataLoaded) {
       setIsDataLoading(false);
     }
-  }, [carTypes, carModels, paintColors, wheels, interiors, pricingRules]);
+  }, [carTypes.length, carModels.length, paintColors.length, wheels.length, interiors.length]);
   const getUserDetails = async (userId: string) => {
     try {
       const userDocRef = doc(db, "users", userId);
