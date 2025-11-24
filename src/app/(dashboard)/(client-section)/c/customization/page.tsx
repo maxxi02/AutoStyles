@@ -337,7 +337,6 @@ const CustomizationPage: React.FC = () => {
     if (history.length > 0) {
       const previousState = history[history.length - 1];
       setHistory((prev) => prev.slice(0, -1));
-      setCurrentState(previousState);
       setSelectedTypeId(previousState.typeId);
       setSelectedModelId(previousState.modelId);
       setSelectedColorId(previousState.colorId);
