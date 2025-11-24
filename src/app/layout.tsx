@@ -1,3 +1,4 @@
+import { LogoutTransition } from "@/components/logout-transition";
 import { SessionCheck } from "@/components/session-check";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -37,6 +38,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <SessionCheck />
+          <LogoutTransition />
           {children}
           <Toaster position="top-center" />
         </ThemeProvider>
