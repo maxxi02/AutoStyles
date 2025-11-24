@@ -30,15 +30,18 @@ export async function POST(request: NextRequest) {
 
     // Check if Firebase Admin SDK is initialized
     if (!adminAuth || !adminDb) {
-      console.warn("Firebase Admin SDK not initialized. Skipping device session registration.");
-      return NextResponse.json(
+      console.warn("Firebase Admin SDK not initialized. Using fallback endpoint.");
+      // Forward to fallback endpoint
+      const fallbackResponse = await fetch(
+        new URL("/api/device-session-fallback", request.url),
         {
-          success: true,
-          message: "Device session registration skipped - Firebase Admin SDK not configured",
-          sessionId: deviceId,
-        },
-        { status: 200 }
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, deviceId, fingerprint, userAgent }),
+        }
       );
+      const fallbackData = await fallbackResponse.json();
+      return NextResponse.json(fallbackData, { status: fallbackResponse.status });
     }
 
     // Verify the token
@@ -82,6 +85,8 @@ export async function POST(request: NextRequest) {
 
     // Update Firestore
     await userSessionsRef.set(updatedSessions, { merge: true });
+
+    console.log("[Device Session] Registered device", deviceId, "for user", uid, "- Invalidated", Object.keys(updatedSessions).length - 1, "others");
 
     return NextResponse.json(
       {
@@ -128,16 +133,21 @@ export async function GET(request: NextRequest) {
 
     // Check if Firebase Admin SDK is initialized
     if (!adminAuth || !adminDb) {
-      console.warn("Firebase Admin SDK not initialized. Allowing access.");
-      return NextResponse.json(
+      console.warn("Firebase Admin SDK not initialized. Using fallback endpoint.");
+      // Forward to fallback endpoint
+      const fallbackResponse = await fetch(
+        new URL("/api/device-session-fallback", request.url),
         {
-          success: true,
-          isValid: true,
-          uid: "unknown",
-          email: "unknown",
-        },
-        { status: 200 }
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "x-device-id": deviceId,
+          },
+        }
       );
+      const fallbackData = await fallbackResponse.json();
+      return NextResponse.json(fallbackData, { status: fallbackResponse.status });
     }
 
     // Verify the token
@@ -168,6 +178,7 @@ export async function GET(request: NextRequest) {
     const currentSession = sessions[deviceId];
 
     if (!currentSession || !currentSession.isActive) {
+      console.log("[Device Session] Session invalidated for device", deviceId, "user", uid);
       return NextResponse.json(
         {
           error: "Session is not active. You have been logged out from another device.",
@@ -229,11 +240,18 @@ export async function DELETE(request: NextRequest) {
 
     // Check if Firebase Admin SDK is initialized
     if (!adminAuth || !adminDb) {
-      console.warn("Firebase Admin SDK not initialized. Skipping device session logout.");
-      return NextResponse.json(
-        { success: true, message: "Device session logged out successfully" },
-        { status: 200 }
+      console.warn("Firebase Admin SDK not initialized. Using fallback endpoint.");
+      // Forward to fallback endpoint
+      const fallbackResponse = await fetch(
+        new URL("/api/device-session-fallback", request.url),
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, deviceId }),
+        }
       );
+      const fallbackData = await fallbackResponse.json();
+      return NextResponse.json(fallbackData, { status: fallbackResponse.status });
     }
 
     // Verify the token
@@ -253,6 +271,8 @@ export async function DELETE(request: NextRequest) {
       [`${deviceId}.isActive`]: false,
       [`${deviceId}.logoutTime`]: Date.now(),
     });
+
+    console.log("[Device Session] Logged out device", deviceId, "for user", uid);
 
     return NextResponse.json(
       { success: true, message: "Device session logged out successfully" },
