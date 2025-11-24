@@ -44,12 +44,10 @@ export function SessionCheck({
       duration: 5000,
     });
 
-    try {
-      await auth.signOut();
-    } catch (signOutError) {
-      console.debug("[SessionCheck] Error signing out:", signOutError);
-    }
-
+    // Don't use auth.signOut() because it affects global auth state and can logout other accounts
+    // Just redirect - the next navigation will detect invalid session via GET /api/device-session
+    // and the server will handle the logout
+    
     // Redirect immediately
     router.push("/login?message=logged_out_from_another_device");
   }, [router]);
