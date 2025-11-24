@@ -11,25 +11,27 @@ interface SessionCheckProps {
 
 /**
  * SessionCheck Component
- * Uses Server-Sent Events (SSE) for real-time session invalidation notifications
- * Falls back to polling if SSE connection fails
+ * Real-time monitoring for session invalidation using SSE + aggressive polling
+ * Ensures instant logout without refresh when another device logs in
  */
 export function SessionCheck({
-  checkInterval = 5000, // Fallback poll interval
+  checkInterval = 1000, // Very aggressive 1-second polling
 }: SessionCheckProps) {
   const router = useRouter();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const sseRef = useRef<EventSource | null>(null);
   const hasLoggedOutRef = useRef<boolean>(false);
+  const lastCheckRef = useRef<number>(0);
 
   const handleLogout = useCallback(async () => {
     if (hasLoggedOutRef.current) return;
-    
+
     hasLoggedOutRef.current = true;
-    
-    // Clear intervals and connections
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+
+    // Clear all timers and connections
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
     if (sseRef.current) {
       sseRef.current.close();
@@ -45,32 +47,32 @@ export function SessionCheck({
     try {
       await auth.signOut();
     } catch (signOutError) {
-      console.debug("Error signing out:", signOutError);
+      console.debug("[SessionCheck] Error signing out:", signOutError);
     }
 
-    // Redirect to login
+    // Redirect immediately
     router.push("/login?message=logged_out_from_another_device");
   }, [router]);
 
-  const checkSessionPoll = useCallback(async () => {
+  // Aggressive polling check - runs every 1 second
+  const checkSessionImmediately = useCallback(async () => {
     if (hasLoggedOutRef.current) return;
+
+    // Throttle to prevent duplicate checks within 500ms
+    const now = Date.now();
+    if (now - lastCheckRef.current < 500) return;
+    lastCheckRef.current = now;
 
     try {
       const user = auth.currentUser;
-      if (!user) {
-        console.debug("[SessionCheck] No current user");
-        return;
-      }
+      if (!user) return;
 
       const token = await user.getIdToken(false);
       const cookies = document.cookie.split("; ");
       const deviceIdCookie = cookies.find((row) => row.startsWith("deviceId="));
       const deviceId = deviceIdCookie?.split("=")[1];
 
-      if (!deviceId) {
-        console.debug("[SessionCheck] No device ID");
-        return;
-      }
+      if (!deviceId) return;
 
       const response = await fetch("/api/device-session", {
         method: "GET",
@@ -79,105 +81,90 @@ export function SessionCheck({
           Authorization: `Bearer ${token}`,
           "x-device-id": deviceId,
         },
+        // Don't cache this request
+        cache: "no-store",
       });
 
       const data = await response.json().catch(() => ({}));
 
+      // Immediate logout if session invalid
       if (data.reason === "SESSION_INVALIDATED" || !data.isValid) {
-        console.warn("[SessionCheck] Session invalidated (polling)");
+        console.warn("[SessionCheck] Session invalid - logging out immediately");
         await handleLogout();
-        return;
       }
     } catch (error) {
-      if (error instanceof Error) {
-        console.debug("[SessionCheck] Poll error:", error.message);
-      }
+      console.debug("[SessionCheck] Check error:", error);
     }
   }, [handleLogout]);
 
-  const setupSSE = useCallback(async () => {
-    if (sseRef.current) return; // Already connected
+  // Setup SSE for real-time notifications
+  const setupSSE = useCallback(() => {
+    if (sseRef.current) return;
     if (hasLoggedOutRef.current) return;
 
     try {
       const user = auth.currentUser;
-      if (!user) {
-        console.debug("[SessionCheck] No current user for SSE");
-        return;
-      }
+      if (!user) return;
 
-      const token = await user.getIdToken(false);
-      const cookies = document.cookie.split("; ");
-      const deviceIdCookie = cookies.find((row) => row.startsWith("deviceId="));
-      const deviceId = deviceIdCookie?.split("=")[1];
+      // Get token synchronously from cache
+      user.getIdToken(false).then((token) => {
+        const cookies = document.cookie.split("; ");
+        const deviceIdCookie = cookies.find((row) => row.startsWith("deviceId="));
+        const deviceId = deviceIdCookie?.split("=")[1];
 
-      if (!deviceId) {
-        console.debug("[SessionCheck] No device ID for SSE");
-        return;
-      }
+        if (!deviceId) return;
 
-      // Create SSE connection
-      const sse = new EventSource(
-        `/api/device-session-notify?deviceId=${deviceId}&token=${encodeURIComponent(token)}`
-      );
+        console.log("[SessionCheck] Opening SSE connection...");
 
-      sse.addEventListener("SESSION_INVALIDATED", () => {
-        console.log("[SessionCheck] Received SESSION_INVALIDATED via SSE");
-        handleLogout();
+        const sse = new EventSource(
+          `/api/device-session-notify?deviceId=${deviceId}&token=${encodeURIComponent(token)}`
+        );
+
+        // Immediate logout on SSE invalidation event
+        sse.addEventListener("SESSION_INVALIDATED", () => {
+          console.log("[SessionCheck] 🔴 Received SESSION_INVALIDATED via SSE - instant logout");
+          handleLogout();
+        });
+
+        sse.addEventListener("CONNECTED", () => {
+          console.log("[SessionCheck] ✅ SSE connected");
+        });
+
+        sse.onerror = () => {
+          console.error("[SessionCheck] SSE error - falling back to polling");
+          sse.close();
+          sseRef.current = null;
+        };
+
+        sseRef.current = sse;
       });
-
-      sse.addEventListener("CONNECTED", () => {
-        console.log("[SessionCheck] SSE connection established");
-      });
-
-      sse.onerror = (error) => {
-        console.error("[SessionCheck] SSE connection error:", error);
-        sseRef.current = null;
-        sse.close();
-        
-        // Fall back to polling on SSE failure
-        if (!hasLoggedOutRef.current && !intervalRef.current) {
-          console.log("[SessionCheck] Falling back to polling");
-          intervalRef.current = setInterval(() => {
-            if (!hasLoggedOutRef.current) {
-              checkSessionPoll();
-            }
-          }, checkInterval);
-        }
-      };
-
-      sseRef.current = sse;
-      console.log("[SessionCheck] SSE connection initiated");
     } catch (error) {
       console.error("[SessionCheck] SSE setup error:", error);
-      // Fall back to polling
-      if (!hasLoggedOutRef.current && !intervalRef.current) {
-        intervalRef.current = setInterval(() => {
-          if (!hasLoggedOutRef.current) {
-            checkSessionPoll();
-          }
-        }, checkInterval);
-      }
     }
-  }, [handleLogout, checkSessionPoll, checkInterval]);
+  }, [handleLogout]);
 
   useEffect(() => {
-    // Initial check
-    const initialTimeout = setTimeout(() => {
-      setupSSE();
-      checkSessionPoll(); // Also do initial poll
-    }, 500);
+    // Setup SSE immediately
+    setupSSE();
+
+    // Start aggressive polling immediately (1 second)
+    console.log("[SessionCheck] Starting 1-second polling...");
+    pollingIntervalRef.current = setInterval(() => {
+      checkSessionImmediately();
+    }, checkInterval);
+
+    // Also do immediate check on mount
+    checkSessionImmediately();
 
     return () => {
-      clearTimeout(initialTimeout);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
       }
       if (sseRef.current) {
         sseRef.current.close();
       }
     };
-  }, [setupSSE, checkSessionPoll]);
+  }, [setupSSE, checkSessionImmediately, checkInterval]);
 
   return null;
 }
