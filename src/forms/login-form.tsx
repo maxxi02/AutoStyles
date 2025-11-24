@@ -210,7 +210,9 @@ export function LoginForm({
     const expires = new Date(
       Date.now() + 7 * 24 * 60 * 60 * 1000
     ).toUTCString();
-    document.cookie = `${name}=${value}; path=/; expires=${expires}; SameSite=Strict; Secure`;
+    // Use SameSite=Lax for better compatibility, Secure for HTTPS
+    const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `${name}=${value}; path=/; expires=${expires}; SameSite=Lax${isSecure}`;
   };
 
   const handleSuccessLogin = async (user: User) => {

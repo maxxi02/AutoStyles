@@ -106,10 +106,20 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get("authorization")?.split("Bearer ")[1];
-    const deviceId = request.headers.get("x-device-id");
+    // Try to get token from Authorization header first, then from cookies
+    let token: string | null = request.headers.get("authorization")?.split("Bearer ")[1] || null;
+    if (!token) {
+      token = request.cookies.get("authToken")?.value || null;
+    }
+    
+    // Try to get deviceId from header first, then from cookies
+    let deviceId: string | null = request.headers.get("x-device-id") || null;
+    if (!deviceId) {
+      deviceId = request.cookies.get("deviceId")?.value || null;
+    }
 
     if (!token || !deviceId) {
+      console.warn("Missing token or device ID - token:", token ? "exists" : "missing", "deviceId:", deviceId ? "exists" : "missing");
       return NextResponse.json(
         { error: "Missing token or device ID", isValid: false },
         { status: 401 }
@@ -197,7 +207,18 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const { token, deviceId } = await request.json();
+    // Get from request body (client sends these)
+    const body = await request.json();
+    let token = body.token;
+    let deviceId = body.deviceId;
+    
+    // Fallback to cookies if not in body
+    if (!token) {
+      token = request.cookies.get("authToken")?.value;
+    }
+    if (!deviceId) {
+      deviceId = request.cookies.get("deviceId")?.value;
+    }
 
     if (!token || !deviceId) {
       return NextResponse.json(
