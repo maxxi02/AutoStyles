@@ -1,36 +1,34 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import {
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
+import { db } from "@/lib/firebase";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  updateDoc,
+} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
+  CardFooter,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card";
-import { Loader2, RefreshCw, Download } from "lucide-react";
-import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -39,10 +37,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import * as XLSX from "xlsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { Download, Loader2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 interface PayMongoPayment {
   id: string;
@@ -132,7 +132,12 @@ const CashierPage: React.FC = () => {
         setCurrentPage(1);
         toast.success("Payments loaded successfully");
       } else {
-        toast.error(data.error || "Failed to load payments");
+        // Check if it's a configuration missing error
+        if (data.error?.includes("configuration")) {
+          console.warn("PayMongo not configured");
+        } else {
+          toast.error(data.error || "Failed to load payments");
+        }
       }
     } catch (error) {
       console.error("Error fetching payments:", error);
@@ -559,7 +564,10 @@ const CashierPage: React.FC = () => {
                 </div>
               ) : payments.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-muted-foreground">No payments found</p>
+                  <p className="text-muted-foreground mb-4">No payments found</p>
+                  <p className="text-sm text-muted-foreground">
+                    PayMongo payment processing is not configured for this system.
+                  </p>
                 </div>
               ) : (
                 <div>
