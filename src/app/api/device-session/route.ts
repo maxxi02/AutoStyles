@@ -96,10 +96,13 @@ export async function POST(request: NextRequest) {
       updatedSessions[sessionKey] = newSession;
       console.log("[Device Session] User", uid, "refreshing device", deviceId, "- NOT invalidating others");
     } else {
-      // New device for this user - mark all other devices as PENDING invalidation
+      // New device for this user - mark all other devices of THIS USER as PENDING invalidation
+      // IMPORTANT: Different accounts are never affected because each user has their own Firestore document
       Object.entries(existingSessions).forEach(([key, session]) => {
-        if (key !== sessionKey && session.isActive) {
-          // Mark as pending invalidation but keep active
+        // Extract deviceId from composite key (format: uid:deviceId)
+        const existingDeviceId = key.split(":")[1];
+        if (existingDeviceId !== deviceId && session.isActive) {
+          // Mark as pending invalidation but keep active for 30 seconds
           invalidatedSessions.push(key);
           updatedSessions[key] = { 
             ...session, 

@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
       console.log("[Fallback] Device", deviceId, "is refreshing for user", userId, "- NOT invalidating others (already registered)");
     } else {
       // New device - mark all OTHER ACTIVE sessions for THIS user as PENDING invalidation
+      // IMPORTANT: Different users have separate session maps, so different accounts never interfere
       userSessions.forEach((session, dId) => {
         if (session.isActive && dId !== deviceId) {
           const otherSessionKey = `${userId}:${dId}`;
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
         isActive: true,
       });
 
-      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- Marked", invalidatedSessions.length, "sessions for delayed invalidation");
+      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- Marked", invalidatedSessions.length, "other devices for delayed invalidation");
     }
 
     deviceSessions.set(userId, userSessions);
