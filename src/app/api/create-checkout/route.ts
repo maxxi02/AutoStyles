@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const PAYMONGO_SECRET_KEY = process.env.NEXT_PUBLIC_PAYMONGO_SECRET_KEY;
+    const PAYMONGO_SECRET_KEY = process.env.PAYMONGO_SECRET_KEY;
     if (!PAYMONGO_SECRET_KEY) {
       console.error("PAYMONGO_SECRET_KEY is not configured");
       return NextResponse.json(

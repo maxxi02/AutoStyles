@@ -50,7 +50,7 @@ interface CarType {
   name: string;
 }
 
-type CarTypeData = Omit<CarType, "id">;
+// type CarTypeData = Omit<CarType, "id">;
 
 interface CarModel {
   id: string;
@@ -155,7 +155,6 @@ const InventoryContent: React.FC = () => {
   const [showDeleteCarTypeConfirm, setShowDeleteCarTypeConfirm] = useState(false);
   const [carTypeToDeleteName, setCarTypeToDeleteName] = useState("");
 
-  const [editingCarType, setEditingCarType] = useState<CarType | null>(null);
   const [editingCarModel, setEditingCarModel] = useState<CarModel | null>(null);
   const [editingPaintColor, setEditingPaintColor] = useState<PaintColor | null>(
     null
@@ -170,7 +169,6 @@ const InventoryContent: React.FC = () => {
   const [interiorPending, setInteriorPending] = useState(false);
 
   // Form states
-  const [newCarType, setNewCarType] = useState<Partial<CarTypeData>>({});
   const [newCarModel, setNewCarModel] = useState<Partial<CarModelData>>({});
   const [newPaintColor, setNewPaintColor] = useState<Partial<PaintColorData>>(
     {}
@@ -1276,7 +1274,7 @@ const InventoryContent: React.FC = () => {
                                     type="file"
                                     accept="image/*"
                                     onChange={(e) =>
-                                      handleSideImageUpload(e, index)
+                                      handleSideImageUpload(e)
                                     }
                                     disabled={true}
                                   />

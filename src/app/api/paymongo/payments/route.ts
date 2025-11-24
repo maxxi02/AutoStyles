@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PAYMONGO_SECRET_KEY = process.env.NEXT_PUBLIC_PAYMONGO_SECRET_KEY;
+const PAYMONGO_SECRET_KEY = process.env.PAYMONGO_SECRET_KEY;
 
 export async function GET(req: NextRequest) {
   try {

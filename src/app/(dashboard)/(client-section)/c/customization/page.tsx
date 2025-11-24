@@ -357,6 +357,7 @@ const CustomizationPage: React.FC = () => {
     selectedColorId,
     selectedWheelId,
     selectedInteriorId,
+    currentState,
   ]);
   // Reset image index when color changes
   useEffect(() => {
@@ -466,7 +467,7 @@ const CustomizationPage: React.FC = () => {
           discountAmount: discountAmount,
         };
       }
-      const transactionRef = await addDoc(
+      await addDoc(
         collection(db, "transactions"),
         transactionData
       );
