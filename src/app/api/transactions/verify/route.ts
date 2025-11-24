@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const transactionRef = adminDb
+    const transactionRef = adminDb!
       .collection("transactions")
       .doc(transactionId);
     const transactionSnap = await transactionRef.get();
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
     batch.update(transactionRef, transactionUpdate);
 
     // Update all appointments for this transaction
-    const appointmentsSnapshot = await adminDb
+    const appointmentsSnapshot = await adminDb!
       .collection("appointments")
       .where("transactionId", "==", transactionId)
       .get();

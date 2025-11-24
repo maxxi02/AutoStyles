@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No token provided" }, { status: 401 });
     }
 
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    const decodedToken = await adminAuth!.verifyIdToken(token);
 
     return NextResponse.json({
       uid: decodedToken.uid,
