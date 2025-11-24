@@ -6,27 +6,34 @@ import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 interface SessionCheckProps {
-  checkInterval?: number; // milliseconds, default 30 seconds
+  checkInterval?: number; // milliseconds for fallback polling
 }
 
 /**
  * SessionCheck Component
- * Periodically verifies if the current device session is still active
- * Redirects to login if the session has been invalidated from another device
+ * Uses Server-Sent Events (SSE) for real-time session invalidation notifications
+ * Falls back to polling if SSE connection fails
  */
 export function SessionCheck({
-  checkInterval = 5000, // Check every 5 seconds for faster responsiveness
+  checkInterval = 5000, // Fallback poll interval
 }: SessionCheckProps) {
   const router = useRouter();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const sseRef = useRef<EventSource | null>(null);
   const hasLoggedOutRef = useRef<boolean>(false);
 
   const handleLogout = useCallback(async () => {
     if (hasLoggedOutRef.current) return;
     
     hasLoggedOutRef.current = true;
+    
+    // Clear intervals and connections
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
+    }
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
     }
 
     toast.error("Session Invalidated", {
@@ -41,12 +48,11 @@ export function SessionCheck({
       console.debug("Error signing out:", signOutError);
     }
 
-    // Small delay to ensure logout is processed before redirect
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Redirect to login
     router.push("/login?message=logged_out_from_another_device");
   }, [router]);
 
-  const checkSession = useCallback(async () => {
+  const checkSessionPoll = useCallback(async () => {
     if (hasLoggedOutRef.current) return;
 
     try {
@@ -56,7 +62,7 @@ export function SessionCheck({
         return;
       }
 
-      const token = await user.getIdToken(false); // Get cached token first
+      const token = await user.getIdToken(false);
       const cookies = document.cookie.split("; ");
       const deviceIdCookie = cookies.find((row) => row.startsWith("deviceId="));
       const deviceId = deviceIdCookie?.split("=")[1];
@@ -77,46 +83,101 @@ export function SessionCheck({
 
       const data = await response.json().catch(() => ({}));
 
-      // Check if session was invalidated
       if (data.reason === "SESSION_INVALIDATED" || !data.isValid) {
-        console.warn("[SessionCheck] Session invalidated");
+        console.warn("[SessionCheck] Session invalidated (polling)");
         await handleLogout();
-        return;
-      }
-
-      if (!response.ok) {
-        console.debug("[SessionCheck] Response not OK:", response.status);
         return;
       }
     } catch (error) {
       if (error instanceof Error) {
-        console.debug("[SessionCheck] Error:", error.message);
+        console.debug("[SessionCheck] Poll error:", error.message);
       }
     }
   }, [handleLogout]);
 
-  useEffect(() => {
-    // Initial check after minimal delay
-    const initialTimeout = setTimeout(() => {
-      checkSession();
-    }, 500);
+  const setupSSE = useCallback(async () => {
+    if (sseRef.current) return; // Already connected
+    if (hasLoggedOutRef.current) return;
 
-    // Set up periodic checks with faster interval
-    if (!hasLoggedOutRef.current) {
-      intervalRef.current = setInterval(() => {
-        if (!hasLoggedOutRef.current) {
-          checkSession();
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        console.debug("[SessionCheck] No current user for SSE");
+        return;
+      }
+
+      const token = await user.getIdToken(false);
+      const cookies = document.cookie.split("; ");
+      const deviceIdCookie = cookies.find((row) => row.startsWith("deviceId="));
+      const deviceId = deviceIdCookie?.split("=")[1];
+
+      if (!deviceId) {
+        console.debug("[SessionCheck] No device ID for SSE");
+        return;
+      }
+
+      // Create SSE connection
+      const sse = new EventSource(
+        `/api/device-session-notify?deviceId=${deviceId}&token=${encodeURIComponent(token)}`
+      );
+
+      sse.addEventListener("SESSION_INVALIDATED", () => {
+        console.log("[SessionCheck] Received SESSION_INVALIDATED via SSE");
+        handleLogout();
+      });
+
+      sse.addEventListener("CONNECTED", () => {
+        console.log("[SessionCheck] SSE connection established");
+      });
+
+      sse.onerror = (error) => {
+        console.error("[SessionCheck] SSE connection error:", error);
+        sseRef.current = null;
+        sse.close();
+        
+        // Fall back to polling on SSE failure
+        if (!hasLoggedOutRef.current && !intervalRef.current) {
+          console.log("[SessionCheck] Falling back to polling");
+          intervalRef.current = setInterval(() => {
+            if (!hasLoggedOutRef.current) {
+              checkSessionPoll();
+            }
+          }, checkInterval);
         }
-      }, checkInterval);
+      };
+
+      sseRef.current = sse;
+      console.log("[SessionCheck] SSE connection initiated");
+    } catch (error) {
+      console.error("[SessionCheck] SSE setup error:", error);
+      // Fall back to polling
+      if (!hasLoggedOutRef.current && !intervalRef.current) {
+        intervalRef.current = setInterval(() => {
+          if (!hasLoggedOutRef.current) {
+            checkSessionPoll();
+          }
+        }, checkInterval);
+      }
     }
+  }, [handleLogout, checkSessionPoll, checkInterval]);
+
+  useEffect(() => {
+    // Initial check
+    const initialTimeout = setTimeout(() => {
+      setupSSE();
+      checkSessionPoll(); // Also do initial poll
+    }, 500);
 
     return () => {
       clearTimeout(initialTimeout);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      if (sseRef.current) {
+        sseRef.current.close();
+      }
     };
-  }, [checkSession, checkInterval]);
+  }, [setupSSE, checkSessionPoll]);
 
-  return null; // This component doesn't render anything
+  return null;
 }

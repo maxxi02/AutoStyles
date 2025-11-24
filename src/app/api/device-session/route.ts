@@ -90,6 +90,28 @@ export async function POST(request: NextRequest) {
 
     console.log("[Device Session] Registered device", deviceId, "for user", uid, "- Invalidated", invalidatedCount, "others");
 
+    // Send real-time notifications to invalidated devices
+    if (invalidatedCount > 0) {
+      try {
+        const notifyResponse = await fetch(
+          new URL("/api/device-session-notify", request.url),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: uid,
+              excludeDeviceId: deviceId,
+            }),
+          }
+        );
+        const notifyData = await notifyResponse.json();
+        console.log("[Device Session] Notifications sent:", notifyData.notifiedCount, "devices");
+      } catch (notifyError) {
+        console.error("[Device Session] Error sending notifications:", notifyError);
+        // Non-critical, continue anyway
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
