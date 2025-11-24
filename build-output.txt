@@ -1,0 +1,88 @@
+
+> client-2@0.1.0 build
+> next build --turbopack
+
+   ▲ Next.js 15.5.4 (Turbopack)
+   - Environments: .env
+   - Experiments (use with caution):
+     · turbopack
+
+   Creating an optimized production build ...
+ ✓ Finished writing to disk in 153ms
+ ✓ Compiled successfully in 15.5s
+   Linting and checking validity of types ...
+
+./src/app/(dashboard)/(admin-section)/a/account/page.tsx
+98:9  Warning: 'router' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+132:10  Warning: 'showPrivacyDialog' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+132:29  Warning: 'setShowPrivacyDialog' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+133:10  Warning: 'showTermsDialog' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+133:27  Warning: 'setShowTermsDialog' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+360:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(admin-section)/a/analytics/page.tsx
+94:10  Warning: 'snapshotCount' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+96:25  Warning: 'setRevenuePeriod' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(admin-section)/a/cashier/page.tsx
+98:10  Warning: 'snapshotCount' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(admin-section)/a/dashboard/page.tsx
+175:3  Warning: 'total' is defined but never used.  @typescript-eslint/no-unused-vars
+190:18  Warning: 'index' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(admin-section)/a/transactions/page.tsx
+171:17  Warning: 'readonly' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+194:10  Warning: 'snapshotCount' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(autoworkers-section)/w/account/page.tsx
+34:3  Warning: 'ArrowLeft' is defined but never used.  @typescript-eslint/no-unused-vars
+36:3  Warning: 'Bell' is defined but never used.  @typescript-eslint/no-unused-vars
+43:8  Warning: 'Link' is defined but never used.  @typescript-eslint/no-unused-vars
+105:9  Warning: 'router' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+365:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(client-section)/c/about/page.tsx
+12:10  Warning: 'Badge' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(client-section)/c/account/page.tsx
+97:9  Warning: 'router' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+361:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(client-section)/c/customization/page.tsx
+148:10  Warning: 'snapshotCount' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(client-section)/c/dashboard/page.tsx
+145:10  Warning: 'profile' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+158:10  Warning: 'showEditProfile' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+158:27  Warning: 'setShowEditProfile' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+159:10  Warning: 'showChangePassword' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+159:30  Warning: 'setShowChangePassword' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+160:10  Warning: 'editForm' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+257:24  Warning: 'docError' is defined but never used.  @typescript-eslint/no-unused-vars
+309:22  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(client-section)/c/transactions/page.tsx
+187:10  Warning: 'snapshotCount' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+211:10  Warning: 'paymentMethod' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+211:25  Warning: 'setPaymentMethod' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+468:24  Warning: 'docError' is defined but never used.  @typescript-eslint/no-unused-vars
+665:6  Warning: React Hook useEffect has missing dependencies: 'appointmentTime' and 'getAvailableTimes'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+682:6  Warning: React Hook useEffect has missing dependencies: 'editTime' and 'getAvailableTimes'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1242:25  Warning: 'type' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/api/protected-data/route.ts
+17:12  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/middleware.ts
+27:12  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/components/nav-user.tsx
+66:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/components/team-switcher.tsx
+22:11  Warning: 'isMobile' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+23:22  Warning: 'setActiveTeam' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...

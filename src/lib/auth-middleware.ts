@@ -1,6 +1,6 @@
 // lib/auth-middleware.ts
-import { NextRequest } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
+import { NextRequest } from "next/server";
 
 export async function verifyAuth(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -10,7 +10,7 @@ export async function verifyAuth(request: NextRequest) {
   }
 
   const token = authHeader.split("Bearer ")[1];
-  const decodedToken = await adminAuth.verifyIdToken(token);
+  const decodedToken = await adminAuth!.verifyIdToken(token);
 
   return decodedToken;
 }

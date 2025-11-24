@@ -1,6 +1,8 @@
 // app/api/verify-token/route.ts
-import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
+import { NextRequest, NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {

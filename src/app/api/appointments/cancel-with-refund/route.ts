@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { NextRequest, NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get appointment and transaction details
-    const appointmentRef = adminDb
+    const appointmentRef = adminDb!
       .collection("appointments")
       .doc(appointmentId);
     const appointmentSnap = await appointmentRef.get();
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get transaction details
-    const transactionRef = adminDb
+    const transactionRef = adminDb!
       .collection("transactions")
       .doc(transactionId);
     const transactionSnap = await transactionRef.get();
@@ -102,12 +104,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Update records in batch
-    const batch = adminDb.batch();
+    const batch = adminDb!.batch();
 
     // Restore inventory
-    const colorRef = adminDb.collection("paintColors").doc(transaction.colorId);
-    const wheelRef = adminDb.collection("wheels").doc(transaction.wheelId);
-    const interiorRef = adminDb
+    const colorRef = adminDb!.collection("paintColors").doc(transaction.colorId);
+    const wheelRef = adminDb!.collection("wheels").doc(transaction.wheelId);
+    const interiorRef = adminDb!
       .collection("interiors")
       .doc(transaction.interiorId);
 

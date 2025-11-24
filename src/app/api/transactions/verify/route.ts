@@ -2,6 +2,8 @@ import { adminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const PAYMONGO_SECRET_KEY = process.env.PAYMONGO_SECRET_KEY;
 
 interface PayMongoPayment {
@@ -93,11 +95,11 @@ export async function POST(req: NextRequest) {
     }
 
     // START: CONDITIONAL INVENTORY DEDUCTION
-    const batch = adminDb.batch();
+    const batch = adminDb!.batch();
 
     // Color: Conditional check and update
     if (transaction.colorId) {
-      const colorRef = adminDb
+      const colorRef = adminDb!
         .collection("paintColors")
         .doc(transaction.colorId);
       const colorSnap = await colorRef.get();
@@ -116,7 +118,7 @@ export async function POST(req: NextRequest) {
 
     // Wheels: Conditional check and update
     if (transaction.wheelId) {
-      const wheelRef = adminDb.collection("wheels").doc(transaction.wheelId);
+      const wheelRef = adminDb!.collection("wheels").doc(transaction.wheelId);
       const wheelSnap = await wheelRef.get();
       const wheelData = wheelSnap.data();
       if (!wheelSnap.exists || !wheelData || wheelData.inventory < 1) {
@@ -133,7 +135,7 @@ export async function POST(req: NextRequest) {
 
     // Interior: Conditional check and update
     if (transaction.interiorId) {
-      const interiorRef = adminDb
+      const interiorRef = adminDb!
         .collection("interiors")
         .doc(transaction.interiorId);
       const interiorSnap = await interiorRef.get();
