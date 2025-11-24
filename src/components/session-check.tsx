@@ -144,7 +144,7 @@ export function SessionCheck({
   }, [handleLogout]);
 
   useEffect(() => {
-    // Delay initial check by 3 seconds to let new device fully register after refresh
+    // Delay initial check by 4 seconds to let new device fully register after refresh
     const initialDelay = setTimeout(() => {
       // Setup SSE immediately
       setupSSE();
@@ -156,7 +156,7 @@ export function SessionCheck({
       }, checkInterval);
 
       // Don't do immediate check on mount - wait for first polling interval
-    }, 3000);
+    }, 4000);
 
     return () => {
       clearTimeout(initialDelay);

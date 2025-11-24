@@ -184,13 +184,13 @@ export async function POST(request: NextRequest) {
             }),
           }).then((res) => {
             res.json().then((data) => {
-              console.log("[Fallback] Invalidated and notified", data.notifiedCount, "sessions after 5s delay for user", userId);
+              console.log("[Fallback] Invalidated and notified", data.notifiedCount, "sessions after 10s delay for user", userId);
             });
           }).catch((error) => {
             console.error("[Fallback] Error sending notifications:", error);
           });
         }
-      }, 5000);
+      }, 10000);
     }
 
     return NextResponse.json(
