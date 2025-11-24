@@ -38,9 +38,9 @@ export function SessionCheck({
       sseRef.current = null;
     }
 
-    toast.error("Session Invalidated", {
-      description:
-        "You were logged out because you logged in from another device.",
+    // Session ended - redirect to login
+    toast.error("Session Ended", {
+      description: "Your session has ended. Please log in again.",
       duration: 5000,
     });
 

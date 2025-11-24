@@ -26,11 +26,9 @@ export async function middleware(request: NextRequest) {
     if (!response.ok) {
       const data = await response.json();
       
-      // If session is invalidated from another device, redirect to login with message
+      // If session is invalid, redirect to login
       if (data.reason === "SESSION_INVALIDATED") {
-        const loginUrl = new URL("/login", request.url);
-        loginUrl.searchParams.set("message", "You were logged out because you logged in from another device");
-        return NextResponse.redirect(loginUrl);
+        return NextResponse.redirect(new URL("/login", request.url));
       }
       
       return NextResponse.redirect(new URL("/login", request.url));
