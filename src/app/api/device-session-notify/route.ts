@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
           if (currentSession && !currentSession.isActive) {
             console.log("[SSE] Session already invalidated for device:", deviceId);
             const encoder = new TextEncoder();
-            return new ReadableStream({
+            const readableStream = new ReadableStream({
               start(controller) {
                 const data = JSON.stringify({
                   type: "SESSION_INVALIDATED",
@@ -70,6 +70,15 @@ export async function GET(request: NextRequest) {
                 });
                 controller.enqueue(encoder.encode(`data: ${data}\n\n`));
                 controller.close();
+              },
+            });
+            return new NextResponse(readableStream, {
+              headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "X-Accel-Buffering": "no",
               },
             });
           }
@@ -163,7 +172,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return new Response(readableStream, {
+    return new NextResponse(readableStream, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
