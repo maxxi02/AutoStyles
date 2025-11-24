@@ -143,10 +143,31 @@ export async function POST(request: NextRequest) {
         isActive: true,
       });
 
-      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- Invalidated", invalidatedCount, "others");
+      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- Will invalidate", invalidatedCount, "others after 5s delay");
     }
 
     deviceSessions.set(userId, userSessions);
+
+    // Send delayed invalidation notifications for new device
+    // This gives the new device time to establish connection before old devices are kicked out
+    if (invalidatedCount > 0) {
+      setTimeout(() => {
+        fetch(new URL("/api/device-session-notify", request.url), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: userId,
+            excludeDeviceId: deviceId,
+          }),
+        }).then((res) => {
+          res.json().then((data) => {
+            console.log("[Fallback] Notifications sent:", data.notifiedCount, "devices after 5s delay");
+          });
+        }).catch((error) => {
+          console.error("[Fallback] Error sending notifications:", error);
+        });
+      }, 5000);
+    }
 
     return NextResponse.json(
       {

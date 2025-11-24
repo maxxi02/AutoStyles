@@ -89,14 +89,17 @@ export async function POST(request: NextRequest) {
       console.log("[Device Session] Device", deviceId, "is refreshing for user", uid, "- NOT invalidating others (already registered)");
     } else {
       // New device - invalidate all other active sessions
+      // But mark them with a 5-second delay to allow current device to settle in
       Object.entries(existingSessions).forEach(([key, session]) => {
         if (key !== deviceId) {
           updatedSessions[key] = { ...session, isActive: false, loginTime: session.loginTime };
           invalidatedCount++;
+        } else {
+          updatedSessions[key] = session;
         }
       });
       updatedSessions[deviceId] = newSession;
-      console.log("[Device Session] NEW device", deviceId, "registered for user", uid, "- Invalidated", invalidatedCount, "others");
+      console.log("[Device Session] NEW device", deviceId, "registered for user", uid, "- Will invalidate", invalidatedCount, "others after 5s delay");
     }
 
     // Update Firestore immediately without merge
@@ -104,11 +107,13 @@ export async function POST(request: NextRequest) {
 
     console.log("[Device Session] Registered device", deviceId, "for user", uid);
 
-    // Send real-time notifications to invalidated devices immediately (synchronously)
+    // Send real-time notifications to invalidated devices AFTER a delay
+    // This gives the new device time to establish SSE connection
     // ONLY if we actually invalidated devices (not a refresh)
     if (invalidatedCount > 0) {
-      try {
-        const notifyResponse = await fetch(
+      // Send notifications after 5 seconds to give new device time to connect
+      setTimeout(() => {
+        fetch(
           new URL("/api/device-session-notify", request.url),
           {
             method: "POST",
@@ -118,13 +123,14 @@ export async function POST(request: NextRequest) {
               excludeDeviceId: deviceId, // IMPORTANT: Exclude the newly registered device
             }),
           }
-        );
-        const notifyData = await notifyResponse.json();
-        console.log("[Device Session] Notifications sent:", notifyData.notifiedCount, "devices (excluding new:", deviceId, ")");
-      } catch (notifyError) {
-        console.error("[Device Session] Error sending notifications:", notifyError);
-        // Non-critical, continue anyway
-      }
+        ).then((res) => {
+          res.json().then((data) => {
+            console.log("[Device Session] Notifications sent:", data.notifiedCount, "devices (excluding new:", deviceId, ") after 5s delay");
+          });
+        }).catch((error) => {
+          console.error("[Device Session] Error sending notifications:", error);
+        });
+      }, 5000);
     }
 
     return NextResponse.json(
