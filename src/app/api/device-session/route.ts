@@ -87,7 +87,6 @@ export async function POST(request: NextRequest) {
     // ONLY invalidate other sessions if this is a NEW device (not a refresh)
     // For the same user, only invalidate OTHER devices, not this one
     const updatedSessions: { [key: string]: DeviceSession } = {};
-    const invalidatedSessions: string[] = [];
     
     if (isRefresh) {
       // Same user+device refreshing - just update activity time, don't invalidate others
@@ -97,25 +96,13 @@ export async function POST(request: NextRequest) {
       updatedSessions[sessionKey] = newSession;
       console.log("[Device Session] User", uid, "refreshing device", deviceId, "- NOT invalidating others");
     } else {
-      // New device for this user - mark all other devices of THIS USER as PENDING invalidation
-      // IMPORTANT: Different accounts are never affected because each user has their own Firestore document
+      // New device for this user - just register it without invalidating other devices
+      // AUTOMATIC LOGOUT DISABLED - all devices of same user can stay active simultaneously
       Object.entries(existingSessions).forEach(([key, session]) => {
-        // Extract deviceId from composite key (format: uid:deviceId)
-        const existingDeviceId = key.split(":")[1];
-        if (existingDeviceId !== deviceId && session.isActive) {
-          // Mark as pending invalidation but keep active for 30 seconds
-          invalidatedSessions.push(key);
-          updatedSessions[key] = { 
-            ...session, 
-            pendingInvalidation: true,
-            invalidationScheduledAt: Date.now(),
-          };
-        } else {
-          updatedSessions[key] = session;
-        }
+        updatedSessions[key] = session;
       });
       updatedSessions[sessionKey] = newSession;
-      console.log("[Device Session] NEW device", deviceId, "for user", uid, "- Marked", invalidatedSessions.length, "other devices for delayed invalidation");
+      console.log("[Device Session] NEW device", deviceId, "for user", uid, "- All other devices remain active (auto-logout disabled)");
     }
 
     // Update Firestore immediately
@@ -123,59 +110,7 @@ export async function POST(request: NextRequest) {
 
     console.log("[Device Session] Registered device", deviceId, "for user", uid);
 
-    // Send real-time notifications to invalidated sessions AFTER a delay
-    // ONLY if we actually invalidated sessions (not a refresh)
-    if (invalidatedSessions.length > 0) {
-      // Send notifications after 30 seconds - avoid aggressive logouts
-      // Only the newly logged-in device (this one) stays active
-      setTimeout(() => {
-        // Re-fetch to get latest state and only invalidate if still pending
-        userSessionsRef.get().then((doc) => {
-          if (!doc.exists) return;
-          const currentSessions = doc.data() || {};
-          
-          // Only invalidate sessions that are still marked as pending
-          const sessionsToInvalidate = invalidatedSessions.filter(sKey => {
-            const session = currentSessions[sKey];
-            return session && session.pendingInvalidation;
-          });
-
-          if (sessionsToInvalidate.length === 0) {
-            console.log("[Device Session] No sessions to invalidate after 5s delay for user", uid);
-            return;
-          }
-
-          // Mark sessions as inactive in Firestore
-          const updates: Record<string, boolean | number> = {};
-          sessionsToInvalidate.forEach(sKey => {
-            updates[`${sKey}.isActive`] = false;
-            updates[`${sKey}.pendingInvalidation`] = false;
-          });
-          
-          userSessionsRef.update(updates).then(() => {
-            // Now send notifications
-            fetch(
-              new URL("/api/device-session-notify", request.url),
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  userId: uid,
-                  sessionKey: sessionKey, // Use composite key to exclude current session
-                  targetSessions: sessionsToInvalidate, // Only target these specific sessions
-                }),
-              }
-            ).then((res) => {
-              res.json().then((data) => {
-                console.log("[Device Session] Invalidated and notified", data.notifiedCount, "sessions after 5s delay for user", uid);
-              });
-            }).catch((error) => {
-              console.error("[Device Session] Error sending notifications:", error);
-            });
-          });
-        });
-      }, 30000);
-    }
+    // AUTOMATIC LOGOUT DISABLED - no invalidation notifications sent
 
     return NextResponse.json(
       {

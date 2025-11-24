@@ -122,79 +122,25 @@ export async function POST(request: NextRequest) {
     const existingSession = userSessions.get(deviceId);
     const isRefresh = existingSession && existingSession.isActive;
 
-    // Use composite key for session tracking
-    const sessionKey = `${userId}:${deviceId}`;
-    const invalidatedSessions: string[] = [];
-
     if (isRefresh) {
       // Device already registered - just update timestamp and clear pending flag
       existingSession.timestamp = Date.now();
       existingSession.pendingInvalidation = false; // Clear pending invalidation on refresh
       console.log("[Fallback] Device", deviceId, "is refreshing for user", userId, "- NOT invalidating others (already registered)");
     } else {
-      // New device - mark all OTHER ACTIVE sessions for THIS user as PENDING invalidation
-      // IMPORTANT: Different users have separate session maps, so different accounts never interfere
-      userSessions.forEach((session, dId) => {
-        if (session.isActive && dId !== deviceId) {
-          const otherSessionKey = `${userId}:${dId}`;
-          session.pendingInvalidation = true;
-          session.invalidatedAt = Date.now();
-          invalidatedSessions.push(otherSessionKey);
-        }
-      });
-
-      // Add new session for this user
+      // New device - just register it without invalidating other devices
+      // AUTOMATIC LOGOUT DISABLED - all devices of same user can stay active simultaneously
       userSessions.set(deviceId, {
         timestamp: Date.now(),
         isActive: true,
       });
 
-      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- Marked", invalidatedSessions.length, "other devices for delayed invalidation");
+      console.log("[Fallback] NEW device", deviceId, "registered for user", userId, "- All other devices remain active (auto-logout disabled)");
     }
 
     deviceSessions.set(userId, userSessions);
 
-    // Send delayed invalidation notifications for new device
-    // This gives the new device time to establish connection before old devices are kicked out
-    if (invalidatedSessions.length > 0) {
-      setTimeout(() => {
-        // Verify devices are still pending invalidation before notifying
-        const userSessNow = deviceSessions.get(userId) || new Map();
-        const sessionsToInvalidate = invalidatedSessions.filter(sKey => {
-          const dId = sKey.split(":")[1];
-          const sess = userSessNow.get(dId);
-          return sess && sess.pendingInvalidation;
-        });
-
-        if (sessionsToInvalidate.length > 0) {
-          // Mark as inactive now
-          sessionsToInvalidate.forEach(sKey => {
-            const dId = sKey.split(":")[1];
-            const sess = userSessNow.get(dId);
-            if (sess) {
-              sess.isActive = false;
-              sess.pendingInvalidation = false;
-            }
-          });
-
-          fetch(new URL("/api/device-session-notify", request.url), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: userId,
-              sessionKey: sessionKey,
-              targetSessions: sessionsToInvalidate,
-            }),
-          }).then((res) => {
-            res.json().then((data) => {
-              console.log("[Fallback] Invalidated and notified", data.notifiedCount, "sessions after 30s delay for user", userId);
-            });
-          }).catch((error) => {
-            console.error("[Fallback] Error sending notifications:", error);
-          });
-        }
-      }, 30000);
-    }
+    // AUTOMATIC LOGOUT DISABLED - no invalidation notifications sent
 
     return NextResponse.json(
       {
