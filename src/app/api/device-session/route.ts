@@ -122,8 +122,8 @@ export async function POST(request: NextRequest) {
     // Send real-time notifications to invalidated sessions AFTER a delay
     // ONLY if we actually invalidated sessions (not a refresh)
     if (invalidatedSessions.length > 0) {
-      // Send notifications after 10 seconds to give new device time to connect
-      // and prevent affecting refresh behavior on same device
+      // Send notifications after 30 seconds - avoid aggressive logouts
+      // Only the newly logged-in device (this one) stays active
       setTimeout(() => {
         // Re-fetch to get latest state and only invalidate if still pending
         userSessionsRef.get().then((doc) => {
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
             });
           });
         });
-      }, 10000);
+      }, 30000);
     }
 
     return NextResponse.json(
