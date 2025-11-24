@@ -56,8 +56,9 @@ export async function POST(request: NextRequest) {
     }
 
     const uid = decodedToken.uid;
-    // Use composite key to isolate each user's sessions from each other
-    // This prevents different accounts interfering when logged in simultaneously on same device
+    // IMPORTANT: Each user has their own Firestore document (keyed by uid)
+    // Sessions within that document are keyed by uid:deviceId (composite key)
+    // This ensures different accounts NEVER interfere with each other
     const sessionKey = `${uid}:${deviceId}`;
     const userSessionsRef = adminDb.collection("userSessions").doc(uid);
 
@@ -251,7 +252,9 @@ export async function GET(request: NextRequest) {
     }
 
     const uid = decodedToken.uid;
-    // Use composite key to isolate each user's sessions
+    // CRITICAL: Each user has separate Firestore document (doc(uid))
+    // Sessions keyed by uid:deviceId ensure account isolation
+    // Only THIS user's sessions are checked, never other users' sessions
     const sessionKey = `${uid}:${deviceId}`;
     const userSessionsRef = adminDb.collection("userSessions").doc(uid);
     const userSessionsDoc = await userSessionsRef.get();
@@ -283,7 +286,7 @@ export async function GET(request: NextRequest) {
 
     // Session is still valid even if pending invalidation (grace period)
     if (currentSession.pendingInvalidation) {
-      console.log("[Device Session] Device", deviceId, "is in grace period (pending invalidation)");
+      console.log("[Device Session] Device", deviceId, "user", uid, "is in grace period (pending invalidation)");
     }
 
     // Update last activity time
