@@ -3,34 +3,34 @@
 import { IconDotsVertical, IconLogout } from "@tabler/icons-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    useSidebar,
 } from "@/components/ui/sidebar";
-import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export function NavUser({
   user,
@@ -60,6 +60,31 @@ export function NavUser({
 
   const handleConfirmLogout = async () => {
     try {
+      // Get device ID from cookies
+      const deviceId = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("deviceId="))
+        ?.split("=")[1];
+
+      // Get current token for API call
+      const user = auth.currentUser;
+      if (user && deviceId) {
+        const token = await user.getIdToken();
+        
+        // Call logout API to invalidate device session
+        await fetch("/api/device-session", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, deviceId }),
+        }).catch((error) => {
+          console.error("Error logging out from device session:", error);
+          // Continue with logout even if this fails
+        });
+      }
+
+      // Clear device ID cookie
+      document.cookie = "deviceId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+
       await signOut(auth);
       toast.success("Logged out successfully!");
       router.push("/login");

@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/{database}/documents/users/{request.auth.uid}) &&
+             get(/databases/{database}/documents/users/{request.auth.uid}).data.role == 'admin';
+    }
+    
+    // ============ LOGIN ATTEMPT TRACKING ============
+    match /loginAttempts/{email} {
+      // Allow anyone to read/write their own login attempts (for brute force protection)
+      allow read, write: if request.auth != null;
+      // Allow public write for login attempts (email-based, not user-based)
+      allow write: if resource == null || true;
+      allow read: if true;
+    }
+    
+    // ============ USER SESSIONS (DEVICE LOGIN) ============
+    match /userSessions/{userId} {
+      // Allow users to read their own sessions for real-time updates (optional)
+      allow read: if isOwner(userId);
+      // Allow write only via server-side admin operations
+      // Client-side never writes to this - only the API (with Admin SDK) does
+      allow write: if false;
+    }
+    
+    // ============ USERS ============
+    match /users/{userId} {
+      // Allow users to read their own data
+      allow read: if isOwner(userId);
+      // Allow users to write their own data
+      allow write: if isOwner(userId);
+      // Allow admin to read/write all user data
+      allow read, write: if isAdmin();
+    }
+    
+    // ============ CAR TYPES ============
+    match /carTypes/{document=**} {
+      // Allow anyone to read
+      allow read: if true;
+      // Allow admin to write
+      allow write: if isAdmin();
+    }
+    
+    // ============ CAR MODELS ============
+    match /carModels/{document=**} {
+      // Allow anyone to read
+      allow read: if true;
+      // Allow admin to write
+      allow write: if isAdmin();
+    }
+    
+    // ============ PAINT COLORS ============
+    match /paintColors/{document=**} {
+      // Allow anyone to read
+      allow read: if true;
+      // Allow admin to write
+      allow write: if isAdmin();
+    }
+    
+    // ============ WHEELS ============
+    match /wheels/{document=**} {
+      // Allow anyone to read
+      allow read: if true;
+      // Allow admin to write
+      allow write: if isAdmin();
+    }
+    
+    // ============ INTERIORS ============
+    match /interiors/{document=**} {
+      // Allow anyone to read
+      allow read: if true;
+      // Allow admin to write
+      allow write: if isAdmin();
+    }
+    
+    // ============ PRICING RULES ============
+    match /pricingRules/{document=**} {
+      // Allow anyone to read
+      allow read: if true;
+      // Allow admin to write
+      allow write: if isAdmin();
+    }
+    
+    // ============ TRANSACTIONS ============
+    match /transactions/{transactionId} {
+      // Allow users to read their own transactions
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || isAdmin());
+      // Allow authenticated users to create transactions
+      allow create: if isAuthenticated();
+      // Allow users to update their own transactions
+      allow update, delete: if isAuthenticated() && 
+                               (resource.data.userId == request.auth.uid || isAdmin());
+    }
+    
+    // ============ APPOINTMENTS ============
+    match /appointments/{appointmentId} {
+      // Allow users to read their own appointments
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || isAdmin());
+      // Allow authenticated users to create appointments
+      allow create: if isAuthenticated();
+      // Allow users to update/delete their own appointments
+      allow update, delete: if isAuthenticated() && 
+                               (resource.data.userId == request.auth.uid || isAdmin());
+    }
+    
+    // ============ CATCH-ALL - DENY ALL ============
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,49 +1,50 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from "@/components/ui/card";
 import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+    Field,
+    FieldDescription,
+    FieldGroup,
+    FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { getDeviceFingerprint, getOrCreateDeviceId } from "@/lib/device-session";
+import { auth, db } from "@/lib/firebase";
+import { cn } from "@/lib/utils";
+import { FirebaseError } from "firebase/app";
+import {
+    getMultiFactorResolver,
+    MultiFactorError,
+    MultiFactorResolver,
+    sendPasswordResetEmail,
+    signInWithEmailAndPassword,
+    signOut,
+    TotpMultiFactorGenerator,
+    User,
+} from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import {
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-  getMultiFactorResolver,
-  TotpMultiFactorGenerator,
-  MultiFactorResolver,
-  MultiFactorError,
-  User,
-} from "firebase/auth";
-import { FirebaseError } from "firebase/app";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
@@ -215,9 +216,33 @@ export function LoginForm({
   const handleSuccessLogin = async (user: User) => {
     const role = await fetchUserRole(user.uid);
     const token = await user.getIdToken();
+    const deviceId = getOrCreateDeviceId();
+    const fingerprint = getDeviceFingerprint();
+
+    // Register device session on the server
+    try {
+      const response = await fetch("/api/device-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          deviceId,
+          fingerprint,
+          userAgent: navigator.userAgent,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to register device session:", response.status, errorData);
+      }
+    } catch (error) {
+      console.error("Error registering device session:", error);
+    }
 
     setCookie("authToken", token);
     setCookie("userRole", role);
+    setCookie("deviceId", deviceId);
 
     // Clear login attempts on successful login
     await clearLoginAttempts(emailValue);
