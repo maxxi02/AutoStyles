@@ -1,0 +1,144 @@
+
+> client-2@0.1.0 build
+> next build --turbopack
+
+ ⚠ Invalid next.config.ts options detected: 
+ ⚠     Unrecognized key(s) in object: 'turbopack' at "experimental"
+ ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of c:\Users\jimso\package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * c:\Users\jimso\Desktop\AutoStyles v3\AutoStyles\package-lock.json
+   * c:\Users\jimso\Desktop\package-lock.json
+
+   ▲ Next.js 15.5.4 (Turbopack)
+   - Environments: .env
+   - Experiments (use with caution):
+     · turbopack
+
+   Creating an optimized production build ...
+ ✓ Finished writing to disk in 150ms
+ ✓ Compiled successfully in 22.3s
+   Linting and checking validity of types ...
+
+./src/app/(dashboard)/(admin-section)/a/account/page.tsx
+98:9  Warning: 'router' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+132:10  Warning: 'showPrivacyDialog' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+132:29  Warning: 'setShowPrivacyDialog' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+133:10  Warning: 'showTermsDialog' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+133:27  Warning: 'setShowTermsDialog' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+360:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(admin-section)/a/analytics/page.tsx
+94:10  Warning: 'snapshotCount' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+96:25  Warning: 'setRevenuePeriod' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(admin-section)/a/cashier/page.tsx
+98:10  Warning: 'snapshotCount' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(admin-section)/a/dashboard/page.tsx
+175:3  Warning: 'total' is defined but never used.  @typescript-eslint/no-unused-vars
+190:18  Warning: 'index' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(admin-section)/a/transactions/page.tsx
+171:17  Warning: 'readonly' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+194:10  Warning: 'snapshotCount' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(autoworkers-section)/w/account/page.tsx
+34:3  Warning: 'ArrowLeft' is defined but never used.  @typescript-eslint/no-unused-vars
+36:3  Warning: 'Bell' is defined but never used.  @typescript-eslint/no-unused-vars
+43:8  Warning: 'Link' is defined but never used.  @typescript-eslint/no-unused-vars
+105:9  Warning: 'router' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+365:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(client-section)/c/about/page.tsx
+12:10  Warning: 'Badge' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(client-section)/c/account/page.tsx
+97:9  Warning: 'router' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+361:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(client-section)/c/dashboard/page.tsx
+145:10  Warning: 'profile' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+158:10  Warning: 'showEditProfile' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+158:27  Warning: 'setShowEditProfile' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+159:10  Warning: 'showChangePassword' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+159:30  Warning: 'setShowChangePassword' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+160:10  Warning: 'editForm' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+257:24  Warning: 'docError' is defined but never used.  @typescript-eslint/no-unused-vars
+309:22  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/(dashboard)/(client-section)/c/transactions/page.tsx
+187:10  Warning: 'snapshotCount' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+211:10  Warning: 'paymentMethod' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+211:25  Warning: 'setPaymentMethod' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+468:24  Warning: 'docError' is defined but never used.  @typescript-eslint/no-unused-vars
+665:6  Warning: React Hook useEffect has missing dependencies: 'appointmentTime' and 'getAvailableTimes'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+682:6  Warning: React Hook useEffect has missing dependencies: 'editTime' and 'getAvailableTimes'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1242:25  Warning: 'type' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/api/protected-data/route.ts
+19:12  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/middleware.ts
+27:12  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/components/nav-user.tsx
+66:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/components/team-switcher.tsx
+22:11  Warning: 'isMobile' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+23:22  Warning: 'setActiveTeam' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...
+   Generating static pages (0/26) ...
+   Generating static pages (6/26) 
+   Generating static pages (12/26) 
+   Generating static pages (19/26) 
+ ✓ Generating static pages (26/26)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                  Size  First Load JS
+┌ ○ /                                     22.2 kB         157 kB
+├ ○ /_not-found                               0 B         126 kB
+├ ○ /a/account                            6.25 kB         321 kB
+├ ○ /a/analytics                           118 kB         424 kB
+├ ○ /a/cashier                             242 kB         548 kB
+├ ○ /a/dashboard                           117 kB         422 kB
+├ ○ /a/inventory                          28.2 kB         334 kB
+├ ○ /a/transactions                       21.9 kB         335 kB
+├ ○ /a/users                              2.26 kB         316 kB
+├ ƒ /api/appointments/cancel-with-refund      0 B            0 B
+├ ƒ /api/create-checkout                      0 B            0 B
+├ ƒ /api/paymongo/payments                    0 B            0 B
+├ ƒ /api/protected-data                       0 B            0 B
+├ ƒ /api/refunds/create                       0 B            0 B
+├ ƒ /api/transactions/verify                  0 B            0 B
+├ ƒ /api/verify-token                         0 B            0 B
+├ ƒ /api/webhooks/paymongo                    0 B            0 B
+├ ○ /c/about                              1.24 kB         307 kB
+├ ○ /c/account                            8.08 kB         323 kB
+├ ○ /c/customization                      14.5 kB         328 kB
+├ ○ /c/dashboard                          9.76 kB         322 kB
+├ ○ /c/transactions                       14.5 kB         327 kB
+├ ○ /login                                 150 kB         282 kB
+├ ○ /register                              144 kB         286 kB
+├ ○ /w/account                            14.4 kB         320 kB
+├ ○ /w/assignments                        7.97 kB         321 kB
+└ ○ /w/dashboard                           3.6 kB         316 kB
++ First Load JS shared by all              150 kB
+  ├ chunks/1a17c570973f17bc.js            59.2 kB
+  ├ chunks/46a52fbd7ca3af9a.js            10.7 kB
+  ├ chunks/b2b61ffca4bc172a.js            17.1 kB
+  ├ chunks/e4a25d615fd7626b.js              13 kB
+  ├ chunks/2754ab6f0a4a9ce4.css           23.5 kB
+  └ other shared chunks (total)           26.3 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

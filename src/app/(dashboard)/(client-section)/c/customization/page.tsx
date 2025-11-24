@@ -160,15 +160,6 @@ const CustomizationPage: React.FC = () => {
   }, []);
   // Load data from Firestore
   useEffect(() => {
-    let loadedCount = 0;
-    
-    const checkAllLoaded = () => {
-      loadedCount += 1;
-      if (loadedCount === 6) {
-        setIsDataLoading(false);
-      }
-    };
-
     const unsubscribeCarTypes = onSnapshot(
       collection(db, "carTypes"),
       (snapshot) => {
@@ -176,7 +167,6 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as CarType
         );
         setCarTypes(data);
-        checkAllLoaded();
       }
     );
     const unsubscribeCarModels = onSnapshot(
@@ -186,7 +176,6 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as CarModel
         );
         setCarModels(data);
-        checkAllLoaded();
       }
     );
     const unsubscribePaintColors = onSnapshot(
@@ -196,7 +185,6 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as PaintColor
         );
         setPaintColors(data);
-        checkAllLoaded();
       }
     );
     const unsubscribeWheels = onSnapshot(
@@ -206,7 +194,6 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as Wheel
         );
         setWheels(data);
-        checkAllLoaded();
       }
     );
     const unsubscribeInteriors = onSnapshot(
@@ -216,7 +203,6 @@ const CustomizationPage: React.FC = () => {
           (doc) => ({ id: doc.id, ...doc.data() }) as Interior
         );
         setInteriors(data);
-        checkAllLoaded();
       }
     );
     const unsubscribePricingRules = onSnapshot(
@@ -227,7 +213,6 @@ const CustomizationPage: React.FC = () => {
         );
         // Only show active rules to customers
         setPricingRules(data.filter((rule) => rule.isActive));
-        checkAllLoaded();
       }
     );
     return () => {
@@ -239,6 +224,20 @@ const CustomizationPage: React.FC = () => {
       unsubscribePricingRules();
     };
   }, []);
+
+  // Check when all data is loaded
+  useEffect(() => {
+    if (
+      carTypes.length > 0 &&
+      carModels.length > 0 &&
+      paintColors.length > 0 &&
+      wheels.length > 0 &&
+      interiors.length > 0 &&
+      pricingRules.length >= 0
+    ) {
+      setIsDataLoading(false);
+    }
+  }, [carTypes, carModels, paintColors, wheels, interiors, pricingRules]);
   const getUserDetails = async (userId: string) => {
     try {
       const userDocRef = doc(db, "users", userId);
