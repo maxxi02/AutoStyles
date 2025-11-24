@@ -210,8 +210,9 @@ export async function POST(request: NextRequest) {
     // Notify all connected devices for this user (except the one that triggered the invalidation)
     let notifiedCount = 0;
     activeConnections.forEach((connection, deviceId) => {
+      // Skip if it's the device that just logged in (should be excluded)
       if (connection.userId === userId && deviceId !== excludeDeviceId) {
-        console.log("[SSE] Notifying device:", deviceId);
+        console.log("[SSE] Notifying device:", deviceId, "userId:", userId, "(excluded:", excludeDeviceId, ")");
         const data = JSON.stringify({
           type: "SESSION_INVALIDATED",
           message: "Your session has been invalidated from another device",
@@ -219,10 +220,12 @@ export async function POST(request: NextRequest) {
         });
         connection.respond(data);
         notifiedCount++;
+      } else if (deviceId === excludeDeviceId) {
+        console.log("[SSE] Skipping excluded device:", excludeDeviceId);
       }
     });
 
-    console.log("[SSE] Notified", notifiedCount, "connected devices");
+    console.log("[SSE] Notified", notifiedCount, "connected devices (excluded:", excludeDeviceId, ")");
 
     return NextResponse.json(
       {
