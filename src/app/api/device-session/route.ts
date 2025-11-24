@@ -56,15 +56,18 @@ export async function POST(request: NextRequest) {
     }
 
     const uid = decodedToken.uid;
+    // Use composite key to isolate each user's sessions from each other
+    // This prevents different accounts interfering when logged in simultaneously on same device
+    const sessionKey = `${uid}:${deviceId}`;
     const userSessionsRef = adminDb.collection("userSessions").doc(uid);
 
-    // Get current active sessions
+    // Get current active sessions for this user
     const userSessionsDoc = await userSessionsRef.get();
     const existingSessions: { [key: string]: DeviceSession } =
       userSessionsDoc.exists ? userSessionsDoc.data() || {} : {};
 
-    // Check if this device is ALREADY registered (this is just a refresh, not a new login)
-    const existingDeviceSession = existingSessions[deviceId];
+    // Check if THIS USER+DEVICE combo is ALREADY registered (this is just a refresh, not a new login)
+    const existingDeviceSession = existingSessions[sessionKey];
     const isRefresh = existingDeviceSession && existingDeviceSession.isActive;
 
     // Create new session entry
@@ -78,24 +81,24 @@ export async function POST(request: NextRequest) {
       isActive: true,
     };
 
-    // ONLY invalidate other active sessions if this is a NEW device (not a refresh)
+    // ONLY invalidate other sessions if this is a NEW device (not a refresh)
+    // For the same user, only invalidate OTHER devices, not this one
     const updatedSessions: { [key: string]: DeviceSession } = {};
-    const invalidatedDevices: string[] = [];
+    const invalidatedSessions: string[] = [];
     
     if (isRefresh) {
-      // Device already registered - just update activity time, don't invalidate others
+      // Same user+device refreshing - just update activity time, don't invalidate others
       Object.entries(existingSessions).forEach(([key, session]) => {
         updatedSessions[key] = session;
       });
-      updatedSessions[deviceId] = newSession;
-      console.log("[Device Session] Device", deviceId, "is refreshing for user", uid, "- NOT invalidating others (already registered)");
+      updatedSessions[sessionKey] = newSession;
+      console.log("[Device Session] User", uid, "refreshing device", deviceId, "- NOT invalidating others");
     } else {
-      // New device - mark all other active sessions as PENDING invalidation
-      // This allows them to continue functioning until the 5-second grace period expires
+      // New device for this user - mark all other devices as PENDING invalidation
       Object.entries(existingSessions).forEach(([key, session]) => {
-        if (key !== deviceId && session.isActive) {
+        if (key !== sessionKey && session.isActive) {
           // Mark as pending invalidation but keep active
-          invalidatedDevices.push(key);
+          invalidatedSessions.push(key);
           updatedSessions[key] = { 
             ...session, 
             pendingInvalidation: true,
@@ -105,19 +108,18 @@ export async function POST(request: NextRequest) {
           updatedSessions[key] = session;
         }
       });
-      updatedSessions[deviceId] = newSession;
-      console.log("[Device Session] NEW device", deviceId, "registered for user", uid, "- Marked", invalidatedDevices.length, "devices for delayed invalidation");
+      updatedSessions[sessionKey] = newSession;
+      console.log("[Device Session] NEW device", deviceId, "for user", uid, "- Marked", invalidatedSessions.length, "other devices for delayed invalidation");
     }
 
-    // Update Firestore immediately without merge
+    // Update Firestore immediately
     await userSessionsRef.set(updatedSessions);
 
     console.log("[Device Session] Registered device", deviceId, "for user", uid);
 
-    // Send real-time notifications to invalidated devices AFTER a delay
-    // This gives the new device time to establish SSE connection
-    // ONLY if we actually invalidated devices (not a refresh)
-    if (invalidatedDevices.length > 0) {
+    // Send real-time notifications to invalidated sessions AFTER a delay
+    // ONLY if we actually invalidated sessions (not a refresh)
+    if (invalidatedSessions.length > 0) {
       // Send notifications after 5 seconds to give new device time to connect
       setTimeout(() => {
         // Re-fetch to get latest state and only invalidate if still pending
@@ -125,22 +127,22 @@ export async function POST(request: NextRequest) {
           if (!doc.exists) return;
           const currentSessions = doc.data() || {};
           
-          // Only invalidate devices that are still marked as pending for THIS user
-          const devicesToInvalidate = invalidatedDevices.filter(dId => {
-            const session = currentSessions[dId];
+          // Only invalidate sessions that are still marked as pending
+          const sessionsToInvalidate = invalidatedSessions.filter(sKey => {
+            const session = currentSessions[sKey];
             return session && session.pendingInvalidation;
           });
 
-          if (devicesToInvalidate.length === 0) {
-            console.log("[Device Session] No devices to invalidate after 5s delay for user", uid);
+          if (sessionsToInvalidate.length === 0) {
+            console.log("[Device Session] No sessions to invalidate after 5s delay for user", uid);
             return;
           }
 
-          // Mark devices as inactive in Firestore
+          // Mark sessions as inactive in Firestore
           const updates: Record<string, boolean | number> = {};
-          devicesToInvalidate.forEach(dId => {
-            updates[`${dId}.isActive`] = false;
-            updates[`${dId}.pendingInvalidation`] = false;
+          sessionsToInvalidate.forEach(sKey => {
+            updates[`${sKey}.isActive`] = false;
+            updates[`${sKey}.pendingInvalidation`] = false;
           });
           
           userSessionsRef.update(updates).then(() => {
@@ -152,13 +154,13 @@ export async function POST(request: NextRequest) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   userId: uid,
-                  excludeDeviceId: deviceId, // IMPORTANT: Exclude the newly registered device
-                  targetDevices: devicesToInvalidate, // Only target these specific devices
+                  sessionKey: sessionKey, // Use composite key to exclude current session
+                  targetSessions: sessionsToInvalidate, // Only target these specific sessions
                 }),
               }
             ).then((res) => {
               res.json().then((data) => {
-                console.log("[Device Session] Invalidated and notified", data.notifiedCount, "devices after 5s delay for user", uid);
+                console.log("[Device Session] Invalidated and notified", data.notifiedCount, "sessions after 5s delay for user", uid);
               });
             }).catch((error) => {
               console.error("[Device Session] Error sending notifications:", error);
@@ -243,6 +245,8 @@ export async function GET(request: NextRequest) {
     }
 
     const uid = decodedToken.uid;
+    // Use composite key to isolate each user's sessions
+    const sessionKey = `${uid}:${deviceId}`;
     const userSessionsRef = adminDb.collection("userSessions").doc(uid);
     const userSessionsDoc = await userSessionsRef.get();
 
@@ -255,7 +259,7 @@ export async function GET(request: NextRequest) {
 
     const sessions: { [key: string]: DeviceSession } =
       userSessionsDoc.data() || {};
-    const currentSession = sessions[deviceId];
+    const currentSession = sessions[sessionKey];
 
     // Check if session is active
     // Note: pendingInvalidation does NOT make session invalid yet - it's still active!
@@ -278,7 +282,7 @@ export async function GET(request: NextRequest) {
 
     // Update last activity time
     await userSessionsRef.update({
-      [`${deviceId}.lastActivityTime`]: Date.now(),
+      [`${sessionKey}.lastActivityTime`]: Date.now(),
     });
 
     return NextResponse.json(
@@ -351,12 +355,14 @@ export async function DELETE(request: NextRequest) {
     }
 
     const uid = decodedToken.uid;
+    // Use composite key to isolate each user's sessions
+    const sessionKey = `${uid}:${deviceId}`;
     const userSessionsRef = adminDb.collection("userSessions").doc(uid);
 
     // Mark the session as inactive
     await userSessionsRef.update({
-      [`${deviceId}.isActive`]: false,
-      [`${deviceId}.logoutTime`]: Date.now(),
+      [`${sessionKey}.isActive`]: false,
+      [`${sessionKey}.logoutTime`]: Date.now(),
     });
 
     console.log("[Device Session] Logged out device", deviceId, "for user", uid);

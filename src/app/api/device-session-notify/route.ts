@@ -58,11 +58,12 @@ export async function GET(request: NextRequest) {
 
         if (userSessionsDoc.exists) {
           const sessions = userSessionsDoc.data() || {};
-          const currentSession = sessions[deviceId];
+          const sessionKey = `${userId}:${deviceId}`;
+          const currentSession = sessions[sessionKey];
 
           // If already invalidated, send immediate notification
           if (currentSession && !currentSession.isActive) {
-            console.log("[SSE] Session already invalidated for device:", deviceId);
+            console.log("[SSE] Session already invalidated for user:", userId, "device:", deviceId);
             const encoder = new TextEncoder();
             const readableStream = new ReadableStream({
               start(controller) {
@@ -200,7 +201,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId, excludeDeviceId, targetDevices } = await request.json();
+    const { userId, sessionKey, targetSessions } = await request.json();
 
     if (!userId) {
       return NextResponse.json(
@@ -209,19 +210,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[SSE] Broadcasting invalidation for user:", userId, "excluding device:", excludeDeviceId, "targets:", targetDevices);
+    console.log("[SSE] Broadcasting invalidation for user:", userId, "excluding session:", sessionKey, "targets:", targetSessions);
 
-    // Notify all connected devices for this user (except the one that triggered the invalidation)
+    // Notify only the target sessions (passed as composite keys userId:deviceId)
     let notifiedCount = 0;
     activeConnections.forEach((connection, connectionKey) => {
       // Only notify if:
       // 1. Same user
-      // 2. NOT the excluded device (new login)
-      // 3. Either no targetDevices specified OR device is in targetDevices list
-      const isTargeted = !targetDevices || targetDevices.length === 0 || targetDevices.includes(connection.deviceId);
+      // 2. NOT the session that triggered invalidation
+      // 3. Session is in the targetSessions list
+      const isTarget = targetSessions && targetSessions.includes(connectionKey);
       
-      if (connection.userId === userId && connection.deviceId !== excludeDeviceId && isTargeted) {
-        console.log("[SSE] Notifying connection:", connectionKey, "user:", userId, "device:", connection.deviceId, "(excluded:", excludeDeviceId, ")");
+      if (connection.userId === userId && connectionKey !== sessionKey && isTarget) {
+        console.log("[SSE] Notifying session:", connectionKey, "for user:", userId);
         const data = JSON.stringify({
           type: "SESSION_INVALIDATED",
           message: "Your session has been invalidated from another device",
@@ -229,14 +230,12 @@ export async function POST(request: NextRequest) {
         });
         connection.respond(data);
         notifiedCount++;
-      } else if (connection.deviceId === excludeDeviceId) {
-        console.log("[SSE] Skipping excluded device:", excludeDeviceId, "key:", connectionKey);
-      } else if (!isTargeted && connection.userId === userId) {
-        console.log("[SSE] Skipping non-targeted device:", connection.deviceId, "key:", connectionKey);
+      } else if (connection.userId === userId && !isTarget) {
+        console.log("[SSE] Skipping non-targeted session:", connectionKey);
       }
     });
 
-    console.log("[SSE] Notified", notifiedCount, "connected devices for user", userId, "(excluded:", excludeDeviceId, ")");
+    console.log("[SSE] Notified", notifiedCount, "connected sessions for user", userId);
 
     return NextResponse.json(
       {
