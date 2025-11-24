@@ -74,19 +74,21 @@ export async function POST(request: NextRequest) {
 
     // Invalidate all other active sessions
     const updatedSessions: { [key: string]: DeviceSession } = {};
+    let invalidatedCount = 0;
     Object.entries(existingSessions).forEach(([key, session]) => {
       if (key !== deviceId) {
-        updatedSessions[key] = { ...session, isActive: false };
+        updatedSessions[key] = { ...session, isActive: false, loginTime: session.loginTime };
+        invalidatedCount++;
       }
     });
 
     // Add the new session
     updatedSessions[deviceId] = newSession;
 
-    // Update Firestore
-    await userSessionsRef.set(updatedSessions, { merge: true });
+    // Update Firestore immediately without merge
+    await userSessionsRef.set(updatedSessions);
 
-    console.log("[Device Session] Registered device", deviceId, "for user", uid, "- Invalidated", Object.keys(updatedSessions).length - 1, "others");
+    console.log("[Device Session] Registered device", deviceId, "for user", uid, "- Invalidated", invalidatedCount, "others");
 
     return NextResponse.json(
       {

@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
  * This is a fallback for when Firestore is not available
  * Note: In production with multiple servers, this won't sync across instances
  */
-const deviceSessions = new Map<string, Map<string, { timestamp: number; isActive: boolean }>>();
+const deviceSessions = new Map<string, Map<string, { timestamp: number; isActive: boolean; invalidatedAt?: number }>>();
 
 /**
  * GET /api/device-session-fallback
@@ -81,10 +81,15 @@ export async function POST(request: NextRequest) {
     // Invalidate all other devices for this user (using a fixed key for fallback)
     const userKey = "fallback";
     const userSessions = deviceSessions.get(userKey) || new Map();
+    let invalidatedCount = 0;
 
-    // Mark all other sessions as inactive
+    // Mark all other sessions as inactive immediately
     userSessions.forEach((session) => {
-      session.isActive = false;
+      if (session.isActive) {
+        session.isActive = false;
+        session.invalidatedAt = Date.now();
+        invalidatedCount++;
+      }
     });
 
     // Add new session
@@ -95,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     deviceSessions.set(userKey, userSessions);
 
-    console.log("[Fallback] Registered device session:", deviceId, "- Invalidated others");
+    console.log("[Fallback] Registered device session:", deviceId, "- Invalidated", invalidatedCount, "others");
 
     return NextResponse.json(
       {

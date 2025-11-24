@@ -15,34 +15,57 @@ interface SessionCheckProps {
  * Redirects to login if the session has been invalidated from another device
  */
 export function SessionCheck({
-  checkInterval = 30000, // Check every 30 seconds
+  checkInterval = 5000, // Check every 5 seconds for faster responsiveness
 }: SessionCheckProps) {
   const router = useRouter();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasLoggedOutRef = useRef<boolean>(false);
 
+  const handleLogout = useCallback(async () => {
+    if (hasLoggedOutRef.current) return;
+    
+    hasLoggedOutRef.current = true;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    toast.error("Session Invalidated", {
+      description:
+        "You were logged out because you logged in from another device.",
+      duration: 5000,
+    });
+
+    try {
+      await auth.signOut();
+    } catch (signOutError) {
+      console.debug("Error signing out:", signOutError);
+    }
+
+    // Small delay to ensure logout is processed before redirect
+    await new Promise(resolve => setTimeout(resolve, 100));
+    router.push("/login?message=logged_out_from_another_device");
+  }, [router]);
+
   const checkSession = useCallback(async () => {
-    // Prevent multiple logout attempts
     if (hasLoggedOutRef.current) return;
 
     try {
       const user = auth.currentUser;
       if (!user) {
-        console.debug("No current user, skipping session check");
+        console.debug("[SessionCheck] No current user");
         return;
       }
 
-      const token = await user.getIdToken();
+      const token = await user.getIdToken(false); // Get cached token first
       const cookies = document.cookie.split("; ");
       const deviceIdCookie = cookies.find((row) => row.startsWith("deviceId="));
       const deviceId = deviceIdCookie?.split("=")[1];
 
       if (!deviceId) {
-        console.debug("No device ID found in cookies");
+        console.debug("[SessionCheck] No device ID");
         return;
       }
 
-      console.debug("[SessionCheck] Verifying session...");
       const response = await fetch("/api/device-session", {
         method: "GET",
         headers: {
@@ -53,32 +76,11 @@ export function SessionCheck({
       });
 
       const data = await response.json().catch(() => ({}));
-      console.debug("[SessionCheck] Response:", { status: response.status, data });
 
       // Check if session was invalidated
-      if (data.reason === "SESSION_INVALIDATED") {
-        console.warn("[SessionCheck] Session invalidated from another device");
-        // Prevent multiple logout attempts
-        hasLoggedOutRef.current = true;
-
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
-
-        toast.error("Session Invalidated", {
-          description:
-            "You were logged out because you logged in from another device.",
-          duration: 5000,
-        });
-
-        // Logout and redirect
-        try {
-          await auth.signOut();
-        } catch (signOutError) {
-          console.debug("Error signing out:", signOutError);
-        }
-
-        router.push("/login?message=logged_out_from_another_device");
+      if (data.reason === "SESSION_INVALIDATED" || !data.isValid) {
+        console.warn("[SessionCheck] Session invalidated");
+        await handleLogout();
         return;
       }
 
@@ -86,23 +88,20 @@ export function SessionCheck({
         console.debug("[SessionCheck] Response not OK:", response.status);
         return;
       }
-
-      console.debug("[SessionCheck] Session valid");
     } catch (error) {
-      // Log errors for debugging but don't interrupt user experience
       if (error instanceof Error) {
-        console.debug("Session check error:", error.message);
+        console.debug("[SessionCheck] Error:", error.message);
       }
     }
-  }, [router]);
+  }, [handleLogout]);
 
   useEffect(() => {
-    // Initial check after a short delay to let auth state settle
+    // Initial check after minimal delay
     const initialTimeout = setTimeout(() => {
       checkSession();
-    }, 2000);
+    }, 500);
 
-    // Set up periodic checks only if we haven't logged out yet
+    // Set up periodic checks with faster interval
     if (!hasLoggedOutRef.current) {
       intervalRef.current = setInterval(() => {
         if (!hasLoggedOutRef.current) {
