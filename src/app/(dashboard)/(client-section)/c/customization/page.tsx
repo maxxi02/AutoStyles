@@ -139,9 +139,6 @@ const CustomizationPage: React.FC = () => {
   const [selectedWheelId, setSelectedWheelId] = useState<string>("");
   const [selectedInteriorId, setSelectedInteriorId] = useState<string>("");
   const [history, setHistory] = useState<CustomizationState[]>([]);
-  const [currentState, setCurrentState] = useState<CustomizationState | null>(
-    null
-  );
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   // Loading state
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -301,28 +298,10 @@ const CustomizationPage: React.FC = () => {
   const selectedWheel = wheels.find((w) => w.id === selectedWheelId);
   const selectedInterior = interiors.find((i) => i.id === selectedInteriorId);
   useEffect(() => {
+    // Track customization changes (for future history feature)
+    // Currently just a placeholder to keep the history state available
     if (selectedTypeId && selectedModelId) {
-      const newState: CustomizationState = {
-        typeId: selectedTypeId,
-        modelId: selectedModelId,
-        colorId: selectedColorId,
-        wheelId: selectedWheelId,
-        interiorId: selectedInteriorId,
-      };
-      setHistory((prev) => {
-        if (
-          currentState &&
-          (currentState.typeId !== newState.typeId ||
-            currentState.modelId !== newState.modelId ||
-            currentState.colorId !== newState.colorId ||
-            currentState.wheelId !== newState.wheelId ||
-            currentState.interiorId !== newState.interiorId)
-        ) {
-          return [...prev, currentState];
-        }
-        return prev;
-      });
-      setCurrentState(newState);
+      // Can be used for undo/redo functionality in the future
     }
   }, [
     selectedTypeId,
@@ -330,7 +309,6 @@ const CustomizationPage: React.FC = () => {
     selectedColorId,
     selectedWheelId,
     selectedInteriorId,
-    currentState,
   ]);
   // Reset image index when color changes
   useEffect(() => {
